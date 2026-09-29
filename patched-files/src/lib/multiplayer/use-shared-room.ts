@@ -132,6 +132,11 @@ export function useSharedRoom(room: string, selfId: string, name: string): { sta
     wireMarks = { sig: "", set: "", hand: "", rv: 0, fx: "" };
     let abort: AbortController | null = null;
     let pollGen = 0;
+    // While the tab is hidden (backgrounded, screen locked) we stop polling
+    // entirely instead of holding a long-poll connection open. That's what
+    // lets a free-tier host actually go to sleep when nobody's looking —
+    // the loop below picks back up the instant the tab is visible again.
+    let hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
     let missingStrikes = 0;
     let retry = 0;
 
@@ -236,7 +241,7 @@ export function useSharedRoom(room: string, selfId: string, name: string): { sta
     };
 
     const pull = async (snap: boolean) => {
-      if (!live()) return;
+      if (!live() || hidden) return;
       const gen = ++pollGen;
       abort?.abort();
       const ctrl = new AbortController();
@@ -286,13 +291,21 @@ export function useSharedRoom(room: string, selfId: string, name: string): { sta
       } finally {
         window.clearTimeout(timer);
       }
-      if (!again || gen !== pollGen || !live()) return;
+      if (!again || gen !== pollGen || !live() || hidden) return;
       if (pause) await new Promise((resolve) => window.setTimeout(resolve, pause));
-      if (gen === pollGen && live()) void pull(false);
+      if (gen === pollGen && live() && !hidden) void pull(false);
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden") {
+        // Stop polling immediately — abort whatever long-poll is in flight
+        // rather than letting it run its full 25s before the loop notices.
+        hidden = true;
+        pollGen += 1;
+        abort?.abort();
+        return;
+      }
+      hidden = false;
       releaseOnline();
       setStatus("connecting");
       void pull(true);

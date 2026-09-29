@@ -406,7 +406,14 @@ function PickGrid({
             onClick={() => onToggle(card, !on)}
             className={`overflow-hidden rounded-[12px] border text-left ${on ? "border-brass" : "border-line opacity-45"}`}
           >
-            <img src={cardArt(card.id, heist)} alt="" className="aspect-[2/3] w-full bg-[#1a1410] object-contain object-center" />
+            <img
+              src={cardArt(card.id, heist)}
+              alt=""
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.opacity = "0";
+              }}
+              className="aspect-[2/3] w-full bg-[#1a1410] object-contain object-center"
+            />
             <span className="block truncate px-1.5 py-1 text-xs">{label}</span>
           </button>
         );

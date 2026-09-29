@@ -372,6 +372,16 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
   if (solved) {
     for (const id of asked) if (!holding.has(id) && !table.has(id)) markSolution(id);
   }
+  // The case is closed: the winning accusation names the real suspect, room,
+  // weapon (and time). That's public the instant anyone wins it, same as
+  // flipping over the case file at a real table — so every player's own
+  // journal gets it auto-marked, not just the winner's.
+  if (state.phase === "gameover" && state.accusation?.correct) {
+    const acc = state.accusation as { suspectId?: string; roomId?: string; weaponId?: string; timeId?: string };
+    for (const id of [acc.suspectId, acc.roomId, acc.weaponId, acc.timeId]) {
+      if (id) markSolution(String(id));
+    }
+  }
   if (seenId && (lastShown?.cardId !== seenId || lastShown?.fromId !== seenFrom)) {
     lastShown = { cardId: seenId, fromId: seenFrom };
     changed = true;
