@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { avatarCharacters } from "@/lib/game/cards";
 import { useGame } from "@/lib/game/store";
 import type { Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
@@ -7,7 +8,7 @@ import { Headshot, suspectArt } from "./PlayerBadge";
 
 /**
  * "Pick Your Character": a button that opens a popup of every character profile picture in
- * this game's deck. The chosen card's art becomes the player's profile picture (journal
+ * the game, whether or not that character is a card in this deck. The chosen character's art becomes the player's profile picture (journal
  * header, lobby). One guest per character; taken ones are dimmed and name who has them.
  */
 export function PickCharacterButton({
@@ -36,7 +37,7 @@ export function CharacterPicker({ player, onClose }: { player: Player; onClose: 
   const state = useGame((s) => s.state);
   const setAvatar = useGame((s) => s.setAvatar);
   if (!state) return null;
-  const characters = state.cards.filter((card) => card.category === "suspect");
+  const characters = avatarCharacters(state.cards);
   const owners = new Map<string, Player>(state.players.filter((p) => p.avatar).map((p): [string, Player] => [p.avatar as string, p]));
   const current = state.players.find((p) => p.id === player.id)?.avatar;
 

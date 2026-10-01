@@ -293,3 +293,8 @@ body {
 .swap-in{animation:swap-in 420ms cubic-bezier(.22,1,.36,1) both}
 @keyframes swap-in{from{opacity:0;transform:translate3d(0,14px,0) scale(.97)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
 @media (prefers-reduced-motion:reduce){.swap-in{animation:none}}
+
+/* A card chosen from a hand zooms up to full size. */
+@keyframes card-zoom{from{opacity:0;transform:translateY(28px) scale(.55)}to{opacity:1;transform:none}}
+.card-zoom{animation:card-zoom 280ms cubic-bezier(.2,.8,.2,1) both}
+@media (prefers-reduced-motion:reduce){.card-zoom{animation:none}}

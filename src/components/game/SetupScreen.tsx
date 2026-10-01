@@ -230,7 +230,7 @@ export function SetupScreen() {
 
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium">Thief mode</p>
+              <p className="font-medium">Heist mode</p>
               <p className="text-sm text-muted">The case is a theft. These cards become the jewels, paintings, and other valuables that were stolen.</p>
             </div>
             <Switch checked={Boolean(setup.settings.heist)} onCheckedChange={(v) => patchSettings({ heist: v })} />

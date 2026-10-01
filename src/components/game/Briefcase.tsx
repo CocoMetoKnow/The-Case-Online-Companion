@@ -318,7 +318,7 @@ export function Briefcase() {
         {me?.eliminated && state.phase !== "gameover" ? (
           <p className="mt-1 shrink-0 rounded-xl border border-[#a33b32]/60 bg-[#2a1410] px-3 py-2 text-sm text-paper" role="status">
             <span className="font-display text-lg text-brass">You are out of the case.</span>{" "}
-            {state.settings.heist ? "Your guess at the theft was wrong." : "Your Solve the Case was wrong."} You no longer take turns, but your cards
+            Your Solve the Case was wrong. You no longer take turns, but your cards
             stay in play and you still show one when asked. The journal stays open.
           </p>
         ) : null}
@@ -390,9 +390,7 @@ export function Briefcase() {
           {guide && cur ? (
             <p className="shrink-0 truncate text-[11px] text-muted">
               {guide.controllerId === actor
-                ? state.settings.heist
-                  ? `You guide ${cur.name}. You cannot name the theft, and their cards stay theirs.`
-                  : `You guide ${cur.name}. No accusation, and their cards stay theirs.`
+                ? `You guide ${cur.name}. You cannot Solve the Case for them, and their cards stay theirs.`
                 : `${state.players.find((p) => p.id === guide.controllerId)?.name ?? "A guest"} guides this turn.`}
             </p>
           ) : null}
@@ -472,9 +470,7 @@ export function Briefcase() {
                 >
                   {state.question?.offerAccusation
                     ? "Name them to win"
-                    : state.settings.heist
-                      ? "Name the theft"
-                      : "Solve the Case"}
+                    : "Solve the Case"}
                 </Button>
               ) : null}
               {(state.actionsLeft ?? 1) === 0 || influenced || !state.question?.offerAccusation ? (
@@ -741,7 +737,7 @@ function VerdictScene({ state, verdict, onClose }: { state: GameState; verdict: 
     <main className="folio-sheet verdict-fail overflow-auto">
       <div className="mx-auto flex min-h-full max-w-lg flex-col px-4 py-8">
         <p className="text-xs uppercase tracking-[0.28em] text-[#e7b3a8]">
-          {state.settings.heist ? "The theft" : "Solve the Case"}
+          {"Solve the Case"}
         </p>
         <h1 className="verdict-seal mt-3 font-display text-6xl leading-none text-[#fff6f4]">{cards ? "Not the truth" : "Wrong"}</h1>
         <p className="mt-3 font-display text-3xl leading-tight text-[#ffd0c8]">

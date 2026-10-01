@@ -101,9 +101,19 @@ test("answering no moves to the next player, and the last no gives everyone a no
   assert.equal(cur.state.question!.askingId, "cy");
   cur = applyPlay(cur.state, threeSecrets(), "cy", "reply", { has: false });
   assert.equal(cur.state.question, null);
-  assert.equal(cur.state.phase, "action");
+  // Nobody showed a card, so the asker's turn is over right away: it is Bea's roll now.
+  assert.equal(cur.state.phase, "roll");
+  assert.equal(cur.state.turnIndex, 1);
   assert.match(cur.state.notice ?? "", /No one had a card/);
-  assert.equal(cur.state.turnIndex, 0);
+});
+
+test("in a two player game, one no ends the turn at once and the other player rolls", () => {
+  let cur = applyPlay(base(), secrets(), "ada", "ask", {});
+  assert.equal(cur.state.question!.askingId, "bea");
+  cur = applyPlay(cur.state, secrets(), "bea", "reply", { has: false });
+  assert.equal(cur.state.question, null);
+  assert.equal(cur.state.phase, "roll");
+  assert.equal(cur.state.turnIndex, 1);
 });
 
 test("yes lets the player pick any card from their hand, then the asker sees it and the turn ends", () => {

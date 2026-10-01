@@ -1,5 +1,5 @@
-import { PHYSICAL_EVENTS } from "./cards";
-import { reachable, roomById, START_HALL } from "./board";
+import { PHYSICAL_EVENTS, eventsForPlayers } from "./cards";
+import { nearestRooms, roomById, START_HALL } from "./board";
 import { currentName, currentPlayer, holdForBoard, placePlayer, roomsInPlay, turnActorId } from "./engine";
 import type { CategoryId, EventKind, GameState, PiecePos, Secrets } from "./types";
 import { uid } from "../utils";
@@ -12,6 +12,11 @@ function log(state: GameState, text: string): GameState {
 }
 
 function resumeAction(state: GameState): GameState {
+  // On the digital board a roll still has to be walked after the power is done. Bonus Roll,
+  // Speed Boost and Thief raise that number, so keep it and go to the move step.
+  if (state.settings?.table === "board" && (state.moveBudget ?? 0) > 0) {
+    return { ...state, phase: "move", event: null, actionsLeft: 1 };
+  }
   return { ...state, phase: "action", event: null, moveBudget: 0, actionsLeft: 1 };
 }
 
@@ -208,7 +213,7 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
       return { state, secrets };
     case "wrong-turn": {
       const pool = state.players.filter((p) => !p.eliminated);
-      const rooms = state.settings.enabledRoomIds.length
+      const rooms = state.settings.enabledRoomIds?.length
         ? state.settings.enabledRoomIds
         : state.cards.filter((c) => c.category === "room").map((c) => c.id);
       if (!pool.length || !rooms.length) {
@@ -258,12 +263,18 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
         secrets,
       };
     case "food-poisoning": {
+      // Every other guest still in the game. The one who drew it keeps their own notes, otherwise
+      // their notes would shut in the middle of the turn they are playing.
       const notesLock = { ...(state.notesLock ?? {}) };
-      for (const p of state.players) notesLock[p.id] = (notesLock[p.id] ?? 0) + 1;
+      const drawer = currentPlayer(state);
+      for (const p of state.players) {
+        if (p.eliminated || p.id === drawer?.id) continue;
+        notesLock[p.id] = (notesLock[p.id] ?? 0) + 1;
+      }
       return {
         state: settle(
           { ...state, notesLock },
-          "Supper sits badly. Play on — notes stay shut on each phone for that player's next turn only.",
+          "Supper sits badly. Every other guest's notes stay shut for their next turn only.",
         ),
         secrets,
       };
@@ -329,6 +340,17 @@ export function resolveEventChoice(
   const cur = currentPlayer(state);
   const actorTurn = turnActorId(state);
   const isTurnActor = actorTurn === playerId;
+
+  // The way out. Every power-up, at every step, can be finished with one tap, so a power that has
+  // nothing left to do (nowhere to move, nobody to pick, a player who walked away) can never hold the
+  // game. Whoever is playing the turn may always finish it; so may the guest the power is waiting on.
+  if (choice.finish) {
+    const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
+    const involved = !isOut(state, playerId) && waitingOn.includes(playerId);
+    if (!isTurnActor && !involved) return { state, secrets };
+    const who = state.players.find((p) => p.id === playerId);
+    return { state: settle(state, `${who?.name ?? "A guest"} finished the ${ev.title} power-up. The turn goes on.`), secrets };
+  }
 
   if (ev.step === "reveal") {
     const living = state.players.filter((player) => !player.eliminated);
@@ -434,7 +456,8 @@ export function resolveEventChoice(
       ...((ev.data.picks as Record<string, string> | undefined) ?? {}),
     };
     if (choice.cardId) picks[playerId] = String(choice.cardId);
-    const needed = state.players.filter((p) => (secrets.hands[p.id] ?? []).length > 0);
+    // Guests who are out never pass or receive, so no card can drop out of the game.
+    const needed = state.players.filter((p) => !p.eliminated && (secrets.hands[p.id] ?? []).length > 0);
     const missing = needed.filter((p) => !picks[p.id] || !secrets.hands[p.id]?.includes(picks[p.id]));
     if (missing.length) {
       return {
@@ -449,7 +472,7 @@ export function resolveEventChoice(
     const passed: Record<string, string> = {};
     for (const p of state.players) {
       const cid = picks[p.id];
-      if (!cid) continue;
+      if (!cid || p.eliminated) continue;
       hands[p.id] = (hands[p.id] ?? []).filter((id) => id !== cid);
       passed[p.id] = cid;
     }
@@ -622,7 +645,11 @@ export function resolveEventChoice(
   if (ev.kind === "wild-card" && (ev.step === "intro" || ev.step === "pick-power")) {
     if (!isTurnActor) return { state, secrets };
     const pick = String(choice.kind ?? "");
-    const allowed = PHYSICAL_EVENTS.filter((k) => k !== "wild-card");
+    // Only powers this table could really draw: no hour card with hours off, no Red Herring
+    // with fewer than three guests, no Hush while speaking. A pick outside this list is refused.
+    const living = state.players.filter((p) => !p.eliminated).length;
+    const playable = new Set(eventsForPlayers(living, { ...state.settings, enabledEvents: undefined }));
+    const allowed = PHYSICAL_EVENTS.filter((k) => k !== "wild-card" && playable.has(k));
     if (!allowed.includes(pick as (typeof allowed)[number])) return { state, secrets };
     // Wild Card borrows another power's own flow wholesale: swap the kind and
     // let the normal draw-resolution logic run again as if that card had
@@ -737,8 +764,8 @@ export function resolveEventChoice(
     if (ev.kind === "move-anywhere") {
       valid = enabledRoomIds.includes(roomId);
     } else if (ev.kind === "fast-track") {
-      // Genuinely adjacent — reachable by walking through one hall, passages not included.
-      valid = reachable(cur.position, 2, enabledRoomIds, []).rooms.has(roomId);
+      // The few rooms closest to where the piece stands.
+      valid = nearestRooms(cur.position, enabledRoomIds, state.passages ?? []).includes(roomId);
     } else {
       // Shortcut: either end of any secret passage already marked on the board.
       valid = enabledRoomIds.includes(roomId) && (state.passages ?? []).some((link) => link.a === roomId || link.b === roomId);
@@ -822,7 +849,7 @@ export function resolveEventChoice(
     return {
       state: settle(
         { ...state, influences },
-        `${guideName} will play ${target?.name ?? "a guest"}'s next turn, without ${state.settings.heist ? "naming the theft" : "an accusation"}.`,
+        `${guideName} will play ${target?.name ?? "a guest"}'s next turn, without solving the case.`,
       ),
       secrets,
     };

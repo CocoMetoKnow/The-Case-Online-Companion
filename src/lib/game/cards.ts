@@ -841,7 +841,7 @@ export const EXTRA_GUESTS: CardDef[] = [
 	{ id: "ki-annie", category: "suspect", name: "Ki Annie", blurb: "The artist. There is always a little paint on her sleeve.", icon: "UserRound" },
 ];
 
-/** Opening Night, plus the late arrivals. The Take turns thief mode on with this deck. */
+/** Opening Night, plus the late arrivals. The Take turns heist mode on with this deck. */
 const TAKE_GUEST_IDS = ["the-chauffeur", "mr-broke", "oakley-autumns", "mr-fairwind", "madame-coral", "miss-penny", "ki-annie"];
 
 export function takeDeck(): CardDef[] {
@@ -902,3 +902,32 @@ export const UNDERGROUND_PASSAGES: { a: string; b: string }[] = [
 	{ a: "catacombs", b: "the-vault" },
 	{ a: "smugglers-tunnel", b: "boiler-room" },
 ];
+
+
+/**
+ * Every character portrait in the game, whether or not that character is a card in this
+ * deck. Profile pictures come from here, so nobody has to be a suspect card to be picked.
+ */
+export function allCharacters(): CardDef[] {
+	const seen = new Set<string>();
+	const out: CardDef[] = [];
+	for (const card of [...DEFAULT_CARDS, ...CLASSIC_CARDS, ...EXTRA_GUESTS]) {
+		if (card.category !== "suspect" || seen.has(card.id)) continue;
+		seen.add(card.id);
+		out.push({ ...card });
+	}
+	return retireBorrowedNames(out);
+}
+
+/**
+ * The characters a guest can use as a profile picture: the whole catalog, with this
+ * deck's own version of a card (renamed or custom photo) winning, then any custom
+ * suspect the host added that is not in the catalog.
+ */
+export function avatarCharacters(deck: CardDef[] | undefined): CardDef[] {
+	const inDeck = new Map((deck ?? []).filter((card) => card.category === "suspect").map((card) => [card.id, card]));
+	const out = allCharacters().map((card) => inDeck.get(card.id) ?? card);
+	const known = new Set(out.map((card) => card.id));
+	for (const card of inDeck.values()) if (!known.has(card.id)) out.push(card);
+	return out;
+}

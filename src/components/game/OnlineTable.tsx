@@ -1,3 +1,4 @@
+import { copyText } from "@/lib/clipboard";
 import { roomCode } from "@/lib/game/engine";
 import { turnActorId, useGame } from "@/lib/game/store";
 import { useSharedRoom, useRoomLink } from "@/lib/multiplayer/use-shared-room";
@@ -127,11 +128,8 @@ function ShareCode({ code }: { code: string }) {
         return;
       }
     }
-    try {
-      await navigator.clipboard.writeText(`${code}\n${url.toString()}`);
-    } catch {
-      // The lobby still shows the code if the phone blocks copying.
-    }
+    // The lobby still shows the code if the phone blocks copying.
+    await copyText(`${code}\n${url.toString()}`);
   }
   return (
     <button type="button" className="text-brass" onClick={() => void share()}>

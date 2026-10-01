@@ -1,4 +1,4 @@
-import { defaultCardArt } from "@/lib/game/cards";
+import { avatarCharacters, defaultCardArt } from "@/lib/game/cards";
 import type { CardDef, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -12,7 +12,7 @@ export function suspectArt(card: CardDef | undefined): string | undefined {
 /** The chosen character's card art for a player, or nothing if they have not picked one. */
 export function avatarFor(player: Pick<Player, "avatar"> | undefined, cards: CardDef[]): string | undefined {
   if (!player?.avatar) return undefined;
-  return suspectArt(cards.find((card) => card.id === player.avatar));
+  return suspectArt(avatarCharacters(cards).find((card) => card.id === player.avatar));
 }
 
 /**

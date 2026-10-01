@@ -1,4 +1,4 @@
-import { Pointer, Search } from "lucide-react";
+import { Pointer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PIPS: Record<number, Array<[number, number]>> = {
@@ -97,7 +97,15 @@ function Die({
           />
         ))
       ) : (
-        <Search className="die-glass" strokeWidth={2.25} aria-hidden />
+        <span
+          className={cn(
+            "absolute inset-0 grid place-items-center font-display font-bold leading-none text-ink",
+            large ? "text-5xl" : small ? "text-2xl" : "text-4xl",
+          )}
+          aria-hidden
+        >
+          ?
+        </span>
       )}
     </div>
   );

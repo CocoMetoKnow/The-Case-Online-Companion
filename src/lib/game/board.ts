@@ -212,6 +212,30 @@ function neighbors(pos: PiecePos, enabled: Set<string>, passages: Passage[], blo
   return out;
 }
 
+/**
+ * The rooms closest to a piece by walking distance (a secret passage counts as one step).
+ * "Fast Track" uses this: rooms in this game are never one door apart, so a plain two step
+ * search found nothing and the power did nothing. Ties at the cutoff are all included.
+ */
+export function nearestRooms(
+  from: PiecePos,
+  enabledRoomIds: string[],
+  passages: Passage[] = [],
+  count = 3,
+): string[] {
+  const { nodes } = reachable(from, 200, enabledRoomIds, passages);
+  const here = from.kind === "room" ? from.roomId : null;
+  const found: Array<{ id: string; dist: number }> = [];
+  for (const node of nodes.values()) {
+    if (node.pos.kind !== "room" || node.pos.roomId === here) continue;
+    found.push({ id: node.pos.roomId, dist: node.dist });
+  }
+  found.sort((a, b) => a.dist - b.dist);
+  if (found.length <= count) return found.map((room) => room.id);
+  const cutoff = found[count - 1].dist;
+  return found.filter((room) => room.dist <= cutoff).map((room) => room.id);
+}
+
 export function reconstructPath(nodes: Map<string, ReachNode>, dest: PiecePos): PiecePos[] {
   const path: PiecePos[] = [];
   let k: string | null = posKey(dest);

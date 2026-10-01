@@ -1,6 +1,6 @@
-import { reachable, roomById } from "@/lib/game/board";
+import { nearestRooms, roomById } from "@/lib/game/board";
 import { currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
-import { EVENT_DEFS, PHYSICAL_EVENTS, cardsByCategory } from "@/lib/game/cards";
+import { EVENT_DEFS, PHYSICAL_EVENTS, cardsByCategory, eventsForPlayers } from "@/lib/game/cards";
 import type { CategoryId } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
@@ -34,9 +34,17 @@ export function EventPanel() {
   const close = () => setClosedKey(promptKey);
   const cur = currentPlayer(state);
   const acting = turnActorId(state) === actor;
-  const description = state.settings.heist
-    ? ev.description.replace(/final accusation/gi, "naming of the theft")
-    : ev.description;
+  // Old power-up text called the end of the game the "final accusation". It is Solve the Case now.
+  const description = ev.description.replace(/final accusation/gi, "Solve the Case");
+  // The way out of any power-up: whoever is playing the turn, or the guest the power is waiting on
+  // (the same rule the game applies when the button is tapped).
+  const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
+  const canFinish = acting || waitingOn.includes(actor);
+  // The powers a Wild Card can borrow: only ones this table could really draw.
+  const wildChoices = new Set(
+    eventsForPlayers(state.players.filter((p) => !p.eliminated).length, { ...state.settings, enabledEvents: undefined }),
+  );
+  const finish = canFinish ? <FinishPower onFinish={() => eventChoice({ finish: true })} /> : null;
 
   if (hidden) {
     return (
@@ -52,6 +60,7 @@ export function EventPanel() {
       <PowerShell onClose={close} className="wood-panel max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
         <SnakeCallout title={ev.title} description={String(ev.data.boardNote ?? description)} />
         <BoardConfirm />
+        {finish}
       </PowerShell>
     );
   }
@@ -73,6 +82,7 @@ export function EventPanel() {
               This power is in effect
             </Button>
           )}
+          {finish}
         </>
       </PowerShell>
     );
@@ -104,6 +114,7 @@ export function EventPanel() {
               This power is in effect
             </Button>
           )}
+          {finish}
         </>
       </PowerShell>
     );
@@ -134,7 +145,7 @@ export function EventPanel() {
             if (ev.kind === "move-anywhere") {
               roomIds = enabledRoomIds;
             } else if (ev.kind === "fast-track") {
-              roomIds = cur ? [...reachable(cur.position, 2, enabledRoomIds, []).rooms].filter((id) => enabledRoomIds.includes(id)) : [];
+              roomIds = cur ? nearestRooms(cur.position, enabledRoomIds, state.passages ?? []).filter((id) => enabledRoomIds.includes(id)) : [];
             } else {
               const links = state.passages ?? [];
               const set = new Set<string>();
@@ -307,9 +318,9 @@ export function EventPanel() {
         <div className="mt-3 grid grid-cols-1 gap-2">
           {PHYSICAL_EVENTS.filter((k) => {
             if (k === "wild-card") return false;
-            // Red Herring needs two other living players to whisper to; skip offering it otherwise.
-            if (k === "red-herring") return state.players.filter((p) => !p.eliminated).length >= 3;
-            return true;
+            // Only offer powers this table could really draw (hours on, three or more guests for
+            // Red Herring, no Hush while speaking).
+            return wildChoices.has(k);
           }).map((k) => {
             const def = EVENT_DEFS.find((d) => d.kind === k);
             if (!def) return null;
@@ -369,7 +380,8 @@ export function EventPanel() {
         <PlayerPick exclude={actor} label="Play their next turn" onPick={(id) => eventChoice({ targetId: id })} />
       ) : null}
 
-      <button type="button" className="mt-4 w-full text-center text-sm text-subtle underline" onClick={close}>
+      {finish}
+      <button type="button" className="mt-3 w-full text-center text-sm text-subtle underline" onClick={close}>
         Close for now
       </button>
       </>
@@ -396,6 +408,21 @@ function PowerShell({ onClose, className, children }: { onClose: () => void; cla
         </button>
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The definite end of a power-up. "Close for now" only puts the prompt away and leaves the power
+ * pending; this finishes it, so the turn carries on and nothing is left waiting.
+ */
+function FinishPower({ onFinish }: { onFinish: () => void }) {
+  return (
+    <div className="mt-4">
+      <Button className="w-full" variant="outline" data-sfx="confirm" onClick={onFinish}>
+        Finish this power-up
+      </Button>
+      <p className="mt-1 text-center text-xs text-subtle">Ends it now and carries the turn on.</p>
     </div>
   );
 }

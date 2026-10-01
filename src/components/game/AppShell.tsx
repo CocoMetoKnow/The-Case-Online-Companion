@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useGame } from "@/lib/game/store";
+import { flushPersist, useGame } from "@/lib/game/store";
 import { Landing } from "./Landing";
 import { SetupScreen } from "./SetupScreen";
 import { LobbyScreen } from "./LobbyScreen";
@@ -23,6 +23,20 @@ export function AppShell() {
 
   // One document-wide listener gives every button a press sound (see sfx.ts).
   useEffect(() => installUiSounds(), []);
+
+  // A refresh must put the player back at the table, so save the session as the page goes away.
+  useEffect(() => {
+    const flush = () => flushPersist();
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = "The Case";

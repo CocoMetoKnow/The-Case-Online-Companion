@@ -327,8 +327,9 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const reply = useGame((s) => s.reply);
   const showCard = useGame((s) => s.showCard);
   const ackCard = useGame((s) => s.ackCard);
-  const [picked, setPicked] = useState("");
-  // A card tapped inside the Yes / No prompt opens bigger on top of it. The prompt itself never closes.
+  // A card tapped in this panel opens bigger on top of it. When you are choosing which card to show, the
+  // enlarged card carries its own "Show this card" button, so nothing is hidden below the fold.
+  // Inside the Yes / No prompt the same sheet is view-only, and the prompt itself never closes.
   const [zoom, setZoom] = useState<CardDef | null>(null);
   const q = state?.question;
   if (!state || !q) return null;
@@ -364,16 +365,14 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
       <>
         <p className="mt-1 font-display text-2xl text-paper">Pick a card to show</p>
         <p className="text-sm text-muted">Only {asker?.name ?? "the asker"} will see which one.</p>
+        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-brass">Tap a card to look closer</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {hand.map((card) => (
-            <div key={card.id} className={picked === card.id ? "rounded-[12px] ring-2 ring-brass" : ""}>
-              <CardFace card={card} choice onClick={() => setPicked(card.id)} />
+            <div key={card.id}>
+              <CardFace card={card} choice onClick={() => setZoom(card)} />
             </div>
           ))}
         </div>
-        <Button className="mt-4 w-full" size="lg" data-sfx="confirm" disabled={!picked} onClick={() => showCard(picked)}>
-          Show this card
-        </Button>
       </>
     );
   } else if (q.showerId) {
@@ -489,21 +488,63 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
       </div>
     </div>
     {zoom ? (
-      <button
-        type="button"
-        data-sfx="soft"
-        className="fixed inset-0 grid place-items-center bg-black/75"
-        style={{ zIndex: 70 }}
-        aria-label="Close enlarged card"
-        onClick={() => setZoom(null)}
-      >
-        <span className="flex flex-col items-center gap-3">
-          <CardFace card={zoom} large />
-          <span className="text-xs uppercase tracking-[0.16em] text-paper/80">Tap to close</span>
-        </span>
-      </button>
+      <CardZoomSheet
+        card={zoom}
+        onClose={() => setZoom(null)}
+        onShow={
+          q.showerId && actor === q.showerId && !q.shownCardId
+            ? () => {
+                showCard(zoom.id);
+                setZoom(null);
+              }
+            : undefined
+        }
+      />
     ) : null}
     </>
+  );
+}
+
+/**
+ * One card, enlarged over everything. With onShow it is the "choose this card" step: the card zooms in
+ * and the Show this card button sits right under it. Without onShow it only looks closer.
+ */
+function CardZoomSheet({ card, onClose, onShow }: { card: CardDef; onClose: () => void; onShow?: () => void }) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 grid place-items-center overflow-y-auto bg-black/80 p-4"
+      style={{ zIndex: 70, paddingTop: "max(16px, env(safe-area-inset-top))", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
+      role="dialog"
+      aria-label={card.name}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="card-zoom flex flex-col items-center gap-4">
+        <CardFace card={card} large />
+        {onShow ? (
+          <>
+            <Button size="lg" className="w-64" data-sfx="confirm" onClick={onShow}>
+              Show this card
+            </Button>
+            <Button variant="ghost" className="text-paper" onClick={onClose}>
+              Back
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" className="text-paper" onClick={onClose}>
+            Close
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -545,7 +586,7 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
       open={open}
       onOpen={() => setOpen(true)}
       tone="final"
-      title={state.settings.heist ? "Name the theft" : "Solve the Case"}
+      title={"Solve the Case"}
       note={
         forced
           ? "Nobody holds these cards. They are filled in. Name them to win."
@@ -553,13 +594,13 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
             ? "Cards you marked in the journal stay labeled. Name who took it, where, and what was stolen. If you are right, you win."
             : "Cards you marked in the journal stay labeled. Name the whole solution. If you are right, you win."
       }
-      closedLabel={forced ? "Name them to win" : state.settings.heist ? "Name the theft" : "Solve the Case"}
+      closedLabel={forced ? "Name them to win" : "Solve the Case"}
       steps={steps}
       circled={circled}
       initialPick={initialPick}
       startAtConfirm={forced}
       confirmTitle={forced ? "Nobody else has these" : "Are you sure?"}
-      doneLabel={state.settings.heist ? "Name the theft" : "Solve the Case"}
+      doneLabel={"Solve the Case"}
       fit={fit}
       onPick={(chosen) => {
         namePick({
@@ -634,7 +675,7 @@ export function AccusationWatch({ onLeave }: { onLeave?: () => void }) {
       <div className="mx-auto flex min-h-full max-w-lg flex-col px-4 py-5">
         <div className="flex items-start justify-between gap-3">
           <p className="text-xs uppercase tracking-[0.22em] text-[#ffe7a3]">
-            {state.settings.heist ? "Naming the theft" : "Solve the Case"}
+            {"Solve the Case"}
           </p>
           {onLeave ? (
             <button type="button" className="text-sm text-[#ffd7d2]" onClick={onLeave}>
@@ -927,7 +968,7 @@ function PickFlow({
   return (
     <div className={final ? "rounded-[20px] border border-[#ffd0d0]/30 bg-[#8d2a2a] p-4 text-[#fff6f4]" : "wood-panel rounded-[20px] p-4"}>
       <p className={final ? "text-xs uppercase tracking-[0.2em] text-[#ffe7a3]" : "hidden"}>
-        {state.settings.heist ? "The theft" : "Solve the Case"}
+        {"Solve the Case"}
       </p>
       <h3 className={final ? "font-display text-4xl leading-none" : "font-display text-xl"}>{title}</h3>
       <p className={final ? "mt-2 text-sm text-[#ffd7d2]" : "text-sm text-muted"}>{note}</p>
@@ -954,7 +995,7 @@ function PickFlow({
       ) : reviewing ? (
         <div className="mt-3">
           <p className={final ? "text-xs uppercase tracking-[0.16em] text-[#ffd0c8]" : "text-xs uppercase tracking-[0.16em] text-brass"}>
-            {final ? (state.settings.heist ? "The theft" : "Solve the Case") : "Suggestion"}
+            {final ? "Solve the Case" : "Suggestion"}
           </p>
           <p className="font-display text-4xl leading-none">{confirmTitle}</p>
           <div className="mt-3 flex gap-2">

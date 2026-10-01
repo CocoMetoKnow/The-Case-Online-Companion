@@ -68,7 +68,7 @@ export function GameTable() {
         <div className="flex items-center gap-2">
           {canSeatSwitch ? (
             <select
-              className="h-10 rounded-[12px] border border-line bg-raised px-2 text-sm"
+              className="h-10 rounded-[12px] border border-line bg-raised px-2 text-base sm:text-sm"
               value={viewing}
               onChange={(e) => setViewing(e.target.value)}
               aria-label="View as guest"
@@ -116,7 +116,7 @@ export function GameTable() {
             <p className="text-sm text-muted">
               {cur?.name} is in {roomLabel}
               {paces != null && state.phase === "move" ? ` · ${state.moveBudget} of ${paces} paces left` : ""}
-              {guide ? (state.settings.heist ? " · cannot name the theft" : " · no accusation") : ""}
+              {guide ? (" · cannot Solve the Case") : ""}
             </p>
           </div>
         </div>

@@ -11,12 +11,14 @@ const MIGRATED_KEY = "gmm.migrated";
 const DB_NAME = "gmm.vault";
 const DB_STORE = "kv";
 
-// Every match starts fresh, like a physical board sitting back down in its
-// box: nobody's journal or in-progress table should survive past the
-// session that made them. Custom decks — and now the player's own chosen
-// name — are worth keeping: work a player put in on purpose, on their own
-// device. TABLE_KEY and NOTES_KEY are only ever read/deleted below (to
-// clear out anything an older build left behind); they're never written.
+// Custom decks and the player's own chosen name are kept for good. The match in progress is kept
+// only as a "session": the table, this player's seat, and their journal. A refresh (or a phone
+// that reloads the tab) puts that player straight back into the game they were in. Leaving the
+// table, or the game ending, clears it, and a session more than 12 hours old is ignored, so a
+// fresh visit still starts fresh. TABLE_KEY and NOTES_KEY are the keys an older build used; they
+// are only ever deleted below.
+const SESSION_KEY = "gmm.session.v2";
+const SESSION_MAX_AGE = 12 * 60 * 60 * 1000;
 const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY];
 
 export interface TableSave {
@@ -158,6 +160,47 @@ function validTable(value: unknown): TableSave | null {
   return save;
 }
 
+interface SessionBlob {
+  at: number;
+  table: TableSave;
+  notes: Record<string, PlayerNotes>;
+}
+
+let sessionTable: TableSave | null = null;
+let sessionNotes: Record<string, PlayerNotes> = {};
+let sessionTimer: ReturnType<typeof setTimeout> | undefined;
+
+function writeSession() {
+  if (typeof window !== "undefined") window.clearTimeout(sessionTimer);
+  if (!sessionTable) {
+    removeLocal(SESSION_KEY);
+    return;
+  }
+  const prefix = `${sessionTable.state.code}:`;
+  const notes: Record<string, PlayerNotes> = {};
+  for (const [key, sheet] of Object.entries(sessionNotes)) {
+    if (key.startsWith(prefix)) notes[key] = sheet;
+  }
+  writeLocal(SESSION_KEY, { at: Date.now(), table: sessionTable, notes } satisfies SessionBlob);
+}
+
+function readSession(): { table: TableSave; notes: Record<string, PlayerNotes> } | null {
+  const blob = readLocal<SessionBlob>(SESSION_KEY);
+  if (!blob || typeof blob.at !== "number" || Date.now() - blob.at > SESSION_MAX_AGE) {
+    if (blob) removeLocal(SESSION_KEY);
+    return null;
+  }
+  const table = validTable(blob.table);
+  if (!table || table.state.phase === "gameover") {
+    removeLocal(SESSION_KEY);
+    return null;
+  }
+  // Keep what was just loaded, so the next write does not drop the journal.
+  sessionTable = table;
+  sessionNotes = blob.notes && typeof blob.notes === "object" ? blob.notes : {};
+  return { table, notes: sessionNotes };
+}
+
 function collectArt(sets: CardSet[], table: TableSave | null, stored: Record<string, string> | undefined): Record<string, string> {
   const art: Record<string, string> = { ...(stored ?? {}) };
   for (const set of sets) {
@@ -173,19 +216,20 @@ function collectArt(sets: CardSet[], table: TableSave | null, stored: Record<str
 
 export async function loadVault(): Promise<VaultData> {
   await migrateLocal();
-  // Clear out anything an older build saved under the session-scoped keys —
-  // a table or notes left over from before decks and the player's name were
-  // the only things meant to survive a reload.
+  // Clear out anything an older build saved under the old session keys.
   clearSessionScopedKeys();
+  const session = readSession();
+  const table = session?.table ?? null;
+  const notes = session?.notes ?? {};
   const db = await database();
   if (!db) {
     const sets = validSets(readLocal(SETS_KEY));
     const name = readLocal<string>(NAME_KEY) ?? "";
-    return { sets, table: null, notes: {}, name, art: collectArt(sets, null, undefined) };
+    return { sets, table, notes, name, art: collectArt(sets, table, undefined) };
   }
   const [setsRaw, name] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY)]);
   const sets = validSets(setsRaw);
-  return { sets, table: null, notes: {}, name: typeof name === "string" ? name : "", art: collectArt(sets, null, undefined) };
+  return { sets, table, notes, name: typeof name === "string" ? name : "", art: collectArt(sets, table, undefined) };
 }
 
 function clearSessionScopedKeys() {
@@ -228,20 +272,30 @@ export function defaultSet(): CardSet {
 }
 
 /**
- * A match plays out like a physical board sitting on the table: once the
- * session ends (tab closed, game over), it's put back in the box. Only the
- * deck itself — saveCardSets, below — is worth keeping between visits.
+ * Remember the match this device is in, so a refresh can reconnect to it. Pass null to forget it
+ * (leaving the table, or no table at all). A finished game is not worth coming back to.
  */
-export function saveTable(_save: TableSave | null) {
-  // no-op by design — see the comment above VAULT_KEYS.
+export function saveTable(save: TableSave | null) {
+  sessionTable = save && save.state?.phase !== "gameover" ? save : null;
+  if (!sessionTable) sessionNotes = {};
+  writeSession();
 }
 
 export function notesKey(code: string, playerId: string) {
   return `${code}:${playerId}`;
 }
 
-export function saveAllNotes(_notes: Record<string, PlayerNotes>) {
-  // no-op by design — a fresh session gets a fresh journal, like a real game of Clue.
+export function saveAllNotes(notes: Record<string, PlayerNotes>) {
+  sessionNotes = notes;
+  if (!sessionTable || typeof window === "undefined") return;
+  // Marks come in bursts; write once they settle.
+  window.clearTimeout(sessionTimer);
+  sessionTimer = window.setTimeout(writeSession, 250) as unknown as ReturnType<typeof setTimeout>;
+}
+
+/** Write any pending session right now. Called when the page is about to go away. */
+export function flushSession() {
+  if (sessionTable) writeSession();
 }
 
 export function emptyNotes(): PlayerNotes {

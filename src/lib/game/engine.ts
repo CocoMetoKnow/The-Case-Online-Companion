@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, cardsByCategory, eventsForPlayers } from "./cards";
+import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
 import { START_HALL, isQuestionRoom, roomById } from "./board";
 import { PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
@@ -138,7 +138,8 @@ export function roomsInPlay(state: GameState): string[] {
 	return both.length ? both : fromCards;
 }
 /**
- * "Pick Your Character". The picture is that suspect card's art, one guest per card.
+ * "Pick Your Character". The picture is that character's art, one guest per character. Any
+ * character in the game can be picked, not only the suspects dealt into this deck.
  * Hot-seat and in-person tables share one device, so any seat can be set from it; online,
  * a phone may only set its own seat.
  */
@@ -152,7 +153,7 @@ export function setAvatar(state: GameState, from: string, targetId: string, card
 		if (!player.avatar) return state;
 		return { ...state, players: state.players.map((p) => p.id === who ? { ...p, avatar: void 0 } : p) };
 	}
-	const card = (state.cards ?? []).find((c) => c.id === cardId && c.category === "suspect");
+	const card = avatarCharacters(state.cards).find((c) => c.id === cardId);
 	if (!card) return state;
 	if (state.players.some((p) => p.id !== who && p.avatar === cardId)) return state;
 	if (player.avatar === cardId) return state;
@@ -488,13 +489,24 @@ export function drawEvent(state) {
 /** Tell the table what to do on the physical board, then carry on with the turn. */
 export function holdForBoard(state, note, thenMode) {
 	if (state.settings?.table === "board") {
-		if (thenMode === "resume") return {
-			...state,
-			phase: "action",
-			event: null,
-			moveBudget: 0,
-			actionsLeft: 1
-		};
+		if (thenMode === "resume") {
+			// A power that moves someone else (or marks a passage) leaves the roll to be walked.
+			// One that moves the player who is rolling takes the place of that walk.
+			const movesRoller = ["move-anywhere", "fast-track", "shortcut", "trade-places", "lost-in-hall"].includes(String(state.event?.kind));
+			if (!movesRoller && (state.moveBudget ?? 0) > 0) return {
+				...state,
+				phase: "move",
+				event: null,
+				actionsLeft: 1
+			};
+			return {
+				...state,
+				phase: "action",
+				event: null,
+				moveBudget: 0,
+				actionsLeft: 1
+			};
+		}
 		const ready = {
 			...state,
 			phase: "action",
@@ -740,16 +752,21 @@ function advanceSpoken(state) {
 			}
 		};
 	}
+	// Nobody at the table had a card to show. The turn ends right here, the same way it does when a
+	// suggestion comes up empty in the normal game. It never waits for the asker to tap "end turn".
 	const line = "No one had a card to show.";
-	return log({
+	const closed = log({
 		...state,
 		phase: "action",
-		actionsLeft: 1,
+		actionsLeft: 0,
 		question: null,
-		notice: line,
+		notice: null,
 		noticeSelf: null,
 		noticeFor: null
 	}, line);
+	const next = endTurn(closed, q.askerId);
+	// endTurn clears the banner for the new turn. Put the result back so the whole table sees why the turn moved on.
+	return next === closed ? next : { ...next, notice: `${line} ${state.players.find((p) => p.id === q.askerId)?.name ?? "The asker"}'s turn is over.` };
 }
 /** The player being asked says whether they hold a card that was named. */
 export function answerSpoken(state: GameState, playerId: string, has: boolean): GameState {
@@ -1273,7 +1290,7 @@ export function endTurn(state: GameState, playerId: string): GameState {
 		const guide = influences.find((inf) => inf.victimId === p.id);
 		const guideName = state.players.find((x) => x.id === guide?.controllerId)?.name;
 		const lead = skipped.length ? `${skipped.join(" and ")} lost a turn to a clunk. ` : "";
-		const extra = guide ? ` ${guideName} plays this turn, but may not accuse.` : "";
+		const extra = guide ? ` ${guideName} plays this turn, but may not Solve the Case.` : "";
 		let spy = state.spy ?? null;
 		if (spy && finished && spy.byId === finished.id && !spy.armed) spy = { ...spy, armed: true };
 		if (spy?.armed && pid === spy.byId) spy = null;
@@ -1305,7 +1322,9 @@ export function endTurn(state: GameState, playerId: string): GameState {
 	};
 	for (let step = 1; step <= seats.length; step++) {
 		const pid = seats[(start + step) % seats.length];
-		if (pid === finished?.id && order.length > 1) continue;
+		// Coming back around to the guest who just played is only skipped when nobody was clunked.
+		// If every other guest lost the turn, the same guest plays again.
+		if (pid === finished?.id && order.length > 1 && !skipped.length) continue;
 		const p = state.players.find((x) => x.id === pid);
 		if (!p || p.eliminated) continue;
 		if (skipIds.includes(pid)) {

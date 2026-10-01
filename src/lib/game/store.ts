@@ -22,6 +22,7 @@ import {
   emptyNotes,
   loadVault,
   notesKey,
+  flushSession,
   saveAllNotes,
   saveCardArt,
   saveCardSets,
@@ -247,14 +248,17 @@ function cleanStoredName(name: string) {
 }
 
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
+let persistNow: (() => void) | null = null;
 
 function persist(get: () => GameStore) {
   if (!get().state) {
+    persistNow = null;
     saveTable(null);
     return;
   }
   window.clearTimeout(persistTimer);
-  persistTimer = window.setTimeout(() => {
+  persistNow = () => {
+    persistNow = null;
     const live = get();
     if (!live.state) return;
     saveCardArt(live.state.cards);
@@ -275,7 +279,20 @@ function persist(get: () => GameStore) {
       localPlayerId: live.localPlayerId,
       viewingPlayerId: live.viewingPlayerId,
     });
-  }, 8000) as unknown as ReturnType<typeof setTimeout>;
+  };
+  persistTimer = window.setTimeout(() => persistNow?.(), 250) as unknown as ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Save the session right now. Called as the page goes away (refresh, tab switch, phone locking),
+ * so the last move is never lost to the short save delay.
+ */
+export function flushPersist() {
+  if (persistNow) {
+    window.clearTimeout(persistTimer);
+    persistNow();
+  }
+  flushSession();
 }
 
 function persistNotes(notes: Record<string, PlayerNotes>) {
@@ -890,6 +907,8 @@ export const useGame = create<GameStore>((set, get) => ({
     onlineLeave = null;
     queuedIntent = null;
     queuedTurn = -1;
+    window.clearTimeout(persistTimer);
+    persistNow = null;
     saveTable(null);
     set({
       view: "landing",
@@ -954,8 +973,6 @@ export const useGame = create<GameStore>((set, get) => ({
               skipIds: saved.state.skipIds ?? [],
               notesLock: saved.state.notesLock ?? {},
               influences: saved.state.influences ?? [],
-              phase: saved.state.phase === "move" ? "action" : saved.state.phase,
-              freeQuestion: true,
               cards: paint(retireBorrowedNames(saved.state.cards.map((card) => {
                 if (card.id === "mr-fairwind") return { ...card, name: "Morgan Drake" };
                 if (card.category !== "time") return card;

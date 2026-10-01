@@ -4,6 +4,7 @@ import { CATEGORY_LABEL, type CategoryId, type GameState } from "@/lib/game/type
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { copyText } from "@/lib/clipboard";
 import { PickCharacterButton } from "./CharacterPicker";
 import { ProfileBadge } from "./PlayerBadge";
 import { useEffect, useState } from "react";
@@ -49,17 +50,7 @@ export function LobbyScreen() {
 
   async function copyLink() {
     if (!link) return;
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {
-      const area = document.createElement("textarea");
-      area.value = link;
-      document.body.appendChild(area);
-      area.select();
-      document.execCommand("copy");
-      area.remove();
-    }
-    setCopied(true);
+    setCopied(await copyText(link));
   }
 
   async function shareLink() {
@@ -121,10 +112,7 @@ export function LobbyScreen() {
               variant="outline"
               className="flex-1"
               onClick={() => {
-                void navigator.clipboard.writeText(code).then(
-                  () => setCopied(true),
-                  () => setCopied(false),
-                );
+                void copyText(code).then(setCopied);
               }}
             >
               {copied ? "Copied" : "Copy code"}

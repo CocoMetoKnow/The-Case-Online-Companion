@@ -180,3 +180,41 @@ test("Shortcut only offers rooms linked by an existing passage", () => {
   const ada = ok.players.find((p) => p.id === "ada");
   assert.deepEqual(ada?.position, { kind: "room", roomId: "lounge" });
 });
+
+test("every power-up step can be finished by the player whose turn it is", () => {
+  const steps: Array<[string, string, Record<string, unknown>]> = [
+    ["move-anywhere", "intro", {}],
+    ["fast-track", "intro", {}],
+    ["shortcut", "intro", {}],
+    ["thief", "pick-player", {}],
+    ["spy", "intro", {}],
+    ["swap-card", "pick-give", {}],
+    ["red-herring", "pick-truth", {}],
+    ["new-passage", "intro", {}],
+    ["wild-card", "intro", {}],
+    ["influenced", "intro", {}],
+    ["peek", "show-private", { viewerId: "ada" }],
+    ["hush", "ack", { acked: [] }],
+    ["name-room", "show-all", { holderId: "bea", cardId: "knife" }],
+    ["clunk", "reveal", { seen: [] }],
+    ["blocked-out", "board", {}],
+  ];
+  for (const [kind, step, data] of steps) {
+    const out = applyPlay(withEvent(kind, step, data), secrets(), "ada", "event", { finish: true }).state;
+    assert.equal(out.event, null, `${kind}/${step} is cleared`);
+    assert.equal(out.phase, "action", `${kind}/${step} hands the turn back`);
+    assert.match(out.notice ?? "", /finished/, `${kind}/${step} tells the table`);
+  }
+});
+
+test("finish is refused for a guest who is not playing and is not being waited on", () => {
+  const out = applyPlay(withEvent("move-anywhere"), secrets(), "bea", "event", { finish: true }).state;
+  assert.equal(out.phase, "event");
+  assert.equal(out.event?.kind, "move-anywhere");
+});
+
+test("the guest a power is waiting on can finish it too", () => {
+  const out = applyPlay(withEvent("swap-card", "pick-take", { targetId: "bea", giveId: "chef", giverId: "ada" }), secrets(), "bea", "event", { finish: true }).state;
+  assert.equal(out.event, null);
+  assert.equal(out.phase, "action");
+});

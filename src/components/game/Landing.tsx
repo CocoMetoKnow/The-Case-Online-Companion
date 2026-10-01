@@ -45,7 +45,7 @@ export function Landing() {
           </h1>
           <p className="mx-auto mt-3 max-w-sm text-center text-sm text-muted">
             {setup.settings.heist
-              ? "Do you have what it takes to name the thief and what they stole?"
+              ? "Do you have what it takes to solve the heist and name what was stolen?"
               : "Do you have what it takes to solve the case?"}
           </p>
           <div className="stitch mt-5" />
