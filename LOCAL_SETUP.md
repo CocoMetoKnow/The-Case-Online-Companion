@@ -28,7 +28,7 @@ On the setup screen, under Phones, pick **This phone**. That is hotseat. Pass th
 
 - **Opening Night** — six guests, murder, no hours.
 - **Harrington House** — the household, plus hours.
-- **The Take** — Opening Night plus The Chauffeur, Mr. Broke, Oakley Autumns, Morgan Drake, Madame Coral, Miss Penny, and Ki Annie. Thief mode is on.
+- **The Take** — Opening Night plus The Chauffeur, Mr. Broke, Oakley Autumns, Morgan Drake, Madame Coral, Miss Penny, and Ki Annie. Heist mode is on.
 
 ## Checks
 
