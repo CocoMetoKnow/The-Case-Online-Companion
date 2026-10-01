@@ -47,7 +47,7 @@ export const DEFAULT_CARDS: CardDef[] = [
 	{
 		id: "colonel-mustard",
 		category: "suspect",
-		name: "Inspector Flintwood",
+		name: "Colonel Flintwood",
 		blurb: "Retired, decorated, and never late to dinner.",
 		icon: "Medal"
 	},
@@ -407,7 +407,7 @@ export const CLASSIC_CARDS: CardDef[] = [
 	{
 		id: "colonel-mustard",
 		category: "suspect",
-		name: "Inspector Flintwood",
+		name: "Colonel Flintwood",
 		blurb: "Retired, decorated, and never late to dinner.",
 		icon: "Medal"
 	},
@@ -732,7 +732,7 @@ const OLD_TIME_IDS = new Set([
 
 const RETIRED_NAMES: Record<string, { from: string[]; name: string; blurb: string }> = {
 	"miss-scarlet": { from: ["Miss Scarlet", "Miss Vale"], name: "Miss Crimson", blurb: "A guest who arrives in a red cloak and leaves before the last song." },
-	"colonel-mustard": { from: ["Colonel Mustard", "Major Holt", "Colonel Saffron"], name: "Inspector Flintwood", blurb: "Retired, decorated, and never late to dinner." },
+	"colonel-mustard": { from: ["Colonel Mustard", "Major Holt", "Colonel Saffron", "Inspector Flintwood"], name: "Colonel Flintwood", blurb: "Retired, decorated, and never late to dinner." },
 	"professor-plum": { from: ["Professor Plum", "Professor Ellis", "Professor Violet"], name: "Professor Quill", blurb: "A scholar of locked rooms and lost letters." },
 	"mrs-peacock": { from: ["Mrs. Peacock", "Mrs Peacock", "Mrs. Lark", "Mrs. Pheasant"], name: "Mrs. Pearl", blurb: "A favorite at every supper, and nobody's fool." },
 	"the-butler": { from: ["The Butler"], name: "Mr. Take", blurb: "Velvet coat, gloved hands, and a smile that gives nothing away." },

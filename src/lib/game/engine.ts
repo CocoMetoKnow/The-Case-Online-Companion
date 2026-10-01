@@ -877,13 +877,21 @@ function advanceQuestion(state, secrets) {
 	}
 	if (blocked || !askedIsSolution(state, secrets, q)) {
 		const text = blocked === "table" ? "One of those cards is face up on the table, so this is not the solution." : blocked ? "No one showed a card." : !coversSolution(state, q) ? "Name one card from each group before that can win the case." : "No one showed a card, but that set is not the case.";
+		// Nobody at the table holds any of the named cards, and the asker
+		// doesn't either — the turn ends on its own rather than waiting for a
+		// manual tap. The asker's journal doesn't confirm this as the answer
+		// until the next turn cycle (see pendingAnswer), not the instant it happens.
+		const pendingAnswer = blocked
+			? state.pendingAnswer ?? null
+			: { ids: askedIds(q), askerId: q.askerId, turnIndex: state.turnIndex };
 		const closed = log({
 			...state,
 			phase: "action",
 			actionsLeft: 0,
-			question: null
+			question: null,
+			pendingAnswer
 		}, text);
-		return closed;
+		return endTurn(closed, q.askerId);
 	}
 	return log({
 		...state,

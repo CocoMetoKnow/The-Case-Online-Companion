@@ -147,6 +147,24 @@ test("Teleport moves to any enabled room except the one you're already in", () =
   assert.deepEqual(ada?.position, { kind: "room", roomId: "library" });
 });
 
+test("An unmatched suggestion ends the turn on its own and queues a delayed answer", () => {
+  const cur = { ...withEvent("peek"), event: null, phase: "action" };
+  // Ada names the true solution's room and weapon, but leaves out a
+  // suspect — an incomplete suggestion, so it can't officially offer a win,
+  // yet nobody holds either named card because they really are the answer.
+  const clean = applyPlay(cur, secrets(), "ada", "ask", { suspectId: "", roomId: "lounge", weaponId: "rope" });
+  const state = clean.state;
+  assert.equal(state.question, null);
+  // The turn already moved on by itself — no manual "end turn" needed; the
+  // next player lands on "roll", exactly like any other fresh turn.
+  assert.equal(state.phase, "roll");
+  assert.equal(state.turnIndex, 1);
+  assert.ok(state.pendingAnswer);
+  assert.equal(state.pendingAnswer?.askerId, "ada");
+  assert.deepEqual([...state.pendingAnswer!.ids].sort(), ["lounge", "rope"]);
+  assert.equal(state.pendingAnswer?.turnIndex, 0);
+});
+
 test("Lost in the Hall sends the current player back to the hall", () => {
   const cur = withEvent("lost-in-hall");
   const { state } = autoResolveIfPossible(cur, secrets());

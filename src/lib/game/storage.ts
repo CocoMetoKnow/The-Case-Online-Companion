@@ -12,10 +12,10 @@ const DB_NAME = "gmm.vault";
 const DB_STORE = "kv";
 
 // Every match starts fresh, like a physical board sitting back down in its
-// box: nobody's journal, in-progress table, or typed-in name should survive
-// past the session that made them. Custom decks are the one thing worth
-// keeping — they're work a player put in on purpose, on their own device.
-// TABLE_KEY, NOTES_KEY and NAME_KEY are only ever read/deleted below (to
+// box: nobody's journal or in-progress table should survive past the
+// session that made them. Custom decks — and now the player's own chosen
+// name — are worth keeping: work a player put in on purpose, on their own
+// device. TABLE_KEY and NOTES_KEY are only ever read/deleted below (to
 // clear out anything an older build left behind); they're never written.
 const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY];
 
@@ -174,30 +174,29 @@ function collectArt(sets: CardSet[], table: TableSave | null, stored: Record<str
 export async function loadVault(): Promise<VaultData> {
   await migrateLocal();
   // Clear out anything an older build saved under the session-scoped keys —
-  // a table, notes, or a name left over from before decks were the only
-  // thing meant to survive a reload.
+  // a table or notes left over from before decks and the player's name were
+  // the only things meant to survive a reload.
   clearSessionScopedKeys();
   const db = await database();
   if (!db) {
     const sets = validSets(readLocal(SETS_KEY));
-    return { sets, table: null, notes: {}, name: "", art: collectArt(sets, null, undefined) };
+    const name = readLocal<string>(NAME_KEY) ?? "";
+    return { sets, table: null, notes: {}, name, art: collectArt(sets, null, undefined) };
   }
-  const setsRaw = await idbGet<CardSet[]>(SETS_KEY);
+  const [setsRaw, name] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY)]);
   const sets = validSets(setsRaw);
-  return { sets, table: null, notes: {}, name: "", art: collectArt(sets, null, undefined) };
+  return { sets, table: null, notes: {}, name: typeof name === "string" ? name : "", art: collectArt(sets, null, undefined) };
 }
 
 function clearSessionScopedKeys() {
   void (async () => {
     removeLocal(TABLE_KEY);
     removeLocal(NOTES_KEY);
-    removeLocal(NAME_KEY);
     removeLocal(ART_KEY);
     const db = await database();
     if (!db) return;
     await idbDelete(TABLE_KEY);
     await idbDelete(NOTES_KEY);
-    await idbDelete(NAME_KEY);
     await idbDelete(ART_KEY);
   })();
 }
@@ -249,8 +248,8 @@ export function emptyNotes(): PlayerNotes {
   return { marks: {}, shown: [], lastShown: null, freeText: "" };
 }
 
-export function savePlayerName(_name: string) {
-  // no-op by design — see the comment above VAULT_KEYS.
+export function savePlayerName(name: string) {
+  remember(NAME_KEY, name);
 }
 
 export function resizeImage(file: File, max = 320): Promise<string> {

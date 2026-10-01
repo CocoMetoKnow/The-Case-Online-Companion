@@ -7,7 +7,7 @@ import { CardHand } from "./CardHand";
 import { EventPanel } from "./EventPanel";
 import { NotesBook } from "./NotesBook";
 import { AccusationPanel, AccusationWatch, QuestionPanel, QuestionResolve } from "./QuestionPanel";
-import { sfxPaper } from "@/lib/game/sfx";
+import { sfxPaper, sfxSolveStart } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
@@ -132,6 +132,7 @@ export function Briefcase() {
     if (!offerKey || skippedOffer.current === offerKey) return;
     setSuggest(false);
     setAccuse(true);
+    sfxSolveStart();
   }, [offerKey]);
 
   useEffect(() => {
@@ -453,6 +454,7 @@ export function Briefcase() {
                   onClick={() => {
                     setMovesOpen(false);
                     setAccuse(true);
+                    sfxSolveStart();
                   }}
                 >
                   {state.question?.offerAccusation

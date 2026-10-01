@@ -16,7 +16,7 @@ import {
   rememberRound,
 } from "@/lib/game/engine";
 import { autoResolveIfPossible } from "@/lib/game/events";
-import { sfxDice, sfxFail, sfxPaper, sfxPower, sfxReceive, sfxSnake, sfxTurn, sfxWin, unlockAudio } from "@/lib/game/sfx";
+import { sfxCard, sfxDice, sfxFail, sfxPaper, sfxPencil, sfxPower, sfxReceive, sfxSnake, sfxTurn, sfxWin, unlockAudio } from "@/lib/game/sfx";
 import {
   emptyNotes,
   loadVault,
@@ -372,15 +372,13 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
   if (solved) {
     for (const id of asked) if (!holding.has(id) && !table.has(id)) markSolution(id);
   }
-  // The case is closed: the winning accusation names the real suspect, room,
-  // weapon (and time). That's public the instant anyone wins it, same as
-  // flipping over the case file at a real table — so every player's own
-  // journal gets it auto-marked, not just the winner's.
-  if (state.phase === "gameover" && state.accusation?.correct) {
-    const acc = state.accusation as { suspectId?: string; roomId?: string; weaponId?: string; timeId?: string };
-    for (const id of [acc.suspectId, acc.roomId, acc.weaponId, acc.timeId]) {
-      if (id) markSolution(String(id));
-    }
+  // A suggestion came back with nobody holding any of the named cards, and
+  // the asker didn't either. Rather than mark it the instant that happens,
+  // the asker's own journal waits until a later turn cycle has actually
+  // begun before confirming it — never their own hand's cards, even then.
+  const pending = state.pendingAnswer;
+  if (pending && pending.askerId === playerId && state.turnIndex !== pending.turnIndex) {
+    for (const id of pending.ids) if (!holding.has(id)) markSolution(id);
   }
   if (seenId && (lastShown?.cardId !== seenId || lastShown?.fromId !== seenFrom)) {
     lastShown = { cardId: seenId, fromId: seenFrom };
@@ -821,7 +819,7 @@ export const useGame = create<GameStore>((set, get) => ({
   stay: () => play(get, set, "stay"),
   ask: (pick) => play(get, set, "ask", pick ?? {}),
   showCard: (cardId) => {
-    sfxPaper();
+    sfxCard();
     play(get, set, "show", { cardId });
   },
   reply: (has) => play(get, set, "reply", { has }),
@@ -841,6 +839,7 @@ export const useGame = create<GameStore>((set, get) => ({
       ...notes,
       [key]: { ...mine, marks: { ...mine.marks, [cardId]: { ...(mine.marks[cardId] ?? {}), [column]: mark as SheetMark } } },
     };
+    sfxPencil();
     persistNotes(next);
     set({ notes: next });
   },

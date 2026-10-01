@@ -212,6 +212,14 @@ export interface GameState {
   hush?: { cardId: string; byId: string } | null;
   /** Sabotage: the next power-up this player would draw is cancelled instead. */
   sabotage?: { targetId: string; byId: string } | null;
+  /**
+   * A suggestion came back with nobody holding any of the named cards, and
+   * the asker doesn't hold them either. Rather than marking the answer the
+   * instant that happens, the table waits one full turn cycle before the
+   * asker's own journal confirms it — turnIndex records when it was queued,
+   * so the client can tell once a later turn has actually begun.
+   */
+  pendingAnswer?: { ids: string[]; askerId: string; turnIndex: number } | null;
   /** Stealth Auto-Reveal / Distraction: this turn's suggestion auto-picks a card to show, no manual choice. */
   autoShowTurn?: boolean;
   /** Set while the table is voting to clear a stuck turn. Removed once it finishes or is cancelled. */
