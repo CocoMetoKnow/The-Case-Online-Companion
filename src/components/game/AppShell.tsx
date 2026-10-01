@@ -6,6 +6,7 @@ import { LobbyScreen } from "./LobbyScreen";
 import { Briefcase } from "./Briefcase";
 import { OnlineTable } from "./OnlineTable";
 import { JournalLayer } from "./JournalLayer";
+import { installUiSounds } from "@/lib/game/sfx";
 
 export function AppShell() {
   const view = useGame((s) => s.view);
@@ -19,6 +20,9 @@ export function AppShell() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // One document-wide listener gives every button a press sound (see sfx.ts).
+  useEffect(() => installUiSounds(), []);
 
   useEffect(() => {
     document.title = "The Case";

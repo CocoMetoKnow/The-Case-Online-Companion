@@ -157,6 +157,7 @@ export function CardHand({
         <button
           type="button"
           aria-label="Previous card"
+          data-sfx="none"
           className="absolute top-0 bottom-0 left-0 z-30 grid w-11 place-items-center text-paper disabled:opacity-20"
           disabled={safe === 0}
           onPointerDown={(event) => {
@@ -172,6 +173,7 @@ export function CardHand({
         <button
           type="button"
           aria-label="Next card"
+          data-sfx="none"
           className="absolute top-0 bottom-0 right-0 z-30 grid w-11 place-items-center text-paper disabled:opacity-20"
           disabled={safe >= cards.length - 1}
           onPointerDown={(event) => {

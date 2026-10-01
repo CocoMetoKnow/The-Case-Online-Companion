@@ -26,6 +26,7 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
         <Button
           size="lg"
           className="w-full"
+          data-sfx="confirm"
           onClick={() => {
             ask();
             onAsked?.();
@@ -327,6 +328,8 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const showCard = useGame((s) => s.showCard);
   const ackCard = useGame((s) => s.ackCard);
   const [picked, setPicked] = useState("");
+  // A card tapped inside the Yes / No prompt opens bigger on top of it. The prompt itself never closes.
+  const [zoom, setZoom] = useState<CardDef | null>(null);
   const q = state?.question;
   if (!state || !q) return null;
   const asker = state.players.find((p) => p.id === q.askerId);
@@ -335,6 +338,7 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const guided = (state.influences ?? []).some((i) => i.victimId === q.askerId && i.controllerId === actor);
   const isAsker = actor === q.askerId || guided;
   const shownCard = q.shownCardId ? state.cards.find((c) => c.id === q.shownCardId) : undefined;
+  const askingMe = Boolean(!q.shownCardId && !q.showerId && q.askingId && actor === q.askingId);
 
   let body: ReactNode;
   if (shownCard && isAsker) {
@@ -367,7 +371,7 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
             </div>
           ))}
         </div>
-        <Button className="mt-4 w-full" size="lg" disabled={!picked} onClick={() => showCard(picked)}>
+        <Button className="mt-4 w-full" size="lg" data-sfx="confirm" disabled={!picked} onClick={() => showCard(picked)}>
           Show this card
         </Button>
       </>
@@ -378,20 +382,59 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
         {shower?.name ?? "A player"} is choosing a card to show {asker?.name ?? "the asker"}.
       </p>
     );
-  } else if (q.askingId && actor === q.askingId) {
+  } else if (askingMe) {
+    // "Do you have a card?" The prompt is docked at the bottom and stays until Yes or No is tapped.
+    // The player's whole hand is shown inside it, so nothing has to be checked behind the prompt.
     body = (
       <>
-        <p className="mt-1 font-display text-2xl leading-tight text-paper">
-          Do you have a card that {asker?.name ?? "the asker"} asked for?
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Button size="lg" variant="outline" onClick={() => reply(false)}>
-            No
-          </Button>
-          <Button size="lg" onClick={() => reply(true)}>
-            Yes
-          </Button>
+        <div className="sticky top-0 z-10 bg-[#241610] pb-3">
+          <p className="font-display text-2xl leading-tight text-paper">
+            Do you have a card that {asker?.name ?? "the asker"} asked for?
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button size="lg" variant="outline" data-sfx="deny" onClick={() => reply(false)}>
+              No
+            </Button>
+            <Button size="lg" data-sfx="confirm" onClick={() => reply(true)}>
+              Yes
+            </Button>
+          </div>
         </div>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-subtle">
+          Your hand · {hand.length}
+          {facesDown ? " · tap to turn over" : " · tap a card to enlarge"}
+        </p>
+        {hand.length ? (
+          <div className="mt-1 grid grid-cols-3 gap-1.5">
+            {hand.map((card) =>
+              facesDown ? (
+                <button
+                  key={card.id}
+                  type="button"
+                  data-sfx="select"
+                  className="grid h-32 w-full place-items-center rounded-[12px] border border-paper/30 bg-black font-display text-3xl text-paper"
+                  aria-label="Turn your cards over"
+                  onClick={onReveal}
+                >
+                  ?
+                </button>
+              ) : (
+                <button
+                  key={card.id}
+                  type="button"
+                  data-sfx="select"
+                  className="relative h-32 w-full"
+                  aria-label={`Enlarge ${card.name}`}
+                  onClick={() => setZoom(card)}
+                >
+                  <CardFace card={card} fill />
+                </button>
+              ),
+            )}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-muted">You are not holding any cards.</p>
+        )}
       </>
     );
   } else {
@@ -403,8 +446,21 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   }
 
   return (
-    <div className="roll-stage" style={{ zIndex: 60 }}>
-      <div className="case-shell flex max-h-[92dvh] w-full max-w-sm flex-col overflow-y-auto rounded-[28px] px-4 py-5 text-center">
+    <>
+    <div
+      className="roll-stage"
+      style={
+        askingMe
+          ? { zIndex: 60, background: "#140e0b73", placeItems: "end center", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }
+          : { zIndex: 60 }
+      }
+    >
+      <div
+        className={cn(
+          "case-shell flex w-full max-w-sm flex-col overflow-y-auto rounded-[28px] px-4 py-5 text-center",
+          askingMe ? "max-h-[88dvh]" : "max-h-[92dvh]",
+        )}
+      >
         <p className="text-xs uppercase tracking-[0.16em] text-brass">Suggestion</p>
         <h3 className="mt-1 font-display text-3xl leading-none text-paper">{asker?.name ?? "Someone"} spoke</h3>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -432,6 +488,22 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
         {body}
       </div>
     </div>
+    {zoom ? (
+      <button
+        type="button"
+        data-sfx="soft"
+        className="fixed inset-0 grid place-items-center bg-black/75"
+        style={{ zIndex: 70 }}
+        aria-label="Close enlarged card"
+        onClick={() => setZoom(null)}
+      >
+        <span className="flex flex-col items-center gap-3">
+          <CardFace card={zoom} large />
+          <span className="text-xs uppercase tracking-[0.16em] text-paper/80">Tap to close</span>
+        </span>
+      </button>
+    ) : null}
+    </>
   );
 }
 
@@ -868,6 +940,7 @@ function PickFlow({
         <Button
           variant="outline"
           className="mt-3 w-full"
+          data-sfx={final ? "drama" : "tap"}
           onClick={() => {
             const next = { ...circled, ...initialPick };
             setPick(next);

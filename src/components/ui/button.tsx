@@ -35,6 +35,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(buttonVariants({ variant, size }), className)}
+      data-sfx={variant === "outline" || variant === "ghost" ? "soft" : "tap"}
       onClick={(event) => {
         onClick?.(event);
         if (!event.defaultPrevented) hapticTap();

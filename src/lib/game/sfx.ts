@@ -35,8 +35,13 @@ const TRIM: Record<string, number> = {
   card: 1,
   typewriter: 1.2,
   digital: 1.2,
-  dice: 1.2,
+  dice: 0.55,
   paperSlide: 1.2,
+  tap: 1.2,
+  tick: 0.55,
+  tickLow: 2,
+  staticSoft: 0.35,
+  stingSoft: 0.15,
   pageTurn: 1,
   pencil: 1,
 };
@@ -49,7 +54,14 @@ const SFX_FILES = {
   fail: "/assets/audio/muffled_static.mp3",
   typewriter: "/assets/audio/ui_typewriter.mp3",
   digital: "/assets/audio/digital_tone.mp3",
-  dice: "/assets/audio/quick_clack.mp3",
+  // Dice roll: the longer tumbling recording from the extras folder.
+  dice: "/assets/audio/extras/dice_rolling_alt.mp3",
+  // UI press sounds. quick_clack used to be the dice; it is now the general button press.
+  tap: "/assets/audio/quick_clack.mp3",
+  tick: "/assets/audio/extras/clock_tick_alt1.mp3",
+  tickLow: "/assets/audio/extras/clock_tick_alt2.mp3",
+  staticSoft: "/assets/audio/extras/muffled_static_alt.mp3",
+  stingSoft: "/assets/audio/extras/mysterious_sting_alt.mp3",
   paperSlide: "/assets/audio/paper_slide.mp3",
   pageTurn: "/assets/audio/page_turn.mp3",
   pencil: "/assets/audio/pencil_writing.mp3",
@@ -116,8 +128,11 @@ export function preloadSfx() {
 /** Voices that may only sound once at a time (rapid taps cut the previous one short instead of stacking). */
 const voices = new Map<SfxName, { src: AudioBufferSourceNode; gain: GainNode }>();
 
+let lastPlayAt = 0;
+
 function play(name: SfxName, opts: { gain?: number; rate?: number; exclusive?: boolean } = {}) {
   if (!sfxEnabled()) return;
+  lastPlayAt = typeof performance !== "undefined" ? performance.now() : Date.now();
   const c = ac();
   const master = bus();
   if (!c || !master) return;
@@ -296,6 +311,70 @@ export function sfxSolveStart() {
 export function sfxReveal() {
   haptic("card");
   play("paperSlide", { exclusive: true });
+}
+
+// --- UI press sounds -------------------------------------------------------
+// Every button in the app makes a sound. One listener on the document (installed
+// once by AppShell) covers all of them, so a new button never ships silent.
+// A button picks its sound with data-sfx="tap|soft|select|confirm|deny|drama|none".
+// No attribute means "tap". If the click already played a more specific sound
+// (the journal's page turn, a pencil mark, the dice), the generic one stays out of the way.
+
+export type UiSound = "tap" | "soft" | "select" | "confirm" | "deny" | "drama" | "none";
+
+/** Primary press: a short, dry clack. */
+export function sfxTap() {
+  play("tap", { gain: 0.6 });
+}
+/** Secondary press: back, close, cancel, outline buttons. */
+export function sfxUiSoft() {
+  play("tick", { gain: 0.8 });
+}
+/** Choosing something: a card, a toggle, a tab. */
+export function sfxSelect() {
+  play("tickLow", { gain: 0.85 });
+}
+/** Committing: Yes, Ask the table, Show this card. */
+export function sfxConfirm() {
+  play("typewriter", { gain: 0.7 });
+}
+/** Declining: No, nothing to show. */
+export function sfxDeny() {
+  play("staticSoft", { gain: 0.55 });
+}
+/** A weighty step: opening the accusation. */
+export function sfxDrama() {
+  play("stingSoft", { gain: 0.7 });
+}
+
+const UI_PLAYERS: Record<Exclude<UiSound, "none">, () => void> = {
+  tap: sfxTap,
+  soft: sfxUiSoft,
+  select: sfxSelect,
+  confirm: sfxConfirm,
+  deny: sfxDeny,
+  drama: sfxDrama,
+};
+
+const PRESSABLE = 'button, a[href], summary, [role="button"], [role="switch"], [role="tab"], [role="checkbox"], [role="radio"], [role="menuitem"]';
+
+/** Install the document-wide press sound. Returns a cleanup function. */
+export function installUiSounds(): () => void {
+  if (typeof document === "undefined") return () => {};
+  const onClick = (event: MouseEvent) => {
+    const target = event.target as Element | null;
+    const el = target?.closest?.(PRESSABLE) as HTMLElement | null;
+    if (!el) return;
+    if (el.matches(":disabled") || el.getAttribute("aria-disabled") === "true") return;
+    const kind = (el.closest("[data-sfx]")?.getAttribute("data-sfx") ?? "tap") as UiSound;
+    if (kind === "none") return;
+    // Bubble phase: the button's own handler has already run. If it played something, stay quiet.
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - lastPlayAt < 90) return;
+    (UI_PLAYERS[kind] ?? sfxTap)();
+  };
+  document.addEventListener("click", onClick);
+  return () => document.removeEventListener("click", onClick);
 }
 
 type QuestionCue = {

@@ -209,7 +209,7 @@ export function CardFace({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={cls} aria-label={label}>
+      <button type="button" onClick={onClick} className={cls} aria-label={label} data-sfx={choice ? "select" : undefined}>
         {inner}
       </button>
     );

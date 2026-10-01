@@ -53,7 +53,7 @@ export function DicePair({
   );
   if (!onRoll) return body;
   return (
-    <button type="button" className="dice-hit" onClick={onRoll} aria-label="Roll the dice">
+    <button type="button" className="dice-hit" data-sfx="none" onClick={onRoll} aria-label="Roll the dice">
       {body}
     </button>
   );
