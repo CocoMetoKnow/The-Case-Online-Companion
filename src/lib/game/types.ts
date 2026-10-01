@@ -36,6 +36,8 @@ export interface Player {
   eliminated: boolean;
   isHost: boolean;
   position: PiecePos;
+  /** Index into CAST (lib/game/cast.ts): the character who represents this player. Missing = seat order. */
+  portrait?: number;
 }
 
 export interface QuestionState {

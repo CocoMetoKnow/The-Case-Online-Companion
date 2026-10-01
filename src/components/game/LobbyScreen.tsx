@@ -2,6 +2,7 @@ import { useGame } from "@/lib/game/store";
 import { MIN_CATEGORY_CARDS, answerCards } from "@/lib/game/cards";
 import { CATEGORY_LABEL, type CategoryId, type GameState } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
+import { CAST, portraitOf, takenPortraits } from "@/lib/game/cast";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
@@ -138,11 +139,15 @@ export function LobbyScreen() {
 
         <HouseRules state={state} />
 
+        <CharacterPicker />
+
         <ul className="mt-6 max-h-[50vh] space-y-2 overflow-y-auto">
           {state.players.map((p) => (
             <li key={p.id} className="wood-panel flex items-center justify-between rounded-[16px] px-4 py-3">
               <div className="flex items-center gap-3">
-                <span className="size-8 rounded-full" style={{ background: p.color }} />
+                <span className="lobby-face" style={{ borderColor: p.color }}>
+                  <img src={portraitOf(p).src} alt="" />
+                </span>
                 <div>
                   <p className="font-medium">{p.name}</p>
                   <p className="text-xs text-subtle">{p.isHost ? "Host" : "Guest"}</p>
@@ -201,9 +206,11 @@ export function LobbyScreen() {
         )}
 
         {host ? (
-          <Button size="lg" className="mt-6 w-full" disabled={!canStart} onClick={startGame}>
-            Deal the cards
-          </Button>
+          <div className="sticky-action mt-6">
+            <Button size="lg" className="w-full" disabled={!canStart} onClick={startGame}>
+              Deal the cards
+            </Button>
+          </div>
         ) : null}
         {joinError ? <p className="mt-2 text-center text-sm text-brass">{joinError}</p> : null}
         {!canStart ? (
@@ -260,6 +267,47 @@ function HouseRules({ state }: { state: GameState }) {
           </p>
         );
       })}
+    </section>
+  );
+}
+
+/**
+ * UI / RENDER LAYER — pick the character who represents you.
+ * Calls the store's `pickCharacter` (engine rule: setPortrait). Faces already
+ * worn by someone else are dimmed. Host on a shared phone picks for whoever is tapped last in the roster below.
+ */
+function CharacterPicker() {
+  const state = useGame((s) => s.state);
+  const me = useGame((s) => s.localPlayerId);
+  const pick = useGame((s) => s.pickCharacter);
+  if (!state || state.startedAt) return null;
+  const self = state.players.find((p) => p.id === me);
+  if (!self) return null;
+  const taken = takenPortraits(state.players, me);
+  const mine = portraitOf(self);
+  return (
+    <section className="mt-6" aria-label="Choose your character">
+      <p className="text-xs uppercase tracking-[0.16em] text-subtle">Your character</p>
+      <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+        {CAST.map((face, i) => {
+          const worn = taken.has(i);
+          const on = mine.src === face.src;
+          return (
+            <button
+              key={face.src}
+              type="button"
+              disabled={worn}
+              aria-pressed={on}
+              aria-label={`${face.name}${worn ? " (taken)" : ""}`}
+              className={`pick-face${on ? " pick-face-on" : ""}`}
+              onClick={() => pick(i)}
+            >
+              <img src={face.src} alt="" loading="lazy" decoding="async" />
+              <span>{face.name.split(" ").pop()}</span>
+            </button>
+          );
+        })}
+      </div>
     </section>
   );
 }

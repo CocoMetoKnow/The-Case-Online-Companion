@@ -5,6 +5,8 @@ import { SetupScreen } from "./SetupScreen";
 import { LobbyScreen } from "./LobbyScreen";
 import { Briefcase } from "./Briefcase";
 import { OnlineTable } from "./OnlineTable";
+import { JournalLayer } from "./JournalLayer";
+import { useUI } from "@/lib/ui/ui";
 
 export function AppShell() {
   const view = useGame((s) => s.view);
@@ -15,9 +17,12 @@ export function AppShell() {
   const joinCode = useGame((s) => s.joinCode);
   const heist = view === "setup" || view === "landing" ? Boolean(setup.settings.heist) : Boolean(state?.settings.heist);
 
+  const initSkin = useUI((s) => s.initSkin);
+
   useEffect(() => {
+    initSkin();
     hydrate();
-  }, [hydrate]);
+  }, [hydrate, initSkin]);
 
   useEffect(() => {
     document.title = "The Case";
@@ -29,9 +34,19 @@ export function AppShell() {
     ? state.settings.playMode === "online"
     : setup.settings.playMode === "online" || Boolean(joinCode);
 
+  return (
+    <>
+      {screen(view, online, Boolean(state || joinCode))}
+      {/* UI / RENDER LAYER: the single journal, mounted above every screen */}
+      <JournalLayer />
+    </>
+  );
+}
+
+function screen(view: string, online: boolean, hasCase: boolean) {
   if (view === "setup") return <SetupScreen />;
   if (view === "lobby" || view === "play") {
-    if (online && (state || joinCode)) return <OnlineTable />;
+    if (online && hasCase) return <OnlineTable />;
     if (view === "lobby") return <LobbyScreen />;
     if (view === "play") return <Briefcase />;
   }

@@ -268,9 +268,11 @@ export function SetupScreen() {
             />
           ) : null}
 
-          <Button size="lg" className="w-full" disabled={!ready} onClick={hostTable}>
-            Open the lobby
-          </Button>
+          <div className="sticky-action">
+            <Button size="lg" className="w-full" disabled={!ready} onClick={hostTable}>
+              Open the lobby
+            </Button>
+          </div>
           {!ready ? (
             <p className="text-center text-sm text-muted">
               Each group needs at least {MIN_CATEGORY_CARDS} cards on, and the deck needs one card for every seat plus the answers.

@@ -12,7 +12,7 @@ const MUSIC_KEY = "gmm.music";
 const SFX_KEY = "gmm.sfx";
 
 /** SFX sit above the music bed without clipping; both toggle independently and persist via localStorage. */
-const SFX_GAIN = 0.75;
+const SFX_GAIN = 0.4;
 const BGM_GAIN = 0.35;
 const BGM_FILE = "/assets/audio/leberch-dark-cinematic-509801.mp3";
 
@@ -29,7 +29,29 @@ const SFX_FILES = {
   pencil: "/assets/audio/pencil_writing.mp3",
   thud: "/assets/audio/heavy_thud.mp3",
   twinkle: "/assets/audio/twinkle_gliss.mp3",
+  // Alternates that were sitting unused in extras/, now placed.
+  diceRoll: "/assets/audio/extras/dice_rolling_alt.mp3",
+  tick1: "/assets/audio/extras/clock_tick_alt1.mp3",
+  tick2: "/assets/audio/extras/clock_tick_alt2.mp3",
+  failAlt: "/assets/audio/extras/muffled_static_alt.mp3",
+  solveStartAlt: "/assets/audio/extras/mysterious_sting_alt.mp3",
 } as const;
+
+/** Per-sound loudness trim, on top of the master SFX bus. The big stings and stabs sit lower than the small taps. */
+const SOUND_GAIN: Partial<Record<keyof typeof SFX_FILES, number>> = {
+  card: 0.9,
+  solveStart: 0.7,
+  solveStartAlt: 0.7,
+  win: 0.7,
+  fail: 0.65,
+  failAlt: 0.65,
+  thud: 0.7,
+  twinkle: 0.8,
+  dice: 0.8,
+  diceRoll: 0.8,
+  tick1: 0.7,
+  tick2: 0.7,
+};
 
 type SfxName = keyof typeof SFX_FILES;
 
@@ -98,7 +120,7 @@ function play(name: SfxName, opts: { gain?: number; rate?: number } = {}) {
     src.buffer = buf;
     src.playbackRate.value = opts.rate ?? 1;
     const g = c.createGain();
-    g.gain.value = opts.gain ?? 1;
+    g.gain.value = opts.gain ?? SOUND_GAIN[name] ?? 1;
     src.connect(g);
     g.connect(master);
     src.start();
@@ -167,6 +189,17 @@ export function sfxDice() {
   haptic("dice");
   play("dice");
 }
+/** The dice leave your hand: the rattle, played the moment you tap Roll. The clack above plays when they land. */
+export function sfxDiceRoll() {
+  haptic("dice");
+  play("diceRoll");
+}
+/** A gentle clock tick when you have been idle on your turn. Two takes, alternated. */
+let tickFlip = false;
+export function sfxTick() {
+  tickFlip = !tickFlip;
+  play(tickFlip ? "tick1" : "tick2");
+}
 /** A card slides into place — dealing, or showing a card you chose. */
 export function sfxCard() {
   haptic("card");
@@ -189,7 +222,7 @@ export function sfxSnake() {
 /** A Solve the Case attempt comes back wrong. */
 export function sfxFail() {
   haptic("snake");
-  play("fail");
+  play(Math.random() < 0.5 ? "fail" : "failAlt");
 }
 /** The case is solved. */
 export function sfxWin() {
@@ -231,7 +264,7 @@ export function sfxPower() {
 /** A Solve the Case attempt is being made. */
 export function sfxSolveStart() {
   haptic("snake");
-  play("solveStart");
+  play(Math.random() < 0.5 ? "solveStart" : "solveStartAlt");
 }
 
 type QuestionCue = {

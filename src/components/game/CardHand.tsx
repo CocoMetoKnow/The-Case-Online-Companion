@@ -1,19 +1,105 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CardDef } from "@/lib/game/types";
-import { sfxPaper } from "@/lib/game/sfx";
+import { sfxCard, sfxPaper } from "@/lib/game/sfx";
+import { dealLedger, useUI } from "@/lib/ui/ui";
 import { CardBack, CardFace } from "./CardFace";
+
+/**
+ * ============================================================
+ *  UI / RENDER LAYER — opening deal animation
+ * ============================================================
+ *  Slides every `[data-deal]` card from the centre of the hand (the "deck")
+ *  into place, one at a time. Transform + opacity only (GPU composited, Web
+ *  Animations API, no per-frame JS), so it stays at 60fps on mobile Safari.
+ *  Plays once per `dealKey`, under 2s in total, tap anywhere to skip.
+ *  Fires a `case:deal-end` window event when the last card lands.
+ */
+const FLIGHT_MS = 350;
+const MAX_TOTAL_MS = 1900;
+
+function useDeal(getRoot: () => HTMLElement | null, dealKey: string | undefined, count: number) {
+  const setDealing = useUI((s) => s.setDealing);
+  const dealing = useUI((s) => s.dealing);
+  const skip = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    const root = getRoot();
+    if (!root || !dealKey || !count || dealLedger.has(dealKey)) return;
+    dealLedger.add(dealKey);
+    const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-deal]"));
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!cards.length || reduced || typeof cards[0].animate !== "function") return;
+
+    const box = root.getBoundingClientRect();
+    const cx = box.left + box.width / 2;
+    const cy = box.top + box.height / 2;
+    const gap = Math.min(150, (MAX_TOTAL_MS - FLIGHT_MS) / cards.length);
+    const timers: number[] = [];
+    const anims = cards.map((el, i) => {
+      const r = el.getBoundingClientRect();
+      const k = el.offsetWidth ? r.width / el.offsetWidth || 1 : 1;
+      const dx = (cx - (r.left + r.width / 2)) / k;
+      const dy = (cy - (r.top + r.height / 2)) / k;
+      timers.push(window.setTimeout(sfxCard, i * gap));
+      return el.animate(
+        [
+          { transform: `translate3d(${dx}px,${dy}px,0) scale(.72) rotate(-10deg)`, opacity: 0 },
+          { opacity: 1, offset: 0.2 },
+          { transform: "translate3d(0,0,0) scale(1) rotate(0deg)", opacity: 1 },
+        ],
+        { duration: FLIGHT_MS, delay: i * gap, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" },
+      );
+    });
+
+    let over = false;
+    const end = () => {
+      if (over) return;
+      over = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      skip.current = null;
+      setDealing(false);
+      window.dispatchEvent(new CustomEvent("case:deal-end"));
+    };
+    skip.current = () => {
+      anims.forEach((a) => a.finish());
+      end();
+    };
+    setDealing(true);
+    anims[anims.length - 1].addEventListener("finish", end);
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+      anims.forEach((a) => a.cancel());
+      end();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealKey, count]);
+
+  return { dealing, skip: () => skip.current?.() };
+}
+
+function DealLayer({ dealing, onSkip }: { dealing: boolean; onSkip: () => void }) {
+  if (!dealing) return null;
+  return (
+    <button type="button" aria-label="Skip dealing" className="deal-layer" onClick={onSkip}>
+      <span className="deal-deck" aria-hidden="true" />
+    </button>
+  );
+}
 
 export function CardHand({
   cards,
   onOpen,
   facesDown = false,
   spread = false,
+  dealKey,
 }: {
   cards: CardDef[];
   onOpen: (card: CardDef) => void;
   facesDown?: boolean;
   spread?: boolean;
+  /** Changes once per fresh deal (game code + start + seat). Omit to never animate. */
+  dealKey?: string;
 }) {
   const [index, setIndex] = useState(0);
   const [drag, setDrag] = useState(0);
@@ -21,8 +107,10 @@ export function CardHand({
   const start = useRef({ x: 0, y: 0, axis: "" as "" | "x" | "y" });
   const stage = useRef<HTMLDivElement>(null);
   const hold = useRef<number | null>(null);
+  const grid = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const sig = cards.map((c) => c.id).join("|");
+  const deal = useDeal(() => (spread ? grid.current : stage.current), dealKey, cards.length);
 
   useEffect(() => {
     setIndex(0);
@@ -128,11 +216,12 @@ export function CardHand({
 
   if (spread) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={grid} className="relative min-h-0 flex-1 overflow-y-auto">
+        <DealLayer dealing={deal.dealing} onSkip={deal.skip} />
         <p className="text-[10px] uppercase tracking-[0.16em] text-subtle">In your hand · {cards.length}</p>
         <div className="mt-1 grid grid-cols-3 gap-1.5">
           {cards.map((card) => (
-            <button key={card.id} type="button" className="relative h-28 w-full" onClick={() => onOpen(card)}>
+            <button key={card.id} type="button" data-deal className="deal-card card-mat relative h-28 w-full" onClick={() => onOpen(card)}>
               {facesDown ? (
                 <span className="grid h-full w-full place-items-center rounded-[12px] border border-paper/30 bg-black font-display text-3xl text-paper">?</span>
               ) : (
@@ -154,6 +243,7 @@ export function CardHand({
         </p>
       </div>
       <div className="relative mt-0.5 min-h-0 flex-1">
+        <DealLayer dealing={deal.dealing} onSkip={deal.skip} />
         <button
           type="button"
           aria-label="Previous card"
@@ -215,7 +305,9 @@ export function CardHand({
                   opacity: Math.abs(rel) === 3 ? 0.45 : 1,
                 }}
               >
-                {facesDown ? <CardBack /> : <CardFace card={card} />}
+                <div data-deal className="deal-card card-mat">
+                  {facesDown ? <CardBack /> : <CardFace card={card} />}
+                </div>
               </div>
             );
           })}

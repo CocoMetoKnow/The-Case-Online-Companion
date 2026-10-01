@@ -3,6 +3,7 @@ import { canAsk, currentPlayer, turnActorId, useActorId, useGame, useMyHand, use
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
+import { sfxSolveStart } from "@/lib/game/sfx";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { startOpen?: boolean; fit?: boolean; onAsked?: () => void }) {
@@ -425,8 +426,8 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
         forced
           ? "Nobody holds these cards. They are filled in. Name them to win."
           : state.settings.heist
-            ? "Cards you marked in the journal stay labeled. Name who took it, where, and what was stolen. If you are right, you win."
-            : "Cards you marked in the journal stay labeled. Name the whole solution. If you are right, you win."
+            ? "Cards you marked in the journal stay labeled. Name who took it, where, and what was stolen. Your last pick is final. If you are right, you win."
+            : "Cards you marked in the journal stay labeled. Name the whole solution. Your last pick is final. If you are right, you win."
       }
       closedLabel={forced ? "Name them to win" : state.settings.heist ? "Name the theft" : "Solve the Case"}
       steps={steps}
@@ -659,6 +660,10 @@ function PickFlow({
   if (!state) return null;
   const fog = (state.notesLock?.[actorId] ?? 0) > 0;
   const final = tone === "final";
+  // Solve the Case sting plays as each category card is picked, not when the Solve button is pressed.
+  const pickSound = () => {
+    if (final) sfxSolveStart();
+  };
   const shownIds = new Set(notes.shown.map((item) => item.cardId));
   for (const [id, cell] of Object.entries(notes.marks)) {
     if (cell?.envelope === "check") shownIds.add(id);
@@ -681,10 +686,16 @@ function PickFlow({
   const cols = options.length <= 4 ? 2 : options.length <= 9 ? 3 : 4;
   const rows = Math.max(1, Math.ceil(options.length / cols));
   const choose = (cardId: string) => {
+    pickSound();
     const next = { ...pick, [current]: cardId };
     setPick(next);
-    setStep(step + 1);
     onPick?.(next);
+    // Solve the Case resolves on the last card you tap, with no separate Solve button to press.
+    if (final && step >= steps.length - 1) {
+      onDone(next);
+      return;
+    }
+    setStep(step + 1);
   };
 
   if (fit && open) {
@@ -879,6 +890,7 @@ function PickFlow({
                   sheetMark={fog || final ? sheetOf(card.id) : undefined}
                   selected={pick[current] ? pick[current] === card.id : circled[current] === card.id}
                   onClick={() => {
+                    pickSound();
                     const next = { ...pick, [current]: card.id };
                     setPick(next);
                     setStep(step + 1);
@@ -898,6 +910,7 @@ function PickFlow({
               onClick={() => {
                 const id = circled[current];
                 if (!id) return;
+                pickSound();
                 const next = { ...pick, [current]: id };
                 setPick(next);
                 setStep(step + 1);

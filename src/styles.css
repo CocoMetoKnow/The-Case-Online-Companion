@@ -244,3 +244,214 @@ body {
   padding: 16px;
   background: #140e0bb8;
 }
+
+/* =====================================================================
+   UI / RENDER LAYER
+   ---------------------------------------------------------------------
+   Everything below is presentation only. Sections:
+     1. Always-on rules   (safe areas, journal layer, deal, reveal, gear)
+     2. Detective skin    (html[data-ui="detective"] only)
+     3. Classic UI        (html[data-ui="classic"]: none of section 2 applies)
+   ===================================================================== */
+
+/* ---------- 1. Always-on rules ---------- */
+html, body { overscroll-behavior-y: none; }
+main.h-dvh { padding-bottom: env(safe-area-inset-bottom); }
+main.leather:not(.h-dvh), main.paper-wash {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Primary actions stay reachable on iPhone instead of scrolling away. */
+.sticky-action {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--color-bg) 38%);
+}
+
+/* The one journal: above every screen, modal and overlay (highest existing is 96). */
+.journal-fab {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 9000;
+  touch-action: manipulation;
+}
+.journal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  flex-direction: column;
+  background: #140e0b;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+.journal-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; color: var(--color-paper); }
+.journal-close {
+  min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #b08d5799;
+  color: var(--color-paper); font-size: 14px; touch-action: manipulation;
+}
+
+/* Journal column badges, lobby/HUD faces: the player's chosen character. */
+.journal-face, .lobby-face {
+  display: inline-block; flex: none; overflow: hidden; border-radius: 999px;
+  border: 2px solid #8a7e70; background: #241e18;
+}
+.journal-face { width: 28px; height: 28px; }
+.lobby-face { width: 32px; height: 32px; }
+.journal-face img, .lobby-face img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.pick-face {
+  flex: none; width: 64px; display: grid; justify-items: center; gap: 4px; padding: 4px;
+  border: 2px solid transparent; border-radius: 14px; color: var(--color-muted); font-size: 11px;
+  touch-action: manipulation;
+}
+.pick-face img { width: 52px; height: 52px; border-radius: 999px; object-fit: cover; object-position: center 20%; border: 2px solid var(--color-line); }
+.pick-face-on { border-color: var(--color-brass); color: var(--color-fg); }
+.pick-face:disabled { opacity: .35; }
+
+/* Opening deal: transform/opacity only. */
+.deal-card { will-change: transform, opacity; backface-visibility: hidden; }
+.deal-layer { position: absolute; inset: 0; z-index: 40; display: block; background: transparent; }
+.deal-deck {
+  position: absolute; left: 50%; top: 50%; width: 44px; height: 62px; margin: -31px 0 0 -22px;
+  border-radius: 6px; background: linear-gradient(#5a3a22, #2a1c0c); border: 1px solid #e7c98a;
+  box-shadow: 2px 2px 0 #3a2616, 4px 4px 0 #2a1c0c, 0 8px 14px #0008;
+}
+
+/* Card reveal: ONE container, always mounted. */
+.reveal-layer {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: start center;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px 16px;
+  background: rgba(10, 6, 4, .74);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .3s ease, visibility 0s linear .52s;
+}
+.reveal-layer[data-open="true"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .2s ease; }
+.reveal-card {
+  width: 100%; max-width: 360px; text-align: center; padding: 18px 20px 16px; border-radius: 22px;
+  color: var(--color-paper); border: 1px solid #b08d5773;
+  background: linear-gradient(#3a241c, #1a100c);
+  box-shadow: 0 22px 48px #0009;
+  transform: translate3d(0, -120%, 0);
+  transition: transform .52s cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+.reveal-layer[data-open="true"] .reveal-card { transform: translate3d(0, 0, 0); }
+.reveal-title { font-family: var(--font-display); font-size: 1.6rem; line-height: 1.05; }
+.reveal-hint { margin-top: 12px; font-size: 13px; color: var(--color-muted); }
+
+/* Settings gear card + Classic UI switch */
+.settings-card { z-index: 300; color: var(--color-ink); background: #efe3c8; border: 1px solid #9d7f4c; box-shadow: 0 14px 30px #0008; }
+.classic-toggle {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 8px;
+  border: 1px solid #b08d5780; border-radius: 999px; color: var(--color-muted); font-size: 12px;
+  touch-action: manipulation;
+}
+.classic-toggle-dot { width: 14px; height: 14px; border-radius: 999px; border: 2px solid var(--color-brass); }
+.classic-toggle[aria-checked="true"] { color: var(--color-fg); }
+.classic-toggle[aria-checked="true"] .classic-toggle-dot { background: var(--color-brass); }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-card, .reveal-layer { transition-duration: .01ms; }
+}
+
+/* ---------- 2. Detective skin ---------- */
+html[data-ui="detective"] {
+  --font-display: "Special Elite", "American Typewriter", "Courier New", monospace;
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .12  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+html[data-ui="detective"] body { background: #140e0b; }
+
+/* Desk and leather */
+html[data-ui="detective"] .leather {
+  background:
+    radial-gradient(ellipse at 50% -10%, #ffd9961f, transparent 55%),
+    var(--paper-grain),
+    linear-gradient(#2a1c16 0%, #140e0b 100%);
+  background-blend-mode: normal, soft-light, normal;
+}
+html[data-ui="detective"] .case-shell {
+  background: var(--paper-grain), linear-gradient(#4f3727, #241610 28%, #1a100c);
+  background-blend-mode: soft-light, normal;
+}
+
+/* Paper pages (lobby, dialogs) */
+html[data-ui="detective"] .paper-wash,
+html[data-ui="detective"] .wood-panel {
+  color: var(--color-ink);
+  background: var(--paper-grain), linear-gradient(#f2e7cd, #e2d1ad);
+  background-blend-mode: multiply, normal;
+}
+html[data-ui="detective"] .paper-wash { box-shadow: inset 0 0 90px #6b4a2040; }
+html[data-ui="detective"] .paper-wash .text-muted,
+html[data-ui="detective"] .paper-wash .text-subtle { color: #4a3a2a; }
+html[data-ui="detective"] .paper-wash .text-fg { color: var(--color-ink); }
+
+/* Buttons: ink-stamp / metal-tag feel, high contrast */
+html[data-ui="detective"] .ui-btn { font-family: var(--font-display); letter-spacing: .04em; border-radius: 6px; }
+html[data-ui="detective"] .ui-btn.bg-accent {
+  background: #7a1f2b; color: #fff4dc; border: 2px solid #3d0e15;
+  box-shadow: inset 0 0 0 2px #7a1f2b, inset 0 0 0 3px #e7c98a66, 0 3px 0 #2a0a10;
+}
+html[data-ui="detective"] .ui-btn.border-line { border: 2px solid #b08d57; color: var(--color-paper); }
+html[data-ui="detective"] .paper-wash .ui-btn.border-line { color: var(--color-ink); border-color: #6b4a20; }
+html[data-ui="detective"] .ui-field {
+  font-family: "Special Elite", "Courier New", monospace; border-radius: 4px;
+  background: #f3e6c8; color: var(--color-ink); border: 1px solid #6b4a20;
+  box-shadow: inset 0 2px 4px #6b4a2033;
+}
+html[data-ui="detective"] .ui-field::placeholder { color: #6e5a40; }
+
+/* Cards: the worn frame sits OUTSIDE the card (padding + background + inset shadow only), so the artwork is never covered or altered. */
+html[data-ui="detective"] .card-mat {
+  padding: 4px; border-radius: 18px;
+  background:
+    radial-gradient(circle at 8% 6%, #5a3d1a55 0 10%, transparent 11%),
+    radial-gradient(circle at 94% 92%, #5a3d1a55 0 12%, transparent 13%),
+    var(--paper-grain),
+    linear-gradient(135deg, #d9c9a2, #a98e5c);
+  background-blend-mode: normal, normal, multiply, normal;
+  box-shadow: inset 0 0 0 1px #5a4020, inset 0 0 0 3px #e7d8b366, 0 6px 14px #0008;
+}
+
+/* Journal: leather-bound notebook with a stamped tab */
+html[data-ui="detective"] .journal-book {
+  background: var(--paper-grain), linear-gradient(90deg, #1d100c 0 10px, #5a2a22 10px 14px, #7a3a2e 14px);
+  background-blend-mode: soft-light, normal;
+  border: 1px solid #b08d5766; color: #f2e2c0;
+}
+html[data-ui="detective"] .journal-book span { font-family: var(--font-display); letter-spacing: .02em; }
+html[data-ui="detective"] .notebook-page {
+  background-color: #f1e6cb;
+  background-image:
+    var(--paper-grain),
+    linear-gradient(90deg, #0000 0 14px, #a83434b3 14px 15.5px, #0000 15.5px),
+    repeating-linear-gradient(#0000 0 31px, #5a74a059 31px 32px);
+  background-blend-mode: multiply, normal, normal;
+}
+html[data-ui="detective"] .notebook { box-shadow: 0 18px 36px #000a, inset 0 0 0 2px #b08d5766; }
+html[data-ui="detective"] .journal-layer { background: var(--paper-grain), #140e0b; background-blend-mode: soft-light, normal; }
+html[data-ui="detective"] .journal-face { border-color: #3a2a1a; box-shadow: 0 1px 0 #fff8; }
+
+/* Ink-stamped notices */
+html[data-ui="detective"] .reveal-hint { font-family: var(--font-display); color: #e7c98a; }
+html[data-ui="detective"] .settings-card { background: var(--paper-grain), #efe3c8; background-blend-mode: multiply, normal; }
+
+/* ---------- 3. Classic UI ----------
+   Nothing to override: html[data-ui="classic"] simply omits every rule in
+   section 2, which is the previous standard look. */
+
+/* Journal column header: round portrait with the player's letter badge
+   overlapping its lower right (matches the reference screenshot). */
+.journal-badge { position: relative; display: block; width: 38px; height: 38px; }
+.journal-badge-photo {
+  display: block; width: 36px; height: 36px; overflow: hidden; border-radius: 999px; background: #241e18;
+}
+.journal-badge-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.journal-badge-letter {
+  position: absolute; right: -6px; bottom: -6px; display: grid; place-items: center;
+  width: 20px; height: 20px; border-radius: 999px; border: 2px solid #f6f1e6;
+  color: #fff; font: 700 11px/1 var(--font-sans);
+}

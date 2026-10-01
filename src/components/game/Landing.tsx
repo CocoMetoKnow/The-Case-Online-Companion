@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { unlockAudio } from "@/lib/game/sfx";
 import { useEffect } from "react";
 import { MusicToggle } from "./MusicToggle";
+import { useUI } from "@/lib/ui/ui";
 
 export function Landing() {
   const setView = useGame((s) => s.setView);
@@ -16,6 +17,8 @@ export function Landing() {
   const joinOnline = useGame((s) => s.joinOnline);
   const patchSettings = useGame((s) => s.patchSettings);
   const state = useGame((s) => s.state);
+  const skin = useUI((s) => s.skin);
+  const setSkin = useUI((s) => s.setSkin);
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code");
@@ -26,7 +29,16 @@ export function Landing() {
     <main className="leather min-h-dvh">
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6">
         <header className="flex items-center justify-between">
-          <p className="text-xs uppercase tracking-[0.28em] text-brass">Table companion</p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={skin === "classic"}
+            className="classic-toggle"
+            onClick={() => setSkin(skin === "classic" ? "detective" : "classic")}
+          >
+            <span aria-hidden="true" className="classic-toggle-dot" />
+            Classic UI
+          </button>
           <div className="flex items-center gap-3">
             <MusicToggle />
             {state ? (

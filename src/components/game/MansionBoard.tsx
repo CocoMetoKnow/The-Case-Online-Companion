@@ -13,7 +13,7 @@ import {
 } from "@/lib/game/board";
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
-import { portraitFor } from "@/lib/game/cast";
+import { portraitOf } from "@/lib/game/cast";
 
 const CELL = 24;
 const STARTS = new Set(START_HALL.map((s) => `${s.x},${s.y}`));
@@ -217,7 +217,7 @@ function anchor(player: Player) {
 
 function Character({ player, isTurn, crowd, lift }: { player: Player; isTurn: boolean; crowd: number; lift: number }) {
   const at = anchor(player);
-  const face = portraitFor(player.seat);
+  const face = portraitOf(player);
   return (
     <div
       className={cn("character", isTurn && "character-turn")}

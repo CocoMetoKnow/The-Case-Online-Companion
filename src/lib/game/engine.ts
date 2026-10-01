@@ -115,6 +115,18 @@ export function removePlayer(state: GameState, playerId: string): GameState {
 		turnOrder: state.turnOrder.filter((id) => id !== playerId)
 	};
 }
+/** Lobby only. A character can be worn by one player at a time; picking a worn face is ignored. */
+export function setPortrait(state: GameState, playerId: string, portrait: number): GameState {
+	if (state.startedAt) return state;
+	if (!Number.isInteger(portrait) || portrait < 0 || portrait >= 7) return state;
+	if (!state.players.some((p) => p.id === playerId)) return state;
+	const worn = state.players.some((p) => p.id !== playerId && (typeof p.portrait === "number" ? p.portrait : p.seat) % 7 === portrait);
+	if (worn) return state;
+	return {
+		...state,
+		players: state.players.map((p) => p.id === playerId ? { ...p, portrait } : p)
+	};
+}
 export function renamePlayer(state: GameState, playerId: string, name: string): GameState {
 	return {
 		...state,

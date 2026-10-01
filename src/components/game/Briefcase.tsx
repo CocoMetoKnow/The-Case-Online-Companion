@@ -4,10 +4,12 @@ import { movementTotal, blockingPlayerIds } from "@/lib/game/engine";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
 import { CardHand } from "./CardHand";
+import { CardReveal } from "./CardReveal";
+import { portraitOf } from "@/lib/game/cast";
+import { useUI } from "@/lib/ui/ui";
 import { EventPanel } from "./EventPanel";
-import { NotesBook } from "./NotesBook";
 import { AccusationPanel, AccusationWatch, QuestionPanel, QuestionResolve } from "./QuestionPanel";
-import { sfxPaper, sfxSolveStart } from "@/lib/game/sfx";
+import { sfxPaper, sfxTick } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
@@ -81,7 +83,8 @@ export function Briefcase() {
   const ask = useGame((s) => s.ask);
   const verdict = useGame((s) => s.verdict);
   const dismissVerdict = useGame((s) => s.dismissVerdict);
-  const [folio, setFolio] = useState(false);
+  // The journal lives in <JournalLayer/> (UI layer); this screen only reads whether it is open.
+  const folio = useUI((s) => s.journalOpen);
   const [lifted, setLifted] = useState<CardDef | null>(null);
   const [suggest, setSuggest] = useState(false);
   const [accuse, setAccuse] = useState(false);
@@ -132,7 +135,6 @@ export function Briefcase() {
     if (!offerKey || skippedOffer.current === offerKey) return;
     setSuggest(false);
     setAccuse(true);
-    sfxSolveStart();
   }, [offerKey]);
 
   useEffect(() => {
@@ -186,7 +188,10 @@ export function Briefcase() {
       setNudge(false);
       return;
     }
-    const timer = window.setTimeout(() => setNudge(true), 45_000);
+    const timer = window.setTimeout(() => {
+      sfxTick();
+      setNudge(true);
+    }, 45_000);
     return () => window.clearTimeout(timer);
   }, [idleWatch, idleGen, state?.turnIndex, state?.phase, state?.log.length]);
 
@@ -220,7 +225,6 @@ export function Briefcase() {
   const guide = (state.influences ?? []).find((i) => i.victimId === cur?.id);
   const influenced = Boolean(guide);
   const canRoll = !state.wait && myTurn && state.phase === "roll";
-  const locked = (state.notesLock?.[actor] ?? 0) > 0;
   const passages = (state.passages ?? []).map((p) => {
     const a = state.cards.find((c) => c.id === p.a)?.name ?? p.a;
     const b = state.cards.find((c) => c.id === p.b)?.name ?? p.b;
@@ -296,7 +300,12 @@ export function Briefcase() {
     <main className="leather h-dvh overflow-hidden">
       <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
         <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
-          <p className="min-w-0 truncate font-display text-lg leading-none">
+          <p className="flex min-w-0 items-center gap-2 truncate font-display text-lg leading-none">
+            {me ? (
+              <span className="lobby-face shrink-0" style={{ borderColor: me.color }}>
+                <img src={portraitOf(me).src} alt="" />
+              </span>
+            ) : null}
             {me?.name ?? "Your case"}
             {state.hostId === actor ? " · Host" : ""}
             {state.settings.speakMode ? " · Speaking" : ""}
@@ -340,16 +349,6 @@ export function Briefcase() {
                   .join(" → ")}
               </p>
             </div>
-            <button
-              type="button"
-              className="journal-book journal-book-sm"
-              onClick={() => {
-                if (!locked) sfxPaper();
-                setFolio(true);
-              }}
-            >
-              <span>{locked ? "Shut" : "Journal"}</span>
-            </button>
             <div className="flex items-end gap-1">
               <DicePair
                 small
@@ -389,6 +388,7 @@ export function Briefcase() {
 
           <CardHand
             cards={hand}
+            dealKey={`${state.code}:${state.startedAt ?? 0}:${viewing}`}
             facesDown={facesDown}
             spread={spread}
             onOpen={(card) => {
@@ -454,7 +454,6 @@ export function Briefcase() {
                   onClick={() => {
                     setMovesOpen(false);
                     setAccuse(true);
-                    sfxSolveStart();
                   }}
                 >
                   {state.question?.offerAccusation
@@ -561,36 +560,6 @@ export function Briefcase() {
         </div>
       ) : null}
 
-      {!folio ? (
-        <button
-          type="button"
-          className="journal-book journal-book-sm"
-          style={{ position: "fixed", right: 12, bottom: 12, zIndex: 84 }}
-          onClick={() => {
-            if (!locked) sfxPaper();
-            setFolio(true);
-          }}
-        >
-          <span>{locked ? "Shut" : "Journal"}</span>
-        </button>
-      ) : null}
-
-      {folio ? (
-        <div className="folio-sheet journal-open flex flex-col">
-          <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-3 py-2">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="font-display text-2xl text-paper">Journal</p>
-              <Button variant="outline" size="sm" onClick={() => setFolio(false)}>
-                Back in the case
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1">
-              <NotesBook />
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {lifted ? (
         <div className="folio-sheet grid place-items-center" onClick={() => setLifted(null)}>
           <CardFace card={lifted} large />
@@ -690,27 +659,15 @@ export function Briefcase() {
         </div>
       ) : null}
 
-      {shownToMe ? (
-        <div className="roll-stage" style={{ zIndex: 80 }}>
-          <div className="case-shell w-full max-w-sm rounded-[28px] px-6 py-6 text-center">
-            <p className="text-xs uppercase tracking-[0.22em] text-brass">Shown only to you</p>
-            <h2 className="mt-2 font-display text-4xl leading-none text-paper">{shownToMe.who} shows you a card</h2>
-            <div className="mt-4 flex justify-center">
-              <CardFace card={shownToMe.card} large />
-            </div>
-            <Button
-              className="mt-5 w-full"
-              size="lg"
-              onClick={() => {
-                if (shownToMe.ack) ackCard();
-                else setSpyClosed(shownToMe.card.id);
-              }}
-            >
-              I've seen it
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {/* UI / RENDER LAYER: one reusable reveal container; the engine only supplies data + callbacks */}
+      <CardReveal
+        data={shownToMe ? { card: shownToMe.card, who: shownToMe.who } : null}
+        onDismiss={() => {
+          if (!shownToMe) return;
+          if (shownToMe.ack) ackCard();
+          else setSpyClosed(shownToMe.card.id);
+        }}
+      />
     </main>
   );
 }

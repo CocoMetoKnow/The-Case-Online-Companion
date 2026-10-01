@@ -4,6 +4,7 @@ import { CLASSIC_CARDS, DEFAULT_CARDS, MIN_CATEGORY_CARDS, answerCards, asHeist,
 import {
   accusationHits,
   addPlayer,
+  setPortrait,
   canAsk,
   createLobby,
   currentPlayer,
@@ -16,7 +17,7 @@ import {
   rememberRound,
 } from "@/lib/game/engine";
 import { autoResolveIfPossible } from "@/lib/game/events";
-import { sfxCard, sfxDice, sfxFail, sfxPaper, sfxPencil, sfxPower, sfxReceive, sfxSnake, sfxTurn, sfxWin, unlockAudio } from "@/lib/game/sfx";
+import { sfxCard, sfxDice, sfxDiceRoll, sfxFail, sfxPaper, sfxPencil, sfxPower, sfxReceive, sfxSnake, sfxTurn, sfxWin, unlockAudio } from "@/lib/game/sfx";
 import {
   emptyNotes,
   loadVault,
@@ -89,6 +90,8 @@ interface GameStore {
   quickEvening: () => void;
   addLocalGuest: (name: string) => void;
   lockLobby: (locked: boolean) => void;
+  /** Lobby: wear a character (index into CAST). `playerId` defaults to the local player. */
+  pickCharacter: (portrait: number, playerId?: string) => void;
   startGame: () => void;
   playAgain: () => void;
   roll: () => void;
@@ -765,6 +768,19 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ state: addPlayer(state, name) });
     persist(get);
   },
+  pickCharacter: (portrait, playerId) => {
+    const { state, localPlayerId } = get();
+    if (!state || state.startedAt) return;
+    const who = playerId ?? localPlayerId;
+    if (state.settings.playMode === "online") {
+      sendOnline(get, { kind: "portrait", payload: { portrait } });
+      return;
+    }
+    const next = setPortrait(state, who, portrait);
+    if (next === state) return;
+    set({ state: next });
+    persist(get);
+  },
   lockLobby: (locked) => {
     const { state } = get();
     if (!state) return;
@@ -814,7 +830,10 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ state: dealt.state, secrets: dealt.secrets, notes, verdict: null, verdictSeen: "", view: "play" });
     persist(get);
   },
-  roll: () => play(get, set, "roll"),
+  roll: () => {
+    sfxDiceRoll();
+    play(get, set, "roll");
+  },
   moveTo: (pos) => play(get, set, "move", pos as unknown as Record<string, unknown>),
   stay: () => play(get, set, "stay"),
   ask: (pick) => play(get, set, "ask", pick ?? {}),

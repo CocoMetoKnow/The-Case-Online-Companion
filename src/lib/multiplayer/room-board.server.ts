@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { applyPlay } from "@/lib/game/actions";
-import { accusationHits, addPlayer, blockingPlayerIds, dealAndStart, dropPlayer, ensureObjective, healEmptyHands, promoteHost, releaseQuestion, rememberRound, removePlayer, restoreRound } from "@/lib/game/engine";
+import { accusationHits, addPlayer, setPortrait, blockingPlayerIds, dealAndStart, dropPlayer, ensureObjective, healEmptyHands, promoteHost, releaseQuestion, rememberRound, removePlayer, restoreRound } from "@/lib/game/engine";
 import { sanitizeState } from "@/lib/game/sanitize";
 import { cardStamp, shortStamp, slimState } from "@/lib/game/slim";
 import type { GameState, Secrets } from "@/lib/game/types";
@@ -194,6 +194,7 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
       eliminated: Boolean(player.eliminated),
       isHost: Boolean(player.isHost),
       position: player.position,
+      ...(typeof player.portrait === "number" ? { portrait: player.portrait } : {}),
     })),
     turnOrder: safe.turnOrder,
     turnIndex: safe.turnIndex,
@@ -792,6 +793,16 @@ function applyMessage(msg: z.infer<typeof postSchema>): Response {
         room.actIds = [];
         bump(map, msg.room, room);
       }
+    }
+    return json(view(room, msg.peer, known));
+  }
+
+  if (msg.kind === "portrait") {
+    const pick = Number((msg.payload as { portrait?: number } | undefined)?.portrait);
+    const next = setPortrait(room.state, msg.peer, pick);
+    if (next !== room.state) {
+      room.state = next;
+      bump(map, msg.room, room);
     }
     return json(view(room, msg.peer, known));
   }

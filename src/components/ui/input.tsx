@@ -7,7 +7,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
       ref={ref}
       suppressHydrationWarning
       className={cn(
-        "flex h-11 w-full rounded-[12px] border border-line bg-raised px-3 text-sm text-fg placeholder:text-subtle",
+        "ui-field flex h-11 w-full rounded-[12px] border border-line bg-raised px-3 text-sm text-fg placeholder:text-subtle",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50",
         className,
       )}

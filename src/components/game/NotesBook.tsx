@@ -5,6 +5,7 @@ import { useGame, useMyNotes } from "@/lib/game/store";
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
+import { portraitOf } from "@/lib/game/cast";
 import { Fragment, useRef, useState, type ReactNode } from "react";
 
 const CYCLE: Record<"card" | "guest", SheetMark[]> = {
@@ -127,12 +128,13 @@ function Sheet({
               <th className="px-1 py-1 text-center font-display text-sm font-normal">Env</th>
               {players.map((p) => (
                 <th key={p.id} className="px-1 py-1 text-center">
-                  <span
-                    title={p.name}
-                    className="mx-auto flex size-5 items-center justify-center rounded-full text-[11px] text-[#f6f1e6]"
-                    style={{ background: p.color }}
-                  >
-                    {p.name.slice(0, 1)}
+                  <span title={p.name} className="journal-badge mx-auto">
+                    <span className="journal-badge-photo">
+                      <img src={portraitOf(p).src} alt={p.name} loading="lazy" decoding="async" />
+                    </span>
+                    <span className="journal-badge-letter" style={{ background: p.color }}>
+                      {p.name.slice(0, 1)}
+                    </span>
                   </span>
                 </th>
               ))}
