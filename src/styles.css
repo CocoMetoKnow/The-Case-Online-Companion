@@ -382,18 +382,21 @@ body {
 :root[data-card="brown"]{--card-back:url(/cards/backs/brown.jpg);--card-frame:url(/cards/frames/brown.jpg)}
 :root[data-card="black"]{--card-back:url(/cards/backs/black.jpg);--card-frame:url(/cards/frames/black.jpg)}
 
-/* ===== Turn tracker (UI layer) ===== */
-.turn-tracker{display:flex;align-items:flex-start;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.turn-tracker::-webkit-scrollbar{display:none}
-.turn-slot{display:flex;flex:none;flex-direction:column;align-items:center;gap:1px;width:54px;opacity:.72}
-.turn-slot-next{opacity:1;width:60px}
-.turn-slot-now{opacity:1;width:62px}
-.turn-face{display:block;flex:none;border-radius:9999px;border:2px solid;padding:1px;background:#1a1410}
-.turn-face-on{box-shadow:0 0 0 2px var(--color-brass),0 0 14px color-mix(in srgb,var(--color-brass) 70%,transparent);animation:turn-glow 2.2s ease-in-out infinite}
+/* ===== Turn tracker (UI layer): a ring seen from above. Only transform and opacity ever animate. ===== */
+.turn-tracker{flex:none;padding:0 2px}
+.turn-wheel{position:relative;height:56px;width:100%;contain:layout style}
+.turn-spot{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;will-change:transform,opacity;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.turn-face{display:block;width:100%;height:100%;border-radius:9999px;border:2px solid;padding:1px;background:#1a1410}
+.turn-spot-now .turn-face{box-shadow:0 0 0 2px var(--color-brass)}
+.turn-halo{position:absolute;inset:-2px;border-radius:9999px;border:2px solid var(--color-brass);pointer-events:none;animation:turn-halo 2.6s ease-out infinite;will-change:transform,opacity}
+.turn-you{position:absolute;top:-1px;right:-1px;width:9px;height:9px;border-radius:9999px;background:var(--color-brass);box-shadow:0 0 0 2px #140e0b}
+.turn-caps{display:flex;justify-content:space-between;gap:12px;margin-top:-4px}
+.turn-cap{display:flex;min-width:0;max-width:46%;flex-direction:column;animation:turn-cap-in .32s ease-out both}
+.turn-cap-right{align-items:flex-end;text-align:right}
 .turn-tag{font-size:9px;line-height:1.2;letter-spacing:.12em;text-transform:uppercase;color:var(--color-subtle)}
 .turn-tag-now{color:var(--color-brass);font-weight:700}
 .turn-tag-next{color:var(--color-paper);font-weight:700}
-.turn-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:1.2;color:var(--color-paper)}
-.turn-arrow{flex:none;align-self:center;margin-top:-10px;font-size:22px;line-height:1;color:var(--color-brass)}
-@keyframes turn-glow{0%,100%{box-shadow:0 0 0 2px var(--color-brass),0 0 6px color-mix(in srgb,var(--color-brass) 40%,transparent)}50%{box-shadow:0 0 0 2px var(--color-brass),0 0 16px color-mix(in srgb,var(--color-brass) 85%,transparent)}}
-@media (prefers-reduced-motion:reduce){.turn-face-on{animation:none}}
+.turn-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.25;color:var(--color-paper)}
+@keyframes turn-halo{0%{transform:scale(.96);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+@keyframes turn-cap-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.turn-halo{animation:none;opacity:.5}.turn-cap{animation:none}}
