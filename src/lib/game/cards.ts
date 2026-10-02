@@ -82,14 +82,14 @@ export const DEFAULT_CARDS: CardDef[] = [
 	{
 		id: "grand-hall",
 		category: "room",
-		name: "Main Hall",
+		name: "Hall",
 		blurb: "Portraits watch from the staircase.",
 		icon: "Castle"
 	},
 	{
 		id: "lounge",
 		category: "room",
-		name: "Living Room",
+		name: "Lounge",
 		blurb: "Velvet chairs and a dying fire.",
 		icon: "Sofa"
 	},
@@ -103,7 +103,7 @@ export const DEFAULT_CARDS: CardDef[] = [
 	{
 		id: "study",
 		category: "room",
-		name: "Den",
+		name: "Study",
 		blurb: "A locked drawer and a cold lamp.",
 		icon: "Lamp"
 	},
@@ -117,14 +117,14 @@ export const DEFAULT_CARDS: CardDef[] = [
 	{
 		id: "conservatory",
 		category: "room",
-		name: "Greenhouse",
+		name: "Conservatory",
 		blurb: "Rain on glass, ferns in the dark.",
 		icon: "TreeDeciduous"
 	},
 	{
 		id: "billiard-room",
 		category: "room",
-		name: "Game Room",
+		name: "Billiard Room",
 		blurb: "Cue chalk and a conversation cut short.",
 		icon: "Circle"
 	},
@@ -442,21 +442,21 @@ export const CLASSIC_CARDS: CardDef[] = [
 	{
 		id: "study",
 		category: "room",
-		name: "Den",
+		name: "Study",
 		blurb: "A locked drawer and a cold lamp.",
 		icon: "Lamp"
 	},
 	{
 		id: "grand-hall",
 		category: "room",
-		name: "Main Hall",
+		name: "Hall",
 		blurb: "Portraits along the stair.",
 		icon: "Castle"
 	},
 	{
 		id: "lounge",
 		category: "room",
-		name: "Living Room",
+		name: "Lounge",
 		blurb: "Velvet chairs and a dying fire.",
 		icon: "Sofa"
 	},
@@ -470,7 +470,7 @@ export const CLASSIC_CARDS: CardDef[] = [
 	{
 		id: "billiard-room",
 		category: "room",
-		name: "Game Room",
+		name: "Billiard Room",
 		blurb: "Cue chalk on the felt.",
 		icon: "Circle"
 	},
@@ -484,7 +484,7 @@ export const CLASSIC_CARDS: CardDef[] = [
 	{
 		id: "conservatory",
 		category: "room",
-		name: "Greenhouse",
+		name: "Conservatory",
 		blurb: "Rain on the glass.",
 		icon: "TreeDeciduous"
 	},
@@ -740,12 +740,12 @@ const RETIRED_NAMES: Record<string, { from: string[]; name: string; blurb: strin
 	"mrs-white": { from: ["Mrs. White", "Mrs White", "Mrs. Hale", "Mrs. Ivory"], name: "Mrs. Snow", blurb: "She knows every cupboard in the house." },
 	"mr-green": { from: ["Mr. Green", "Mr Green", "Mr. Pell"], name: "Mr. Olive", blurb: "A neighbor with a spare key." },
 	"lead-pipe": { from: ["Lead Pipe", "Iron Bar"], name: "Steel Pipe", blurb: "A heavy bar from the old west wing." },
-	lounge: { from: ["Lounge", "Parlor", "Salon"], name: "Living Room", blurb: "Velvet chairs and a dying fire." },
-	conservatory: { from: ["Conservatory", "Glass Garden"], name: "Greenhouse", blurb: "Rain on glass, ferns in the dark." },
-	"billiard-room": { from: ["Billiard Room", "Cue Room", "Pool Room"], name: "Game Room", blurb: "Cue chalk and a conversation cut short." },
+	lounge: { from: ["Living Room", "Parlor", "Salon"], name: "Lounge", blurb: "Velvet chairs and a dying fire." },
+	conservatory: { from: ["Greenhouse", "Glass Garden"], name: "Conservatory", blurb: "Rain on glass, ferns in the dark." },
+	"billiard-room": { from: ["Game Room", "Cue Room", "Pool Room"], name: "Billiard Room", blurb: "Cue chalk and a conversation cut short." },
 	ballroom: { from: ["Ballroom", "Dance Hall", "Gala Hall"], name: "Ballroom", blurb: "The orchestra packed up before midnight." },
-	study: { from: ["Study", "Writing Room"], name: "Den", blurb: "A locked drawer and a cold lamp." },
-	"grand-hall": { from: ["Hall", "Grand Hall", "Stair Hall"], name: "Main Hall", blurb: "Portraits watch from the staircase." },
+	study: { from: ["Den", "Writing Room"], name: "Study", blurb: "A locked drawer and a cold lamp." },
+	"grand-hall": { from: ["Main Hall", "Grand Hall", "Stair Hall"], name: "Hall", blurb: "Portraits watch from the staircase." },
 };
 
 /** Drop borrowed names from an older deck. A host's own rename is left alone. */
@@ -847,7 +847,9 @@ const TAKE_GUEST_IDS = ["the-chauffeur", "mr-broke", "oakley-autumns", "mr-fairw
 export function takeDeck(): CardDef[] {
 	const byId = new Map(EXTRA_GUESTS.map((card) => [card.id, card]));
 	const guests = TAKE_GUEST_IDS.map((id) => byId.get(id)).filter((card): card is CardDef => Boolean(card));
-	return [...CLASSIC_CARDS.map((card) => ({ ...card })), ...guests.map((card) => ({ ...card }))];
+	// Mr. Take is on from the start in this deck, since it is named after him.
+	const mrTake = DEFAULT_CARDS.find((card) => card.id === "the-butler");
+	return [...CLASSIC_CARDS.map((card) => ({ ...card })), ...(mrTake ? [{ ...mrTake }] : []), ...guests.map((card) => ({ ...card }))];
 }
 
 export const THIEF_ITEM: Record<string, { name: string; blurb: string }> = {
@@ -904,6 +906,37 @@ export const UNDERGROUND_PASSAGES: { a: string; b: string }[] = [
 ];
 
 
+/** Easter egg: typing "clue" in the lobby swaps these guests back to the original Clue names. */
+export const CLASSIC_NAME_MAP: Record<string, string> = {
+	"Miss Crimson": "Miss Scarlet",
+	"Colonel Flintwood": "Colonel Mustard",
+	"Mrs. Snow": "Mrs. White",
+	"Mr. Olive": "Mr. Green",
+	"Mrs. Pearl": "Mrs. Peacock",
+	"Professor Quill": "Professor Plum",
+};
+const CLASSIC_NAME_BACK: Record<string, string> = Object.fromEntries(
+	Object.entries(CLASSIC_NAME_MAP).map(([custom, classic]) => [classic, custom]),
+);
+
+/** The name to show for one character: the classic Clue name when the egg is on, otherwise as given. */
+export function classicName(name: string, on: boolean): string {
+	return on ? (CLASSIC_NAME_MAP[name] ?? name) : (CLASSIC_NAME_BACK[name] ?? name);
+}
+
+/** Swap suspect names to the classic Clue names (on) or back to the custom ones (off). A host's own renames are left alone. */
+export function applyClassicNames(cards: CardDef[], on: boolean): CardDef[] {
+	let changed = false;
+	const next = cards.map((card) => {
+		if (card.category !== "suspect") return card;
+		const name = classicName(card.name, on);
+		if (name === card.name) return card;
+		changed = true;
+		return { ...card, name };
+	});
+	return changed ? next : cards;
+}
+
 /**
  * Every character portrait in the game, whether or not that character is a card in this
  * deck. Profile pictures come from here, so nobody has to be a suspect card to be picked.
@@ -924,10 +957,10 @@ export function allCharacters(): CardDef[] {
  * deck's own version of a card (renamed or custom photo) winning, then any custom
  * suspect the host added that is not in the catalog.
  */
-export function avatarCharacters(deck: CardDef[] | undefined): CardDef[] {
+export function avatarCharacters(deck: CardDef[] | undefined, classic = false): CardDef[] {
 	const inDeck = new Map((deck ?? []).filter((card) => card.category === "suspect").map((card) => [card.id, card]));
 	const out = allCharacters().map((card) => inDeck.get(card.id) ?? card);
 	const known = new Set(out.map((card) => card.id));
 	for (const card of inDeck.values()) if (!known.has(card.id)) out.push(card);
-	return out;
+	return classic ? applyClassicNames(out, true) : out;
 }

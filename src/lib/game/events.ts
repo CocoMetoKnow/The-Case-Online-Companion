@@ -341,15 +341,15 @@ export function resolveEventChoice(
   const actorTurn = turnActorId(state);
   const isTurnActor = actorTurn === playerId;
 
-  // The way out. Every power-up, at every step, can be finished with one tap, so a power that has
-  // nothing left to do (nowhere to move, nobody to pick, a player who walked away) can never hold the
-  // game. Whoever is playing the turn may always finish it; so may the guest the power is waiting on.
+  // The way out for a power with nothing left to do (nowhere to move, nobody to pick). The player
+  // reads the notice and taps "I've read it"; whoever is playing the turn, or the guest the power
+  // is waiting on, can end it that way.
   if (choice.finish) {
     const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
     const involved = !isOut(state, playerId) && waitingOn.includes(playerId);
     if (!isTurnActor && !involved) return { state, secrets };
     const who = state.players.find((p) => p.id === playerId);
-    return { state: settle(state, `${who?.name ?? "A guest"} finished the ${ev.title} power-up. The turn goes on.`), secrets };
+    return { state: settle(state, `${who?.name ?? "A guest"} read the notice and finished the ${ev.title} power-up. The turn goes on.`), secrets };
   }
 
   if (ev.step === "reveal") {

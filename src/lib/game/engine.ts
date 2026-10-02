@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
+import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, applyClassicNames, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
 import { START_HALL, isQuestionRoom, roomById } from "./board";
 import { PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
@@ -158,6 +158,18 @@ export function setAvatar(state: GameState, from: string, targetId: string, card
 	if (state.players.some((p) => p.id !== who && p.avatar === cardId)) return state;
 	if (player.avatar === cardId) return state;
 	return { ...state, players: state.players.map((p) => p.id === who ? { ...p, avatar: cardId } : p) };
+}
+/** The "clue" easter egg. Any seated guest can flip it in the lobby; it renames the suspects for the whole table. */
+export function setClassicNames(state, from, on) {
+	if (!state?.players || state.startedAt || state.phase !== "lobby") return state;
+	if (!state.players.some((p) => p.id === from)) return state;
+	const next = Boolean(on);
+	if (Boolean(state.settings?.classicNames) === next) return state;
+	return {
+		...state,
+		settings: { ...state.settings, classicNames: next },
+		cards: applyClassicNames(state.cards, next)
+	};
 }
 function log(state, text) {
 	return {

@@ -1,8 +1,8 @@
 import type { Passage, PiecePos, Player } from "./types";
 
 /**
- * Digital house. Salon, dining room, and kitchen across the top; main hall
- * and gala hall beside the stair; den, library, pool room, and greenhouse
+ * Digital house. Lounge, dining room, and kitchen across the top; hall
+ * and ballroom beside the stair; study, library, billiard room, and conservatory
  * along the bottom. Corridors are one square wide. One step of the dice
  * per square.
  *
@@ -23,15 +23,15 @@ export interface RoomSpec {
 }
 
 export const ROOM_LAYOUT: RoomSpec[] = [
-  { id: "lounge", name: "Salon", x: 1, y: 1, w: 6, h: 6, questionRoom: true, tint: "#6a3030" },
+  { id: "lounge", name: "Lounge", x: 1, y: 1, w: 6, h: 6, questionRoom: true, tint: "#6a3030" },
   { id: "dining-room", name: "Dining Room", x: 10, y: 1, w: 5, h: 7, questionRoom: true, tint: "#7a4038" },
   { id: "kitchen", name: "Kitchen", x: 17, y: 1, w: 6, h: 6, questionRoom: true, tint: "#6b5138" },
-  { id: "grand-hall", name: "Main Hall", x: 1, y: 9, w: 6, h: 6, questionRoom: true, tint: "#6e3030" },
-  { id: "ballroom", name: "Gala Hall", x: 17, y: 9, w: 6, h: 6, questionRoom: true, tint: "#6a4552" },
-  { id: "study", name: "Den", x: 1, y: 18, w: 5, h: 6, questionRoom: true, tint: "#5c4632" },
+  { id: "grand-hall", name: "Hall", x: 1, y: 9, w: 6, h: 6, questionRoom: true, tint: "#6e3030" },
+  { id: "ballroom", name: "Ballroom", x: 17, y: 9, w: 6, h: 6, questionRoom: true, tint: "#6a4552" },
+  { id: "study", name: "Study", x: 1, y: 18, w: 5, h: 6, questionRoom: true, tint: "#5c4632" },
   { id: "library", name: "Library", x: 7, y: 17, w: 5, h: 6, questionRoom: true, tint: "#3a5244" },
-  { id: "billiard-room", name: "Pool Room", x: 13, y: 17, w: 5, h: 6, questionRoom: true, tint: "#2c4a44" },
-  { id: "conservatory", name: "Greenhouse", x: 19, y: 17, w: 4, h: 7, questionRoom: true, tint: "#355848" },
+  { id: "billiard-room", name: "Billiard Room", x: 13, y: 17, w: 5, h: 6, questionRoom: true, tint: "#2c4a44" },
+  { id: "conservatory", name: "Conservatory", x: 19, y: 17, w: 4, h: 7, questionRoom: true, tint: "#355848" },
 ];
 
 /** The center stair is not a room and not a walkway. */

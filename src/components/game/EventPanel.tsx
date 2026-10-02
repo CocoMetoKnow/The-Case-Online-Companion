@@ -16,7 +16,7 @@ export function EventPanel() {
   const [passage, setPassage] = useState({ roomA: "", roomB: "" });
   const [summon, setSummon] = useState({ targetId: "", roomId: "" });
   // Every power-up prompt can be put away. The power itself stays in play (someone still has to
-  // finish it), so a small chip brings the prompt back; a new step of the power shows it again.
+  // see it through), so a small chip brings the prompt back; a new step of the power shows it again.
   const [closedKey, setClosedKey] = useState("");
   const live = state?.event && state.phase === "event" ? state.event : null;
   const promptKey = live ? `${state?.turnIndex}:${live.deckId}:${live.kind}:${live.step}` : "";
@@ -36,15 +36,10 @@ export function EventPanel() {
   const acting = turnActorId(state) === actor;
   // Old power-up text called the end of the game the "final accusation". It is Solve the Case now.
   const description = ev.description.replace(/final accusation/gi, "Solve the Case");
-  // The way out of any power-up: whoever is playing the turn, or the guest the power is waiting on
-  // (the same rule the game applies when the button is tapped).
-  const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
-  const canFinish = acting || waitingOn.includes(actor);
   // The powers a Wild Card can borrow: only ones this table could really draw.
   const wildChoices = new Set(
     eventsForPlayers(state.players.filter((p) => !p.eliminated).length, { ...state.settings, enabledEvents: undefined }),
   );
-  const finish = canFinish ? <FinishPower onFinish={() => eventChoice({ finish: true })} /> : null;
 
   if (hidden) {
     return (
@@ -60,7 +55,6 @@ export function EventPanel() {
       <PowerShell onClose={close} className="wood-panel max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
         <SnakeCallout title={ev.title} description={String(ev.data.boardNote ?? description)} />
         <BoardConfirm />
-        {finish}
       </PowerShell>
     );
   }
@@ -82,7 +76,6 @@ export function EventPanel() {
               This power is in effect
             </Button>
           )}
-          {finish}
         </>
       </PowerShell>
     );
@@ -114,7 +107,6 @@ export function EventPanel() {
               This power is in effect
             </Button>
           )}
-          {finish}
         </>
       </PowerShell>
     );
@@ -157,7 +149,12 @@ export function EventPanel() {
             }
             roomIds = roomIds.filter((id) => id !== currentRoomId);
             if (!roomIds.length) {
-              return <p className="text-center text-sm text-muted">Nowhere to go from here yet.</p>;
+              return (
+                <div className="col-span-2 space-y-3 text-center">
+                  <p className="text-sm text-muted">Nowhere to go from here yet.</p>
+                  <ReadIt onRead={() => eventChoice({ finish: true })} />
+                </div>
+              );
             }
             return roomIds.map((id) => (
               <Button key={id} variant="outline" onClick={() => eventChoice({ roomId: id })}>
@@ -380,7 +377,6 @@ export function EventPanel() {
         <PlayerPick exclude={actor} label="Play their next turn" onPick={(id) => eventChoice({ targetId: id })} />
       ) : null}
 
-      {finish}
       <button type="button" className="mt-3 w-full text-center text-sm text-subtle underline" onClick={close}>
         Close for now
       </button>
@@ -408,21 +404,6 @@ function PowerShell({ onClose, className, children }: { onClose: () => void; cla
         </button>
         {children}
       </div>
-    </div>
-  );
-}
-
-/**
- * The definite end of a power-up. "Close for now" only puts the prompt away and leaves the power
- * pending; this finishes it, so the turn carries on and nothing is left waiting.
- */
-function FinishPower({ onFinish }: { onFinish: () => void }) {
-  return (
-    <div className="mt-4">
-      <Button className="w-full" variant="outline" data-sfx="confirm" onClick={onFinish}>
-        Finish this power-up
-      </Button>
-      <p className="mt-1 text-center text-xs text-subtle">Ends it now and carries the turn on.</p>
     </div>
   );
 }
@@ -650,10 +631,19 @@ function RoomPick({
   onPick: (id: string) => void;
 }) {
   const state = useGame((s) => s.state);
+  const eventChoice = useGame((s) => s.eventChoice);
   if (!state) return null;
   // Only rooms whose cards are in this game, for passages and "move someone here" powers.
   const inPlay = new Set(roomsInPlay(state));
   const rooms = state.cards.filter((c) => c.category === "room" && inPlay.has(c.id));
+  if (!rooms.length) {
+    return (
+      <div className="mt-3 space-y-3 text-center">
+        <p className="text-sm text-muted">There is no room to pick.</p>
+        <ReadIt onRead={() => eventChoice({ finish: true })} />
+      </div>
+    );
+  }
   return (
     <div className="mt-3">
       <p className="mb-1 text-xs uppercase tracking-[0.14em] text-subtle">{label}</p>
@@ -665,6 +655,15 @@ function RoomPick({
         ))}
       </div>
     </div>
+  );
+}
+
+/** The way out of a power-up with nothing left to pick: the player reads the notice and the turn goes on. */
+function ReadIt({ onRead }: { onRead: () => void }) {
+  return (
+    <Button className="w-full" data-sfx="confirm" onClick={onRead}>
+      I've read it
+    </Button>
   );
 }
 
@@ -682,15 +681,23 @@ function PlayerPick({
   label?: string;
 }) {
   const state = useGame((s) => s.state);
+  const eventChoice = useGame((s) => s.eventChoice);
   if (!state) return null;
   const skip = new Set([exclude, ...excludeIds].filter(Boolean));
+  const candidates = state.players.filter((p) => !skip.has(p.id) && !p.eliminated);
+  if (!candidates.length) {
+    return (
+      <div className="mt-3 space-y-3 text-center">
+        <p className="text-sm text-muted">There is no one to pick.</p>
+        <ReadIt onRead={() => eventChoice({ finish: true })} />
+      </div>
+    );
+  }
   return (
     <div className="mt-3">
       {label ? <p className="mb-1 text-xs uppercase tracking-[0.14em] text-subtle">{label}</p> : null}
       <div className="flex flex-wrap gap-2">
-        {state.players
-          .filter((p) => !skip.has(p.id) && !p.eliminated)
-          .map((p) => (
+        {candidates.map((p) => (
             <Button
               key={p.id}
               variant={selected === p.id ? "paper" : "outline"}

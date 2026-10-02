@@ -37,7 +37,7 @@ export function CharacterPicker({ player, onClose }: { player: Player; onClose: 
   const state = useGame((s) => s.state);
   const setAvatar = useGame((s) => s.setAvatar);
   if (!state) return null;
-  const characters = avatarCharacters(state.cards);
+  const characters = avatarCharacters(state.cards, Boolean(state.settings.classicNames));
   const owners = new Map<string, Player>(state.players.filter((p) => p.avatar).map((p): [string, Player] => [p.avatar as string, p]));
   const current = state.players.find((p) => p.id === player.id)?.avatar;
 

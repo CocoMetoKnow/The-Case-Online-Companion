@@ -153,6 +153,8 @@ export interface GameSettings {
   manualNotes?: boolean;
   /** Turns run as normal, but the suggestion is said out loud. The game asks each player in order if they hold a card. */
   speakMode?: boolean;
+  /** Easter egg: guests wear their original Clue names. Switched by typing "clue" in the lobby. */
+  classicNames?: boolean;
   /** Power-ups that can be drawn. Missing means every power is on. */
   enabledEvents?: EventKind[];
   cardSetId: string;
@@ -267,12 +269,25 @@ export interface PlayerNotes {
   freeText: string;
 }
 
+/** The on/off switches a saved deck remembers, so loading it puts every one back the way it was. */
+export interface DeckToggles {
+  timeOfDayEnabled: boolean;
+  heist: boolean;
+  speakMode: boolean;
+  manualNotes: boolean;
+  evenDeal: boolean;
+  /** Power-ups left on. Missing means every power is on. */
+  enabledEvents?: EventKind[];
+}
+
 export interface CardSet {
   id: string;
   name: string;
   cards: CardDef[];
   createdAt: number;
   timeOfDayEnabled?: boolean;
+  /** Missing on decks saved by an older build. Those keep the switches as they are. */
+  toggles?: DeckToggles;
 }
 
 export const PLAYER_COLORS = [

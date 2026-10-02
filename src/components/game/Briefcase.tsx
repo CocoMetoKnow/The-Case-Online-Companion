@@ -82,7 +82,6 @@ export function Briefcase() {
   const verdict = useGame((s) => s.verdict);
   const dismissVerdict = useGame((s) => s.dismissVerdict);
   const folio = useGame((s) => s.journalOpen);
-  const setFolio = useGame((s) => s.setJournalOpen);
   const [lifted, setLifted] = useState<CardDef | null>(null);
   const [suggest, setSuggest] = useState(false);
   const [accuse, setAccuse] = useState(false);
@@ -226,7 +225,6 @@ export function Briefcase() {
   const guide = (state.influences ?? []).find((i) => i.victimId === cur?.id);
   const influenced = Boolean(guide);
   const canRoll = !state.wait && myTurn && state.phase === "roll";
-  const locked = (state.notesLock?.[actor] ?? 0) > 0;
   const passages = (state.passages ?? []).map((p) => {
     const a = state.cards.find((c) => c.id === p.a)?.name ?? p.a;
     const b = state.cards.find((c) => c.id === p.b)?.name ?? p.b;
@@ -354,16 +352,6 @@ export function Briefcase() {
                   .join(" → ")}
               </p>
             </div>
-            <button
-              type="button"
-              className="journal-book journal-book-sm"
-              onClick={() => {
-                if (!locked) sfxPaper();
-                setFolio(true);
-              }}
-            >
-              <span>{locked ? "Shut" : "Journal"}</span>
-            </button>
             <div className="flex items-end gap-1">
               <DicePair
                 small
@@ -456,7 +444,7 @@ export function Briefcase() {
                     else setSuggest(true);
                   }}
                 >
-                  {state.settings.speakMode ? "I have made my suggestion" : "Suggest"}
+                  {state.settings.speakMode ? "(Suggestion)" : "Suggest"}
                 </Button>
               ) : null}
               {(state.actionsLeft ?? 1) > 0 && !influenced ? (

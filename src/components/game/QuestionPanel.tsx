@@ -32,7 +32,7 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
             onAsked?.();
           }}
         >
-          I have made my suggestion
+          (Suggestion)
         </Button>
       </div>
     );

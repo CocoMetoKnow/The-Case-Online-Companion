@@ -6,6 +6,7 @@ const SETS_KEY = "gmm.cardsets.v1";
 const TABLE_KEY = "gmm.table.v1";
 const NOTES_KEY = "gmm.notes.v1";
 const NAME_KEY = "gmm.player-name.v1";
+const CLUE_KEY = "gmm.clue.v1";
 const ART_KEY = "gmm.art.v1";
 const MIGRATED_KEY = "gmm.migrated";
 const DB_NAME = "gmm.vault";
@@ -19,7 +20,7 @@ const DB_STORE = "kv";
 // are only ever deleted below.
 const SESSION_KEY = "gmm.session.v2";
 const SESSION_MAX_AGE = 12 * 60 * 60 * 1000;
-const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY];
+const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY, CLUE_KEY];
 
 export interface TableSave {
   version: number;
@@ -35,6 +36,8 @@ export interface VaultData {
   notes: Record<string, PlayerNotes>;
   name: string;
   art: Record<string, string>;
+  /** The "clue" secret code. Once typed it stays on for this device until it is typed again. */
+  clue: boolean;
 }
 
 function readLocal<T>(key: string): T | undefined {
@@ -225,11 +228,12 @@ export async function loadVault(): Promise<VaultData> {
   if (!db) {
     const sets = validSets(readLocal(SETS_KEY));
     const name = readLocal<string>(NAME_KEY) ?? "";
-    return { sets, table, notes, name, art: collectArt(sets, table, undefined) };
+    const clue = readLocal<boolean>(CLUE_KEY) === true;
+    return { sets, table, notes, name, art: collectArt(sets, table, undefined), clue };
   }
-  const [setsRaw, name] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY)]);
+  const [setsRaw, name, clue] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY), idbGet<boolean>(CLUE_KEY)]);
   const sets = validSets(setsRaw);
-  return { sets, table, notes, name: typeof name === "string" ? name : "", art: collectArt(sets, table, undefined) };
+  return { sets, table, notes, name: typeof name === "string" ? name : "", art: collectArt(sets, table, undefined), clue: clue === true };
 }
 
 function clearSessionScopedKeys() {
@@ -300,6 +304,11 @@ export function flushSession() {
 
 export function emptyNotes(): PlayerNotes {
   return { marks: {}, shown: [], lastShown: null, freeText: "" };
+}
+
+/** Keep the "clue" code on (or off) for good, across games and visits. */
+export function saveClueCode(on: boolean) {
+  remember(CLUE_KEY, on);
 }
 
 export function savePlayerName(name: string) {

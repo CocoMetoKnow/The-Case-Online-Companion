@@ -1,10 +1,11 @@
-import { asHeist, cardArt, CLASSIC_CARDS, DEFAULT_CARDS, EVENT_DEFS, EXTRA_GUESTS, EXTRA_WEAPONS, MIN_CATEGORY_CARDS, PHYSICAL_EVENTS, UNDERGROUND_ROOMS, answerCards } from "@/lib/game/cards";
+import { asHeist, cardArt, classicName, CLASSIC_CARDS, DEFAULT_CARDS, EVENT_DEFS, EXTRA_GUESTS, EXTRA_WEAPONS, MIN_CATEGORY_CARDS, PHYSICAL_EVENTS, UNDERGROUND_ROOMS, answerCards } from "@/lib/game/cards";
 import { useGame } from "@/lib/game/store";
 import type { CardDef, CategoryId, EventKind } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { MusicToggle } from "./MusicToggle";
+import { ClueCodeField } from "./ClueCodeField";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -268,6 +269,11 @@ export function SetupScreen() {
             />
           ) : null}
 
+          <ClueCodeField
+            active={Boolean(setup.settings.classicNames)}
+            onToggle={() => patchSettings({ classicNames: !setup.settings.classicNames })}
+          />
+
           <Button size="lg" className="w-full" disabled={!ready} onClick={hostTable}>
             Open the lobby
           </Button>
@@ -393,11 +399,13 @@ function PickGrid({
   onToggle: (card: CardDef, on: boolean) => void;
 }) {
   const shown = heist ? asHeist(cards) : cards;
+  const classic = useGame((s) => Boolean(s.setup.settings.classicNames));
   return (
     <div className="mt-2 grid grid-cols-3 gap-2">
       {cards.map((card, index) => {
         const on = deck.some((item) => item.id === card.id);
-        const label = shown[index]?.name ?? card.name;
+        const base = shown[index]?.name ?? card.name;
+        const label = classic && card.category === "suspect" ? classicName(base, true) : base;
         return (
           <button
             key={card.id}

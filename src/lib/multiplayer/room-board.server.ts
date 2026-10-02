@@ -137,6 +137,7 @@ function settingsStamp(state: GameState): string {
     settings.heist ? "1" : "0",
     settings.manualNotes ? "1" : "0",
     settings.speakMode ? "1" : "0",
+    settings.classicNames ? "1" : "0",
     settings.timeOfDayEnabled ? "1" : "0",
     String(settings.maxPlayers),
     (settings.enabledEvents ?? []).join(","),

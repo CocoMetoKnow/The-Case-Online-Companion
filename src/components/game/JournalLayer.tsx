@@ -44,21 +44,22 @@ export function JournalLayer() {
       {!open ? (
         <button
           type="button"
-          className="journal-book journal-book-sm journal-fab"
+          className={locked ? "journal-fab journal-fab-shut" : "journal-fab"}
           aria-label={locked ? "Journal, shut" : "Open journal"}
           onClick={() => {
             if (!locked) sfxPaper();
             setOpen(true);
           }}
         >
-          <span>{locked ? "Shut" : "Journal"}</span>
+          <img src="/journal.png" alt="" draggable={false} />
+          {locked ? <span className="journal-fab-tag">Shut</span> : null}
         </button>
       ) : (
         <div className="journal-layer flex flex-col" role="dialog" aria-label="Detective journal">
           <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-3 py-2">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-3">
-                <p className="truncate font-display text-2xl text-paper">Journal</p>
+                <p className="journal-title truncate font-display text-2xl">Journal</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {me ? <PickCharacterButton player={me} /> : null}

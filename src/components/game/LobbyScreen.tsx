@@ -1,11 +1,12 @@
 import { useGame } from "@/lib/game/store";
-import { MIN_CATEGORY_CARDS, answerCards } from "@/lib/game/cards";
+import { MIN_CATEGORY_CARDS, answerCards, avatarCharacters } from "@/lib/game/cards";
 import { CATEGORY_LABEL, type CategoryId, type GameState } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { copyText } from "@/lib/clipboard";
 import { PickCharacterButton } from "./CharacterPicker";
+import { ClueCodeField } from "./ClueCodeField";
 import { ProfileBadge } from "./PlayerBadge";
 import { useEffect, useState } from "react";
 
@@ -19,6 +20,7 @@ export function LobbyScreen() {
   const leave = useGame((s) => s.leave);
   const setJoinCode = useGame((s) => s.setJoinCode);
   const joinOnline = useGame((s) => s.joinOnline);
+  const setClassicNames = useGame((s) => s.setClassicNames);
   const localPlayerId = useGame((s) => s.localPlayerId);
   const [guest, setGuest] = useState("");
   const [link, setLink] = useState("");
@@ -47,6 +49,9 @@ export function LobbyScreen() {
     groups.every((cat) => state.cards.filter((card) => card.category === cat).length >= MIN_CATEGORY_CARDS) &&
     state.players.length <= cap;
   const canStart = state.players.length >= 2 && deckOk;
+  const classic = Boolean(state.settings.classicNames);
+  const seated = state.players.some((p) => p.id === localPlayerId);
+  const characters = avatarCharacters(state.cards, classic);
 
   async function copyLink() {
     if (!link) return;
@@ -128,6 +133,10 @@ export function LobbyScreen() {
 
         <HouseRules state={state} />
 
+        {seated ? (
+          <ClueCodeField className="mt-4" active={classic} onToggle={() => setClassicNames(!classic)} />
+        ) : null}
+
         <ul className="mt-6 max-h-[50vh] space-y-2 overflow-y-auto">
           {state.players.map((p) => (
             <li key={p.id} className="wood-panel flex items-center justify-between rounded-[16px] px-4 py-3">
@@ -135,7 +144,10 @@ export function LobbyScreen() {
                 <ProfileBadge player={p} cards={state.cards} size="md" className="[--ring:#241e18]" />
                 <div className="min-w-0">
                   <p className="truncate font-medium">{p.name}</p>
-                  <p className="text-xs text-subtle">{p.isHost ? "Host" : "Guest"}</p>
+                  <p className="truncate text-xs text-subtle">
+                    {p.isHost ? "Host" : "Guest"}
+                    {p.avatar ? ` · ${characters.find((c) => c.id === p.avatar)?.name ?? ""}` : ""}
+                  </p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">

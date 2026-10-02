@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { applyPlay } from "@/lib/game/actions";
-import { CLASSIC_CARDS, DEFAULT_CARDS, MIN_CATEGORY_CARDS, answerCards, asHeist, capCharacters, retireBorrowedNames, sliceSet, takeDeck, upgradeTimeCards } from "@/lib/game/cards";
+import { CLASSIC_CARDS, DEFAULT_CARDS, applyClassicNames, MIN_CATEGORY_CARDS, answerCards, asHeist, capCharacters, retireBorrowedNames, sliceSet, takeDeck, upgradeTimeCards } from "@/lib/game/cards";
 import {
   accusationHits,
   addPlayer,
   setAvatar as applyAvatar,
+  setClassicNames as applyClassicNamesToTable,
   canAsk,
   createLobby,
   currentPlayer,
@@ -26,10 +27,11 @@ import {
   saveAllNotes,
   saveCardArt,
   saveCardSets,
+  saveClueCode,
   savePlayerName,
   saveTable,
 } from "@/lib/game/storage";
-import type { CardDef, CardSet, CategoryId, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
+import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
 import { SAVE_VERSION } from "@/lib/game/types";
 import { isLegalPos, START_HALL, BOARD_ROOM_IDS } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
@@ -116,6 +118,8 @@ interface GameStore {
   setJournalOpen: (open: boolean) => void;
   /** "Pick Your Character". Sets a seat's profile picture to a suspect card's art. */
   setAvatar: (playerId: string, cardId: string) => void;
+  /** The "clue" easter egg: show the original Clue names to everyone at the table. */
+  setClassicNames: (on: boolean) => void;
   hydrate: () => void;
   syncSheet: () => void;
   applyRemote: (state: GameState, hand?: string[], solution?: Secrets["solution"], reveals?: Secrets["reveals"], hits?: Record<string, boolean> | null) => void;
@@ -159,7 +163,7 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
   const { state } = get();
   if (!state || state.settings.playMode !== "online") return false;
   if (!onlineSend) return false;
-  if (intent.kind === "name" || intent.kind === "avatar") {
+  if (intent.kind === "name" || intent.kind === "avatar" || intent.kind === "classic") {
     onlineSend(intent);
     return true;
   }
@@ -195,6 +199,7 @@ const defaultSettings = (): GameSettings => ({
   heist: false,
   manualNotes: false,
   speakMode: false,
+  classicNames: false,
 });
 
 function activeCategories(time: boolean): CategoryId[] {
@@ -299,6 +304,30 @@ function persistNotes(notes: Record<string, PlayerNotes>) {
   saveAllNotes(notes);
 }
 
+function pickToggles(settings: GameSettings): DeckToggles {
+  return {
+    timeOfDayEnabled: Boolean(settings.timeOfDayEnabled),
+    heist: Boolean(settings.heist),
+    speakMode: Boolean(settings.speakMode),
+    manualNotes: Boolean(settings.manualNotes),
+    evenDeal: Boolean(settings.evenDeal),
+    enabledEvents: settings.enabledEvents ? [...settings.enabledEvents] : undefined,
+  };
+}
+
+/** Put a saved deck's switches back. Every one is set, so nothing from the last deck leaks through. */
+function withToggles(settings: GameSettings, toggles: DeckToggles): GameSettings {
+  return {
+    ...settings,
+    timeOfDayEnabled: Boolean(toggles.timeOfDayEnabled),
+    heist: Boolean(toggles.heist),
+    speakMode: Boolean(toggles.speakMode),
+    manualNotes: Boolean(toggles.manualNotes),
+    evenDeal: Boolean(toggles.evenDeal),
+    enabledEvents: toggles.enabledEvents ? [...toggles.enabledEvents] : undefined,
+  };
+}
+
 function rememberFile(get: () => GameStore, set: (partial: Partial<GameStore>) => void) {
   const setup = get().setup;
   if (!setup.setId.startsWith("file-")) return;
@@ -309,6 +338,7 @@ function rememberFile(get: () => GameStore, set: (partial: Partial<GameStore>) =
     cards: setup.deck.map((c) => ({ ...c })),
     createdAt: prev?.createdAt || Date.now(),
     timeOfDayEnabled: setup.settings.timeOfDayEnabled,
+    toggles: pickToggles(setup.settings),
   };
   const sets = [...get().cardSets.filter((s) => s.id !== cardSet.id), cardSet];
   saveCardSets(sets);
@@ -545,6 +575,7 @@ function tableCards(setup: SetupDraft) {
   const board = setup.settings.table === "board";
   let cards = board ? boardDeck(activeCards(setup)) : activeCards(setup);
   if (setup.settings.heist) cards = asHeist(cards);
+  if (setup.settings.classicNames) cards = applyClassicNames(cards, true);
   return cards;
 }
 
@@ -580,6 +611,7 @@ export const useGame = create<GameStore>((set, get) => ({
   setView: (view) => set({ view }),
   setSetup: (patch) => set({ setup: { ...get().setup, ...patch } }),
   patchSettings: (patch) => {
+    if ("classicNames" in patch) saveClueCode(Boolean(patch.classicNames));
     set({ setup: { ...get().setup, settings: { ...get().setup.settings, ...patch } } });
     rememberFile(get, set);
   },
@@ -654,6 +686,7 @@ export const useGame = create<GameStore>((set, get) => ({
         cards: setup.deck.map((c) => ({ ...c })),
         createdAt: Date.now(),
         timeOfDayEnabled: setup.settings.timeOfDayEnabled,
+        toggles: pickToggles(setup.settings),
       };
       const sets = [...get().cardSets.filter((s) => s.id !== id), cardSet];
       saveCardSets(sets);
@@ -661,9 +694,11 @@ export const useGame = create<GameStore>((set, get) => ({
       return;
     }
     const time = existing.timeOfDayEnabled ?? existing.cards.some((c) => c.category === "time");
+    const current = get().setup.settings;
+    const restored = existing.toggles ? withToggles(current, existing.toggles) : { ...current, timeOfDayEnabled: time };
     set({
       setup: withDeck(
-        { ...get().setup, setId: id, settings: { ...get().setup.settings, timeOfDayEnabled: time, cardSetId: id } },
+        { ...get().setup, setId: id, settings: { ...restored, cardSetId: id } },
         existing.cards.map((c) => ({ ...c })),
       ),
     });
@@ -718,6 +753,18 @@ export const useGame = create<GameStore>((set, get) => ({
     if (!state) return;
     if (sendOnline(get, { kind: "avatar", payload: { playerId, cardId } })) return;
     const next = applyAvatar(state, localPlayerId, playerId, cardId);
+    if (next === state) return;
+    set({ state: next });
+    persist(get);
+  },
+  setClassicNames: (on) => {
+    // The code is remembered on this device, so the next table starts with it the same way.
+    saveClueCode(on);
+    set({ setup: { ...get().setup, settings: { ...get().setup.settings, classicNames: on } } });
+    const { state, localPlayerId } = get();
+    if (!state) return;
+    if (sendOnline(get, { kind: "classic", payload: { on } })) return;
+    const next = applyClassicNamesToTable(state, localPlayerId, on);
     if (next === state) return;
     set({ state: next });
     persist(get);
@@ -941,7 +988,7 @@ export const useGame = create<GameStore>((set, get) => ({
           ...current,
           deck,
           name: name || cleanStoredName(current.name),
-          settings: { ...current.settings, maxPlayers: current.settings.table === "board" ? 10 : 15 },
+          settings: { ...current.settings, maxPlayers: current.settings.table === "board" ? 10 : 15, classicNames: vault.clue },
           ...(deck !== current.deck
             ? {
                 counts: deck.reduce(
@@ -973,12 +1020,12 @@ export const useGame = create<GameStore>((set, get) => ({
               skipIds: saved.state.skipIds ?? [],
               notesLock: saved.state.notesLock ?? {},
               influences: saved.state.influences ?? [],
-              cards: paint(retireBorrowedNames(saved.state.cards.map((card) => {
+              cards: paint(applyClassicNames(retireBorrowedNames(saved.state.cards.map((card) => {
                 if (card.id === "mr-fairwind") return { ...card, name: "Morgan Drake" };
                 if (card.category !== "time") return card;
                 const base = DEFAULT_CARDS.find((item) => item.id === card.id);
                 return base ? { ...card, name: base.name, clock: base.clock, blurb: base.blurb } : card;
-              }))),
+              })), Boolean(saved.state.settings?.classicNames))),
               players: saved.state.players.map((p, i) => {
                 const seated = isLegalPos(p.position) ? p : { ...p, position: { kind: "hall" as const, ...START_HALL[i % START_HALL.length] } };
                 if (seated.id === saved.localPlayerId && /^detective$/i.test(seated.name.trim())) return { ...seated, name: "Host" };
