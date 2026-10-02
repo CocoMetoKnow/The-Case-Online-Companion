@@ -9,6 +9,7 @@ import { PickCharacterButton } from "./CharacterPicker";
 import { ClueCodeField } from "./ClueCodeField";
 import { ProfileBadge } from "./PlayerBadge";
 import { useEffect, useState } from "react";
+import { SettingsGear } from "./SettingsGear";
 
 export function LobbyScreen() {
   const state = useGame((s) => s.state);
@@ -78,9 +79,12 @@ export function LobbyScreen() {
   return (
     <main className="paper-wash min-h-dvh px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-xl">
-        <Button variant="outline" onClick={() => setSureLeave(true)}>
-          Leave table
-        </Button>
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="outline" onClick={() => setSureLeave(true)}>
+            Leave table
+          </Button>
+          <SettingsGear />
+        </div>
         {sureLeave ? (
           <div className="mt-4 rounded-[20px] border border-line bg-raised p-4">
             <p className="font-display text-3xl">Are you sure?</p>

@@ -2,6 +2,7 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
+import { THEME_BOOT_SCRIPT } from "@/lib/game/theme";
 
 const APP_NAME = "The Case";
 
@@ -14,6 +15,7 @@ export const Route = createRootRoute({
       { name: "theme-color", content: "#14110e" },
       { name: "description", content: "A family drawing-room deduction. Solve the case together." },
     ],
+    scripts: [{ children: THEME_BOOT_SCRIPT }],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },

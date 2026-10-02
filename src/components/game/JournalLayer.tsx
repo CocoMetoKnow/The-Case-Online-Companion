@@ -4,6 +4,7 @@ import { useActorId, useGame } from "@/lib/game/store";
 import { useEffect } from "react";
 import { PickCharacterButton } from "./CharacterPicker";
 import { NotesBook } from "./NotesBook";
+import { SettingsGear } from "./SettingsGear";
 
 /**
  * The detective journal, mounted once at the very top of the app (see AppShell) instead of
@@ -62,6 +63,7 @@ export function JournalLayer() {
                 <p className="journal-title truncate font-display text-2xl">Journal</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <SettingsGear />
                 {me ? <PickCharacterButton player={me} /> : null}
                 <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
                   Back in the case

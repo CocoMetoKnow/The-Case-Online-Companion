@@ -7,6 +7,7 @@ import { Briefcase } from "./Briefcase";
 import { OnlineTable } from "./OnlineTable";
 import { JournalLayer } from "./JournalLayer";
 import { installUiSounds } from "@/lib/game/sfx";
+import { initTheme } from "@/lib/game/theme";
 
 export function AppShell() {
   const view = useGame((s) => s.view);
@@ -20,6 +21,9 @@ export function AppShell() {
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // Put the saved UI / journal colors back (the inline script in __root already did, this is the backstop).
+  useEffect(() => initTheme(), []);
 
   // One document-wide listener gives every button a press sound (see sfx.ts).
   useEffect(() => installUiSounds(), []);

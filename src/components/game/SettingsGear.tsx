@@ -1,0 +1,261 @@
+import { Check, ChevronLeft, ChevronRight, Settings, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { musicEnabled, setMusic, setSfx, sfxEnabled, unlockAudio } from "@/lib/game/sfx";
+import {
+  getJournalColor,
+  getUiColor,
+  JOURNAL_COLORS,
+  setJournalColor,
+  setUiColor,
+  UI_COLORS,
+  uiPreview,
+  type JournalColor,
+  type UiColor,
+} from "@/lib/game/theme";
+import { cn } from "@/lib/utils";
+
+type Panel = "main" | "ui" | "journal";
+
+/** A tiny picture of the screen in one background color. */
+function UiTile({ color }: { color: UiColor }) {
+  const p = uiPreview(color);
+  return (
+    <span
+      aria-hidden="true"
+      className="block h-14 w-full overflow-hidden rounded-xl border border-white/10 p-1.5"
+      style={{ background: p.page }}
+    >
+      <span
+        className="block h-full w-full rounded-lg border border-white/15"
+        style={{ background: `linear-gradient(${p.shellTop}, ${p.shellBottom})` }}
+      />
+    </span>
+  );
+}
+
+/** A tiny journal in one cover color. */
+function JournalTile({ filter }: { filter: string }) {
+  return (
+    <span aria-hidden="true" className="flex h-14 w-full items-center justify-center">
+      <img src="/journal.png" alt="" draggable={false} className="h-full w-auto" style={{ filter }} />
+    </span>
+  );
+}
+
+function SwatchGrid<T extends { id: string; label: string }>({
+  items,
+  selected,
+  onPick,
+  tile,
+}: {
+  items: T[];
+  selected: string;
+  onPick: (id: string) => void;
+  tile: (item: T) => React.ReactNode;
+}) {
+  return (
+    <div className="mt-4 grid max-h-[62dvh] grid-cols-3 gap-2.5 overflow-y-auto pr-0.5">
+      {items.map((item) => {
+        const on = item.id === selected;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={on}
+            aria-label={item.label}
+            onClick={() => onPick(item.id)}
+            className={cn(
+              "relative rounded-2xl border bg-raised p-2 text-center touch-manipulation",
+              on ? "border-brass ring-2 ring-brass/60" : "border-line",
+            )}
+          >
+            {tile(item)}
+            <span className="mt-1.5 block text-xs text-muted">{item.label}</span>
+            {on ? (
+              <span className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-brass text-ink">
+                <Check className="size-3" strokeWidth={3} />
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The gear icon. Opens the settings popup: music, sound effects, and two color pickers (the
+ * background / UI and the journal), each with its own popup of small previews. Picking a color
+ * applies it straight away and is remembered on this phone.
+ */
+export function SettingsGear() {
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [music, setMusicOn] = useState(true);
+  const [sounds, setSoundsOn] = useState(true);
+  const [ui, setUi] = useState(getUiColor);
+  const [journal, setJournal] = useState(getJournalColor);
+
+  function openSettings() {
+    setMusicOn(musicEnabled());
+    setSoundsOn(sfxEnabled());
+    setUi(getUiColor());
+    setJournal(getJournalColor());
+    setPanel("main");
+  }
+
+  useEffect(() => {
+    if (!panel) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setPanel((cur) => (cur === "main" ? null : "main"));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panel]);
+
+  const uiColor = UI_COLORS.find((c) => c.id === ui) ?? UI_COLORS[0];
+  const journalColor = JOURNAL_COLORS.find((c) => c.id === journal) ?? JOURNAL_COLORS[0];
+
+  const popup =
+    panel && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[100000] grid place-items-center bg-[#140e0bcc] p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Settings"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) setPanel(null);
+            }}
+          >
+            <div className="relative w-full max-w-sm rounded-[24px] border border-line bg-surface p-5 text-fg shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+              {panel === "main" ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-display text-2xl">Settings</h2>
+                    <button
+                      type="button"
+                      aria-label="Close settings"
+                      className="grid size-9 place-items-center rounded-full text-muted hover:bg-raised"
+                      onClick={() => setPanel(null)}
+                    >
+                      <X className="size-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 divide-y divide-line">
+                    <label className="flex items-center justify-between py-3">
+                      <span>Music</span>
+                      <Switch
+                        checked={music}
+                        aria-label="Music"
+                        onCheckedChange={(on) => {
+                          unlockAudio();
+                          setMusicOn(setMusic(on));
+                        }}
+                      />
+                    </label>
+                    <label className="flex items-center justify-between py-3">
+                      <span>Sound effects</span>
+                      <Switch checked={sounds} aria-label="Sound effects" onCheckedChange={(on) => setSoundsOn(setSfx(on))} />
+                    </label>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                      onClick={() => setPanel("ui")}
+                    >
+                      <span>UI color</span>
+                      <span className="flex items-center gap-2 text-sm text-muted">
+                        <span className="w-14">
+                          <UiTile color={uiColor} />
+                        </span>
+                        {uiColor.label}
+                        <ChevronRight className="size-4" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                      onClick={() => setPanel("journal")}
+                    >
+                      <span>Journal color</span>
+                      <span className="flex items-center gap-2 text-sm text-muted">
+                        <span className="w-14">
+                          <JournalTile filter={journalColor.filter} />
+                        </span>
+                        {journalColor.label}
+                        <ChevronRight className="size-4" />
+                      </span>
+                    </button>
+                  </div>
+
+                  <Button className="mt-4 w-full" variant="outline" onClick={() => setPanel(null)}>
+                    Done
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-sm text-muted"
+                      onClick={() => setPanel("main")}
+                    >
+                      <ChevronLeft className="size-4" /> Settings
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Close settings"
+                      className="grid size-9 place-items-center rounded-full text-muted hover:bg-raised"
+                      onClick={() => setPanel(null)}
+                    >
+                      <X className="size-5" />
+                    </button>
+                  </div>
+                  <h2 className="mt-1 font-display text-2xl">{panel === "ui" ? "UI color" : "Journal color"}</h2>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {panel === "ui" ? "Pick the color of the background and case." : "Pick the color of your journal."}
+                  </p>
+                  {panel === "ui" ? (
+                    <SwatchGrid<UiColor>
+                      items={UI_COLORS}
+                      selected={ui}
+                      onPick={(id) => setUi(setUiColor(id))}
+                      tile={(item) => <UiTile color={item} />}
+                    />
+                  ) : (
+                    <SwatchGrid<JournalColor>
+                      items={JOURNAL_COLORS}
+                      selected={journal}
+                      onPick={(id) => setJournal(setJournalColor(id))}
+                      tile={(item) => <JournalTile filter={item.filter} />}
+                    />
+                  )}
+                  <Button className="mt-4 w-full" variant="outline" onClick={() => setPanel("main")}>
+                    Done
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Settings"
+        className="grid size-9 place-items-center rounded-full text-brass touch-manipulation"
+        onClick={openSettings}
+      >
+        <Settings className="size-5" />
+      </button>
+      {popup}
+    </>
+  );
+}
