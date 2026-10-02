@@ -40,7 +40,7 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
       suggesting
       handIds={hand.map((c) => c.id)}
       confirmTitle={speak ? "Say this out loud" : "Your suggestion"}
-      doneLabel={speak ? "(Suggestion)" : "Ask the table"}
+      doneLabel={speak ? "Suggest" : "Ask the table"}
       fit={fit}
       onDone={(pick) => {
         if (!pick.suspect || !pick.weapon || !pick.room) return;
@@ -344,6 +344,7 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const [sayOpen, setSayOpen] = useState(true);
   const showCard = useGame((s) => s.showCard);
   const ackCard = useGame((s) => s.ackCard);
+  const done = useGame((s) => s.done);
   // A card tapped in this panel opens bigger on top of it. When you are choosing which card to show, the
   // enlarged card carries its own "Show this card" button, so nothing is hidden below the fold.
   // Inside the Yes / No prompt the same sheet is view-only, and the prompt itself never closes.
@@ -423,6 +424,13 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
       <p className="mt-2 text-sm text-paper">
         {shower?.name ?? "A player"} is choosing a card to show {asker?.name ?? "the asker"}.
       </p>
+    );
+  } else if (q.closeTurn && isAsker) {
+    // Extra Difficulty: the turn never ends by itself, so the timing can't reveal whether the NPC showed a card.
+    body = (
+      <Button size="lg" className="mt-3 w-full" data-sfx="confirm" onClick={done}>
+        End your turn
+      </Button>
     );
   } else if (askingMe) {
     // "Do you have a card?" The prompt is docked at the bottom and stays until Yes or No is tapped.

@@ -217,12 +217,20 @@ test("Speak mode + Extra Difficulty: after every player says no, the NPC shows a
   assert.equal(sanitizeState(cur.state, "bea").question?.shownCardId, null);
   const done = applyPlay(cur.state, secrets(), "ada", "ack", {});
   assert.equal(done.state.turnIndex, 1);
-  // and with nothing the NPC holds, it ends the turn as before
+  // and with nothing the NPC holds, the turn still waits for the asker, so the timing gives nothing away
   let none = applyPlay(state, secrets(), "ada", "ask", { suspectId: "lord", roomId: "study", weaponId: "knife" });
   none = applyPlay(none.state, secrets(), "bea", "reply", { has: false });
   none = applyPlay(none.state, secrets(), "cy", "reply", { has: false });
-  assert.equal(none.state.question, null);
-  assert.equal(none.state.turnIndex, 1);
+  assert.equal(none.state.question?.closeTurn, true);
+  assert.equal(none.state.turnIndex, 0);
+  assert.equal(none.state.notice ?? "", "");
+  // nobody else can end it
+  const early = applyPlay(none.state, secrets(), "bea", "done", {});
+  assert.equal(early.state.turnIndex, 0);
+  // the asker taps End your turn
+  const ended = applyPlay(none.state, secrets(), "ada", "done", {});
+  assert.equal(ended.state.question, null);
+  assert.equal(ended.state.turnIndex, 1);
 });
 
 test("Speak mode + Gambler: a bet is settled on the category of the card shown", () => {

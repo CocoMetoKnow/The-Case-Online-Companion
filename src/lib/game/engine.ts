@@ -827,6 +827,11 @@ function advanceSpoken(state, secrets?) {
 			question: markShown({ ...q, cursor, askingId: null, showerId: NPC_ID, matchingCardIds: [], npcShown: true }, state, npcCard)
 		};
 	}
+	// Extra Difficulty: the turn must not end by itself here. When the NPC shows a card the turn waits for the
+	// asker, so an empty search waits for the asker too. They tap "End your turn", and nobody can read the timing.
+	if (npcOn(state)) {
+		return { ...state, question: { ...q, cursor, askingId: null, showerId: null, matchingCardIds: [], closeTurn: true } };
+	}
 	// Nobody at the table had a card to show. The turn ends right here, the same way it does when a
 	// suggestion comes up empty in the normal game. It never waits for the asker to tap "end turn".
 	const line = "No one had a card to show.";

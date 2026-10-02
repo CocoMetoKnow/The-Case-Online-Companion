@@ -10,6 +10,7 @@ import { AccusationPanel, AccusationWatch, QuestionPanel, QuestionResolve } from
 import { sfxDice, sfxPaper } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
+import { TurnTracker } from "./TurnTracker";
 import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
@@ -349,12 +350,6 @@ export function Briefcase() {
                       ? "Your turn"
                       : `${cur?.name ?? "Someone"}'s turn`}
               </p>
-              <p className="truncate text-[10px] uppercase tracking-[0.14em] text-brass">
-                {state.turnOrder
-                  .map((id) => state.players.find((p) => p.id === id)?.name ?? "")
-                  .filter(Boolean)
-                  .join(" → ")}
-              </p>
             </div>
             <div className="flex items-end gap-1">
               <DicePair
@@ -375,6 +370,8 @@ export function Briefcase() {
               </p>
             </div>
           </div>
+
+          <TurnTracker />
 
           {state.notice ? (
             <p className="shrink-0 rounded-xl border border-brass/50 bg-[#2a1410] px-3 py-2 text-sm text-paper">{state.notice}</p>
@@ -445,11 +442,11 @@ export function Briefcase() {
                   size="lg"
                   onClick={() => {
                     setMovesOpen(false);
-                    if (state.settings.speakMode) ask();
-                    else setSuggest(true);
+                    // Speak mode uses the same card picker as every other mode. Nothing is sent until the picks are confirmed.
+                    setSuggest(true);
                   }}
                 >
-                  {state.settings.speakMode ? "(Suggestion)" : "Suggest"}
+                  Suggest
                 </Button>
               ) : null}
               {(state.actionsLeft ?? 1) > 0 && !influenced ? (

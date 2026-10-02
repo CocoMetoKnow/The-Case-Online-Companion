@@ -87,7 +87,7 @@ export function SetupScreen() {
           <h1 className="font-display text-4xl">Build the deck</h1>
           <MusicToggle />
         </div>
-        <p className="mt-1 text-sm text-muted">Tap the cards you want. The number in each group is how many are in the deck.</p>
+        <p className="mt-1 text-sm text-muted">Open a group to choose its cards. The number on each button is how many are in the deck.</p>
 
         <div className="case-shell mt-5 space-y-5 rounded-[28px] p-4">
           <label className="block space-y-2">
@@ -296,63 +296,6 @@ export function SetupScreen() {
             onToggle={(card, on) => setDeck(toggleCard(setup.deck, card, on, "weapon"))}
           />
 
-          <PowerUps />
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Deal each category evenly</p>
-              <p className="text-sm text-muted">At the start, suspects, rooms, and the rest are split as evenly as they can be.</p>
-            </div>
-            <Switch checked={Boolean(setup.settings.evenDeal)} onCheckedChange={(v) => patchSettings({ evenDeal: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Only mark the opening deal</p>
-              <p className="text-sm text-muted">Your cards and the cards on the table are still marked at the start. After that, the journal is not marked for you.</p>
-            </div>
-            <Switch checked={Boolean(setup.settings.manualNotes)} onCheckedChange={(v) => patchSettings({ manualNotes: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Heist mode</p>
-              <p className="text-sm text-muted">The case is a theft. These cards become the jewels, paintings, and other valuables that were stolen.</p>
-            </div>
-            <Switch checked={Boolean(setup.settings.heist)} onCheckedChange={(v) => patchSettings({ heist: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Speak mode</p>
-              <p className="text-sm text-muted">Turns run exactly like a normal game. On your turn you say your suggestion out loud and tap “I’m in a room”. Each player is then asked in order if they hold a card you named, and can pick any card to show you privately.</p>
-            </div>
-            <Switch checked={Boolean(setup.settings.speakMode)} onCheckedChange={(v) => patchSettings({ speakMode: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Extra Difficulty</p>
-              <p className="text-sm text-muted">Adds an NPC. It never takes a turn, but it holds cards from the deal. It is asked last, only if no other player has a card you asked for, and it shows you a card in private without telling anyone else.</p>
-            </div>
-            <Switch checked={Boolean(setup.settings.extraDifficulty)} onCheckedChange={(v) => patchSettings({ extraDifficulty: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-medium">Time of day cards</p>
-              <p className="text-sm text-muted">Ten hours, dawn through midnight, go in the envelope with the rest.</p>
-            </div>
-            <Switch
-              checked={setup.settings.timeOfDayEnabled}
-              onCheckedChange={(v) => {
-                patchSettings({ timeOfDayEnabled: v });
-                if (v && !setup.deck.some((c) => c.category === "time")) {
-                  setDeck([...setup.deck, ...TIME_CARDS.map((c) => ({ ...c }))]);
-                }
-              }}
-            />
-          </div>
           {setup.settings.timeOfDayEnabled ? (
             <CardGroup
               title={CATEGORY_LABEL.time}
@@ -361,6 +304,10 @@ export function SetupScreen() {
               onToggle={(card, on) => setDeck(toggleCard(setup.deck, card, on, "time"))}
             />
           ) : null}
+
+          <PowerUps />
+
+          <ExtraSettings />
 
           <ClueCodeField
             active={Boolean(setup.settings.classicNames)}
@@ -445,6 +392,89 @@ function PowerUps() {
   );
 }
 
+function ExtraSettings() {
+  const settings = useGame((s) => s.setup.settings);
+  const deck = useGame((s) => s.setup.deck);
+  const patchSettings = useGame((s) => s.patchSettings);
+  const setDeck = useGame((s) => s.setDeck);
+  const [open, setOpen] = useState(false);
+  const rows: { key: string; title: string; text: string; on: boolean; set: (v: boolean) => void }[] = [
+    {
+      key: "evenDeal",
+      title: "Deal each category evenly",
+      text: "At the start, suspects, rooms, and the rest are split as evenly as they can be.",
+      on: Boolean(settings.evenDeal),
+      set: (v) => patchSettings({ evenDeal: v }),
+    },
+    {
+      key: "manualNotes",
+      title: "Only mark the opening deal",
+      text: "Your cards and the cards on the table are still marked at the start. After that, the journal is not marked for you.",
+      on: Boolean(settings.manualNotes),
+      set: (v) => patchSettings({ manualNotes: v }),
+    },
+    {
+      key: "heist",
+      title: "Heist mode",
+      text: "The case is a theft. These cards become the jewels, paintings, and other valuables that were stolen.",
+      on: Boolean(settings.heist),
+      set: (v) => patchSettings({ heist: v }),
+    },
+    {
+      key: "speakMode",
+      title: "Speak mode",
+      text: "Turns run exactly like a normal game. On your turn you pick your cards and say them out loud. Each player is then asked in order if they hold a card you named, and can pick any card to show you privately.",
+      on: Boolean(settings.speakMode),
+      set: (v) => patchSettings({ speakMode: v }),
+    },
+    {
+      key: "extraDifficulty",
+      title: "Extra Difficulty",
+      text: "Adds an NPC. It never takes a turn, but it holds cards from the deal. It is asked last, only if no other player has a card you asked for, and it shows you a card in private without telling anyone else. In Speak mode you tap End your turn yourself, so the timing never gives the NPC away.",
+      on: Boolean(settings.extraDifficulty),
+      set: (v) => patchSettings({ extraDifficulty: v }),
+    },
+    {
+      key: "timeOfDayEnabled",
+      title: "Time of day cards",
+      text: "Ten hours, dawn through midnight, go in the envelope with the rest.",
+      on: Boolean(settings.timeOfDayEnabled),
+      set: (v) => {
+        patchSettings({ timeOfDayEnabled: v });
+        if (v && !deck.some((c) => c.category === "time")) {
+          setDeck([...deck, ...TIME_CARDS.map((c) => ({ ...c }))]);
+        }
+      },
+    },
+  ];
+  const onCount = rows.filter((row) => row.on).length;
+  return (
+    <>
+      <Button variant="outline" className="w-full" onClick={() => setOpen(true)}>
+        Extra settings · {onCount} on
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title="Extra settings" className="max-h-[min(640px,calc(100%-24px))] overflow-y-auto">
+          <div className="mt-3 space-y-4">
+            {rows.map((row) => (
+              <div key={row.key} className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{row.title}</p>
+                  <p className="text-sm text-muted">{row.text}</p>
+                </div>
+                <Switch checked={row.on} onCheckedChange={row.set} />
+              </div>
+            ))}
+          </div>
+          <Button className="mt-4 w-full" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function toggleCard(deck: CardDef[], card: CardDef, on: boolean, category: CategoryId): CardDef[] {
   const same = deck.filter((item) => item.category === category).length;
   if (!on && same <= MIN_CATEGORY_CARDS) return deck;
@@ -466,17 +496,25 @@ function CardGroup({
   deck: CardDef[];
   onToggle: (card: CardDef, on: boolean) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const onCount = cards.filter((card) => deck.some((item) => item.id === card.id)).length;
   const heist = useGame((s) => Boolean(s.setup.settings.heist));
   return (
-    <section>
-      <p className="text-xs uppercase tracking-[0.16em] text-subtle">
-        {title} · {onCount}
-      </p>
-      <p className="mt-1 text-sm text-muted">At least {MIN_CATEGORY_CARDS} stay on. The case is chosen only from the cards you leave on.</p>
-      {note ? <p className="mt-1 text-sm text-muted">{note}</p> : null}
-      <PickGrid cards={cards} deck={deck} heist={heist} onToggle={onToggle} />
-    </section>
+    <>
+      <Button variant="outline" className="w-full" onClick={() => setOpen(true)}>
+        {title} · {onCount} on
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title={title} className="max-h-[min(720px,calc(100%-24px))] overflow-y-auto">
+          <p className="mt-1 text-sm text-muted">{onCount} on. At least {MIN_CATEGORY_CARDS} stay on. The case is chosen only from the cards you leave on.</p>
+          {note ? <p className="mt-1 text-sm text-muted">{note}</p> : null}
+          <PickGrid cards={cards} deck={deck} heist={heist} onToggle={onToggle} />
+          <Button className="mt-4 w-full" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
