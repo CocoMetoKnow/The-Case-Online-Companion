@@ -1,7 +1,7 @@
 import { nearestRooms, roomById } from "@/lib/game/board";
 import { currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
-import { EVENT_DEFS, PHYSICAL_EVENTS, cardsByCategory, eventsForPlayers } from "@/lib/game/cards";
-import type { CategoryId } from "@/lib/game/types";
+import { EVENT_DEFS, PHYSICAL_EVENTS, cardArt, cardsByCategory, eventsForPlayers } from "@/lib/game/cards";
+import type { CardDef, CategoryId } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
 import { roomsInPlay } from "@/lib/game/engine";
@@ -112,10 +112,27 @@ export function EventPanel() {
     );
   }
 
+  // Choosing from a set of cards: a wider panel and a slimmer header so every card fits at once.
+  const pickingCards =
+    acting &&
+    ((["name-suspect", "name-weapon", "name-room", "name-time"].includes(ev.kind) && (ev.step === "intro" || ev.step === "pick-card")) ||
+      (ev.kind === "call-card" && ev.step === "pick-card") ||
+      (ev.kind === "hush" && (ev.step === "intro" || ev.step === "pick-card")) ||
+      (ev.kind === "red-herring" && (ev.step === "intro" || ev.step === "pick-card")) ||
+      (ev.kind === "pass-card" && (ev.data.waitingId === actor || !ev.data.waitingId)) ||
+      (ev.kind === "swap-card" && ev.step === "pick-give"));
+
   return (
-    <PowerShell onClose={close} className="wood-panel max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
+    <PowerShell
+      onClose={close}
+      className={cn(
+        "wood-panel max-h-[96dvh] w-full overflow-y-auto rounded-[20px]",
+        pickingCards ? "max-w-md p-3" : "max-w-sm p-4",
+      )}
+    >
       <>
       <SnakeCallout
+        tight={pickingCards}
         title={ev.title}
         description={
           ev.kind === "red-herring" && ev.step !== "deliver" && !acting
@@ -206,11 +223,7 @@ export function EventPanel() {
       ) : null}
 
       {ev.kind === "pass-card" && (ev.data.waitingId === actor || (!ev.data.waitingId && acting)) ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {hand.map((c) => (
-            <CardFace key={c.id} card={c} compact onClick={() => eventChoice({ cardId: c.id })} />
-          ))}
-        </div>
+        <PickTiles className="mt-3" cards={hand} onPick={(cardId) => eventChoice({ cardId })} />
       ) : null}
 
       {ev.kind === "red-herring" && (ev.step === "intro" || ev.step === "pick-card") && acting ? (
@@ -335,19 +348,11 @@ export function EventPanel() {
       ) : null}
 
       {ev.kind === "swap-card" && ev.step === "pick-give" && acting ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {hand.map((c) => (
-            <CardFace key={c.id} card={c} compact onClick={() => eventChoice({ cardId: c.id })} />
-          ))}
-        </div>
+        <PickTiles className="mt-3" cards={hand} onPick={(cardId) => eventChoice({ cardId })} />
       ) : null}
 
       {ev.kind === "swap-card" && ev.step === "pick-take" && ev.data.targetId === actor ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {hand.map((c) => (
-            <CardFace key={c.id} card={c} compact onClick={() => eventChoice({ cardId: c.id })} />
-          ))}
-        </div>
+        <PickTiles className="mt-3" cards={hand} onPick={(cardId) => eventChoice({ cardId })} />
       ) : null}
 
       {ev.kind === "come-here" && acting ? (
@@ -408,12 +413,12 @@ function PowerShell({ onClose, className, children }: { onClose: () => void; cla
   );
 }
 
-function SnakeCallout({ title, description }: { title: string; description: string }) {
+function SnakeCallout({ title, description, tight = false }: { title: string; description: string; tight?: boolean }) {
   return (
-    <div className="rounded-[16px] border-2 border-brass bg-[#2a1410] px-4 py-3">
+    <div className={cn("rounded-[16px] border-2 border-brass bg-[#2a1410]", tight ? "py-2 pl-3 pr-11" : "px-4 py-3")}>
       <p className="text-xs uppercase tracking-[0.18em] text-brass">Snake eyes · everyone look</p>
-      <h3 className="mt-1 font-display text-3xl leading-none text-paper">{title}</h3>
-      <p className="mt-2 text-base text-paper">{description}</p>
+      <h3 className={cn("mt-1 font-display leading-none text-paper", tight ? "text-2xl" : "text-3xl")}>{title}</h3>
+      <p className={cn("text-paper", tight ? "mt-1 text-sm" : "mt-2 text-base")}>{description}</p>
     </div>
   );
 }
@@ -557,13 +562,52 @@ function HushPick({ onPick }: { onPick: (cardId: string) => void }) {
           <Button className="mt-2" variant="ghost" size="sm" onClick={() => setCat(null)}>
             Change category
           </Button>
-          <div className="mt-2 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto">
-            {cards.map((card) => (
-              <CardFace key={card.id} card={card} choice onClick={() => onPick(card.id)} />
-            ))}
-          </div>
+          <PickTiles className="mt-2" cards={cards} onPick={onPick} />
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Every card you can pick, all on one screen with no scrolling: small portrait tiles, three to
+ * five across depending on how many there are. Tap a tile to pick it.
+ */
+function PickTiles({ cards, onPick, className }: { cards: CardDef[]; onPick: (cardId: string) => void; className?: string }) {
+  const heist = useGame((s) => Boolean(s.state?.settings.heist));
+  const [failed, setFailed] = useState<string[]>([]);
+  const cols = cards.length <= 6 ? "grid-cols-3" : cards.length <= 12 ? "grid-cols-4" : "grid-cols-5";
+  return (
+    <div className={cn("grid gap-1.5", cols, className)}>
+      {cards.map((card) => {
+        const art = card.imageDataUrl || cardArt(card.id, heist);
+        const showArt = Boolean(art) && !failed.includes(card.id);
+        return (
+          <button
+            key={card.id}
+            type="button"
+            onClick={() => onPick(card.id)}
+            className="flex min-w-0 flex-col overflow-hidden rounded-[10px] border border-[#e7c98a]/60 bg-[#1a1410] text-left transition active:scale-[0.97] active:border-brass"
+            aria-label={card.name}
+          >
+            <span className="relative block aspect-[3/4] w-full bg-[#241a14]">
+              {showArt ? (
+                <img
+                  src={art}
+                  alt=""
+                  decoding="async"
+                  draggable={false}
+                  onError={() => setFailed((list) => [...list, card.id])}
+                  className="absolute inset-0 size-full object-cover object-top"
+                />
+              ) : (
+                <span className="absolute inset-0 grid place-items-center font-display text-2xl text-paper">{card.name.slice(0, 1)}</span>
+              )}
+            </span>
+            <span className="block px-1 py-1 text-center text-[11px] leading-[1.15] text-paper line-clamp-2 min-h-[2.4em]">{card.name}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -573,11 +617,7 @@ function NamedPick({ category, onPick }: { category: CategoryId; onPick: (cardId
   if (!state) return null;
   const cards = cardsByCategory(state.cards, category);
   return (
-    <div className="mt-3 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto">
-      {cards.map((card) => (
-        <CardFace key={card.id} card={card} choice onClick={() => onPick(card.id)} />
-      ))}
-    </div>
+    <PickTiles className="mt-3" cards={cards} onPick={onPick} />
   );
 }
 
@@ -610,11 +650,7 @@ function HerringCardPick({ onPick }: { onPick: (cardId: string) => void }) {
           <Button className="mt-2" variant="ghost" size="sm" onClick={() => setCat(null)}>
             Change category
           </Button>
-          <div className="mt-2 grid gap-2">
-            {cards.map((card) => (
-              <CardFace key={card.id} card={card} choice onClick={() => onPick(card.id)} />
-            ))}
-          </div>
+          <PickTiles className="mt-2" cards={cards} onPick={onPick} />
         </>
       )}
     </div>

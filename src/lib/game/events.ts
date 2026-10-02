@@ -403,9 +403,16 @@ export function resolveEventChoice(
   }
 
   if (ev.step === "show-all") {
-    // The card is on every screen. The player showing it, or whoever is playing, moves things on.
-    const holderId = String(ev.data.holderId ?? "");
-    if (playerId !== holderId && !isTurnActor) return { state, secrets };
+    // The card is on every screen. Each guest taps "I've seen it" for themselves, and the
+    // power ends once everyone still in the game has.
+    const living = state.players.filter((player) => !player.eliminated);
+    if (!living.some((player) => player.id === playerId)) return { state, secrets };
+    const seen = Array.isArray(ev.data.seen) ? (ev.data.seen as string[]).map(String) : [];
+    const nextSeen = readyList(state, seen, playerId);
+    if (stillNeed(state, nextSeen).length) {
+      if (nextSeen.length === seen.length) return { state, secrets };
+      return { state: { ...state, event: { ...ev, data: { ...ev.data, seen: nextSeen } } }, secrets };
+    }
     const card = state.cards.find((c) => c.id === ev.data.cardId);
     const holder = state.players.find((p) => p.id === ev.data.holderId);
     return {
