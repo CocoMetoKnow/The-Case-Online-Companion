@@ -50,6 +50,7 @@ export function SetupScreen() {
         t.speakMode === Boolean(s.speakMode) &&
         t.manualNotes === Boolean(s.manualNotes) &&
         t.evenDeal === Boolean(s.evenDeal) &&
+        Boolean(t.extraDifficulty) === Boolean(s.extraDifficulty) &&
         JSON.stringify(t.enabledEvents ?? null) === JSON.stringify(s.enabledEvents ?? null));
     return (
       ids(setup.deck.filter((c) => c.category !== "time")) !== ids(activeFile.cards.filter((c) => c.category !== "time")) ||
@@ -327,6 +328,14 @@ export function SetupScreen() {
               <p className="text-sm text-muted">Turns run exactly like a normal game. On your turn you say your suggestion out loud and tap “I’m in a room”. Each player is then asked in order if they hold a card you named, and can pick any card to show you privately.</p>
             </div>
             <Switch checked={Boolean(setup.settings.speakMode)} onCheckedChange={(v) => patchSettings({ speakMode: v })} />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium">Extra Difficulty</p>
+              <p className="text-sm text-muted">Adds an NPC. It never takes a turn, but it holds cards from the deal. It is asked last, only if no other player has a card you asked for, and it shows you a card in private without telling anyone else.</p>
+            </div>
+            <Switch checked={Boolean(setup.settings.extraDifficulty)} onCheckedChange={(v) => patchSettings({ extraDifficulty: v })} />
           </div>
 
           <div className="flex items-center justify-between gap-3">

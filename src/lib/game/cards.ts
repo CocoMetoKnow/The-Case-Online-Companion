@@ -317,6 +317,7 @@ export const PHYSICAL_EVENTS = [
 	"that-noise",
 	"swap-card",
 	"thief",
+	"gambler",
 	"about-face",
 	"stealth-reveal",
 	"sabotage",
@@ -660,6 +661,11 @@ export const EVENT_DEFS = [
 		kind: "thief",
 		title: "Thief",
 		description: "Steal a die from another player for this turn only (you roll 3 dice; they roll 1 next turn)."
+	},
+	{
+		kind: "gambler",
+		title: "The Gambler",
+		description: "Your choice: gamble or don't. Bet on which kind of card (character, item, room or hour) you will be shown for your next suggestion. Right, and you get another suggestion. Wrong, and you don't get to see the card. Don't name a card you hold, or the gamble is called off."
 	},
 	{
 		kind: "about-face",

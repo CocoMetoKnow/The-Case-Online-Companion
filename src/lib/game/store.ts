@@ -32,7 +32,7 @@ import {
   saveTable,
 } from "@/lib/game/storage";
 import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
-import { SAVE_VERSION } from "@/lib/game/types";
+import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
 import { isLegalPos, START_HALL, BOARD_ROOM_IDS } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
@@ -203,6 +203,7 @@ const defaultSettings = (): GameSettings => ({
   heist: false,
   manualNotes: false,
   speakMode: false,
+  extraDifficulty: false,
   classicNames: false,
 });
 
@@ -315,6 +316,7 @@ function pickToggles(settings: GameSettings): DeckToggles {
     speakMode: Boolean(settings.speakMode),
     manualNotes: Boolean(settings.manualNotes),
     evenDeal: Boolean(settings.evenDeal),
+    extraDifficulty: Boolean(settings.extraDifficulty),
     enabledEvents: settings.enabledEvents ? [...settings.enabledEvents] : undefined,
   };
 }
@@ -328,6 +330,7 @@ function withToggles(settings: GameSettings, toggles: DeckToggles): GameSettings
     speakMode: Boolean(toggles.speakMode),
     manualNotes: Boolean(toggles.manualNotes),
     evenDeal: Boolean(toggles.evenDeal),
+    extraDifficulty: Boolean(toggles.extraDifficulty),
     enabledEvents: toggles.enabledEvents ? [...toggles.enabledEvents] : undefined,
   };
 }
@@ -410,9 +413,10 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
   const evCard = ev?.data?.cardId ? String(ev.data.cardId) : "";
   let seenId = "";
   let seenFrom = "";
-  if (q?.shownCardId && q.askerId === playerId) {
+  if (q?.shownCardId && q.askerId === playerId && q.gambleResult !== "lost") {
+    // A lost Gambler bet means the card is never seen, so nothing is marked in the journal.
     seenId = q.shownCardId;
-    seenFrom = q.showerId || "";
+    seenFrom = q.showerId && q.showerId !== NPC_ID ? q.showerId : "";
   } else if (q?.shownCardId && state.spy?.byId === playerId && state.spy.targetId === q.askerId) {
     seenId = q.shownCardId;
     seenFrom = q.showerId || "";

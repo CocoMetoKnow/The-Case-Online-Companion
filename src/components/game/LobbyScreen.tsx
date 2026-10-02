@@ -252,6 +252,11 @@ function HouseRules({ state }: { state: GameState }) {
           Speak mode. Turns run as normal, but you say your suggestion out loud. The game then asks each player in order if they have a card to show.
         </p>
       ) : null}
+      {state.settings.extraDifficulty ? (
+        <p className="mt-2 text-sm text-muted">
+          Extra Difficulty. An NPC holds some of the cards. It never takes a turn, and it shows a card only to the player who is asking, after everyone else has been checked.
+        </p>
+      ) : null}
       {cats.map((cat) => {
         const names = state.cards.filter((card) => card.category === cat).map((card) => card.name);
         return (

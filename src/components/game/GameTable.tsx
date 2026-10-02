@@ -163,7 +163,7 @@ export function GameTable() {
 
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex items-end gap-3">
-            <DicePair values={state.dice} toss={toss} single={Boolean(state.singleDie)} snake={!state.singleDie && state.dice?.[0] === 1 && state.dice?.[1] === 1} />
+            <DicePair values={state.dice} toss={toss} single={Boolean(state.singleDie)} extra={state.extraDie} snake={!state.singleDie && state.dice?.[0] === 1 && state.dice?.[1] === 1} />
             <div className="pb-1">
               <p className="font-display text-3xl leading-none text-paper">{paces ?? "—"}</p>
               <p className="text-[11px] uppercase tracking-[0.16em] text-[#e7d7a8]">paces</p>

@@ -15,28 +15,9 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
   const [open, setOpen] = useState(startOpen);
   if (!state) return null;
   if (!canAsk(state, actor)) return null;
-  if (state.settings.speakMode) {
-    return (
-      <div className="flex h-full flex-col justify-center gap-3 text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-brass">Speak mode</p>
-        <h2 className="font-display text-4xl leading-none text-paper">Say it out loud</h2>
-        <p className="text-sm text-muted">
-          Name the room you are in, plus a suspect and a weapon, to the whole table. Then tap the button so each player is asked in order.
-        </p>
-        <Button
-          size="lg"
-          className="w-full"
-          data-sfx="confirm"
-          onClick={() => {
-            ask();
-            onAsked?.();
-          }}
-        >
-          (Suggestion)
-        </Button>
-      </div>
-    );
-  }
+  // Speak mode picks cards the same way as every other mode. The table is still asked out loud, one player at
+  // a time, exactly as before. The picks stay on this phone as a reminder of what to say.
+  const speak = Boolean(state.settings.speakMode);
   const steps: CategoryId[] = state.whisperMode
     ? ["room", "suspect", "weapon"]
     : state.settings.timeOfDayEnabled
@@ -49,13 +30,17 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
       onOpen={() => setOpen(true)}
       tone="plain"
       title="Make a suggestion"
-      note="Ask the table. Someone may have to show you a card."
+      note={
+        speak
+          ? "Pick your cards, then say them out loud. Each player is asked in order."
+          : "Ask the table. Someone may have to show you a card."
+      }
       closedLabel="Make a suggestion"
       steps={steps}
       suggesting
       handIds={hand.map((c) => c.id)}
-      confirmTitle="Your suggestion"
-      doneLabel="Ask the table"
+      confirmTitle={speak ? "Say this out loud" : "Your suggestion"}
+      doneLabel={speak ? "(Suggestion)" : "Ask the table"}
       fit={fit}
       onDone={(pick) => {
         if (!pick.suspect || !pick.weapon || !pick.room) return;
@@ -68,6 +53,31 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
         onAsked?.();
       }}
     />
+  );
+}
+
+/** Gambler: one line for the whole table. The kind of card that was bet on is never named here. */
+function GambleLine({ q, askerName, mine }: { q: NonNullable<GameState["question"]>; askerName: string; mine: boolean }) {
+  let text = "";
+  if (q.gambleOff) text = `${mine ? "You have" : `${askerName} has`} chosen not to gamble.`;
+  else if (q.gambleResult === "won") text = `${mine ? "You" : askerName} won the gamble.`;
+  else if (q.gambleResult === "lost") text = `${mine ? "You" : askerName} lost the gamble.`;
+  else if (q.gamble) text = `${mine ? "You are" : `${askerName} is`} gambling on this suggestion.`;
+  if (!text) return null;
+  return <p className="mt-2 text-sm font-medium text-brass">{text}</p>;
+}
+
+/** Gambler: the asker called the wrong kind of card. A card was shown, but they never see which. */
+function LostBet({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="mt-3 rounded-[16px] border-2 border-brass bg-[#2a1410] px-4 py-3">
+      <p className="text-xs uppercase tracking-[0.18em] text-brass">The Gambler</p>
+      <p className="mt-1 font-display text-3xl leading-tight text-paper">You lost the gamble</p>
+      <p className="mt-2 text-base text-paper">A card was shown, but you don't get to see it. Your turn is over.</p>
+      <Button className="mt-3 w-full" data-sfx="deny" onClick={onContinue}>
+        Continue
+      </Button>
+    </div>
   );
 }
 
@@ -136,6 +146,7 @@ export function QuestionResolve({ facesDown = false, onReveal }: { facesDown?: b
         >
           <p className="text-xs uppercase tracking-[0.16em] text-brass">Suggestion</p>
           <h3 className={cn("font-display leading-none text-paper", handUp ? "mt-1 text-xl" : "mt-1 text-3xl")}>{asker?.name ?? "Someone"} asks</h3>
+          <GambleLine q={q} askerName={asker?.name ?? "The asker"} mine={actor === q.askerId} />
           <div key={handUp ? "s" : "l"} className={cn("swap-in mt-3 grid gap-2", handUp ? "grid-cols-4" : "grid-cols-2")}>
             {asked.map((card) => (
               <div key={card.id} className={handUp ? "h-20" : "h-36"}>
@@ -279,7 +290,9 @@ export function QuestionResolve({ facesDown = false, onReveal }: { facesDown?: b
         </>
       ) : null}
 
-      {!q.missId && q.shownCardId && (actor === q.askerId || guided) ? (
+      {!q.missId && q.gambleResult === "lost" && (actor === q.askerId || guided) ? <LostBet onContinue={ackCard} /> : null}
+
+      {!q.missId && q.shownCardId && q.gambleResult !== "lost" && (actor === q.askerId || guided) ? (
         <div className="mt-3">
           <p className="text-xs uppercase tracking-[0.16em] text-brass">Shown only to you</p>
           <div className="mt-2 flex justify-center">
@@ -304,7 +317,7 @@ export function QuestionResolve({ facesDown = false, onReveal }: { facesDown?: b
         </div>
       ) : null}
 
-      {!q.missId && !q.nobodyHad && !q.closeTurn && !q.heldByAsker && !mineToShow && !(q.shownCardId && (actor === q.askerId || guided || (state.spy?.byId === actor && state.spy.targetId === q.askerId))) ? (
+      {!q.missId && !q.nobodyHad && !q.closeTurn && !q.heldByAsker && !mineToShow && !(q.gambleResult === "lost" && (actor === q.askerId || guided)) && !(q.shownCardId && (actor === q.askerId || guided || (state.spy?.byId === actor && state.spy.targetId === q.askerId))) ? (
         <p className="mt-3 text-sm text-muted">
           {q.cardShown
             ? `A card was shown privately to ${asker?.name ?? "the asker"}.`
@@ -327,6 +340,8 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const reply = useGame((s) => s.reply);
   const retractReply = useGame((s) => s.retractReply);
   const [confirmNoCard, setConfirmNoCard] = useState(false);
+  // Speak mode: the cards the asker picked come up on their own screen to say out loud, then shrink to a reminder strip.
+  const [sayOpen, setSayOpen] = useState(true);
   const showCard = useGame((s) => s.showCard);
   const ackCard = useGame((s) => s.ackCard);
   // A card tapped in this panel opens bigger on top of it. When you are choosing which card to show, the
@@ -343,8 +358,16 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const shownCard = q.shownCardId ? state.cards.find((c) => c.id === q.shownCardId) : undefined;
   const askingMe = Boolean(!q.shownCardId && !q.showerId && q.askingId && actor === q.askingId);
 
+  const said = [q.roomId, q.suspectId, q.weaponId, q.timeId]
+    .filter(Boolean)
+    .map((id) => state.cards.find((c) => c.id === id))
+    .filter((c): c is CardDef => Boolean(c));
+  const lostBet = q.gambleResult === "lost" && isAsker;
+
   let body: ReactNode;
-  if (shownCard && isAsker) {
+  if (lostBet) {
+    body = <LostBet onContinue={ackCard} />;
+  } else if (shownCard && isAsker) {
     // The card itself opens in its own full screen sheet on top of this one.
     body = <p className="mt-2 text-sm text-paper">A card is being shown to you.</p>;
   } else if (q.shownCardId) {
@@ -482,6 +505,36 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
       >
         <p className="text-xs uppercase tracking-[0.16em] text-brass">Suggestion</p>
         <h3 className="mt-1 font-display text-3xl leading-none text-paper">{asker?.name ?? "Someone"} spoke</h3>
+        <GambleLine q={q} askerName={asker?.name ?? "The asker"} mine={actor === q.askerId} />
+        {actor === q.askerId && said.length ? (
+          sayOpen ? (
+            <div className="mt-3 rounded-[16px] border-2 border-brass bg-[#2a1410] px-3 py-3">
+              <p className="text-xs uppercase tracking-[0.18em] text-brass">Say this out loud</p>
+              <div className={cn("mt-2 grid gap-2", said.length > 3 ? "grid-cols-4" : "grid-cols-3")}>
+                {said.map((card) => (
+                  <div key={card.id} className="h-28">
+                    <CardFace card={card} fill />
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-sm text-paper">{said.map((card) => card.name).join(" · ")}</p>
+              <Button size="sm" className="mt-3 w-full" data-sfx="confirm" onClick={() => setSayOpen(false)}>
+                Got it
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="mt-3 w-full rounded-[12px] border border-paper/20 bg-black/20 px-2 py-2 text-left"
+              data-sfx="select"
+              onClick={() => setSayOpen(true)}
+              aria-label="Show the cards you said again"
+            >
+              <span className="block text-[10px] uppercase tracking-[0.16em] text-brass">You said · tap to enlarge</span>
+              <span className="mt-1 block text-sm text-paper">{said.map((card) => card.name).join(" · ")}</span>
+            </button>
+          )
+        ) : null}
         <div className="mt-3 flex flex-wrap justify-center gap-2">
           {q.responderIds.map((id) => {
             const player = state.players.find((item) => item.id === id);

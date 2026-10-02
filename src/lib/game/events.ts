@@ -210,6 +210,7 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
     case "trade-places":
     case "swap-card":
     case "hush":
+    case "gambler":
       return { state, secrets };
     case "wrong-turn": {
       const pool = state.players.filter((p) => !p.eliminated);
@@ -678,6 +679,24 @@ export function resolveEventChoice(
       secrets,
     };
   }
+  if (ev.kind === "gambler" && (ev.step === "intro" || ev.step === "pick-bet")) {
+    // The player decides. Not gambling is a fair choice, and the table is told so.
+    if (choice.gamble === false) {
+      return { state: settle({ ...state, gambler: null }, `${cur.name} has chosen not to gamble.`), secrets };
+    }
+    const category = String(choice.category ?? "") as CategoryId;
+    const valid: CategoryId[] = state.settings.timeOfDayEnabled
+      ? ["suspect", "weapon", "room", "time"]
+      : ["suspect", "weapon", "room"];
+    if (!valid.includes(category)) return { state, secrets };
+    return {
+      state: settle(
+        { ...state, gambler: { playerId: cur.id, category } },
+        `${cur.name} is gambling on the next suggestion.`,
+      ),
+      secrets,
+    };
+  }
   if (ev.kind === "thief" && (ev.step === "intro" || ev.step === "pick-player")) {
     const targetId = String(choice.targetId ?? "");
     if (!targetId || targetId === cur.id) return { state, secrets };
@@ -688,7 +707,7 @@ export function resolveEventChoice(
     const total = first + extra;
     const line = `${cur.name} steals a die from ${target.name}. The extra die is ${extra}. Move ${total}. ${target.name} rolls one die next turn.`;
     return {
-      state: settle({ ...state, pace: total, moveBudget: total, shortDieId: targetId }, line),
+      state: settle({ ...state, pace: total, moveBudget: total, shortDieId: targetId, extraDie: extra }, line),
       secrets,
     };
   }

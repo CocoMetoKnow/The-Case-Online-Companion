@@ -15,6 +15,8 @@ export function EventPanel() {
   const hand = useMyHand();
   const [passage, setPassage] = useState({ roomA: "", roomB: "" });
   const [summon, setSummon] = useState({ targetId: "", roomId: "" });
+  // Gambler: false while the player is still deciding whether to gamble, true once they are picking the bet.
+  const [betOpen, setBetOpen] = useState(false);
   // Every power-up prompt can be put away. The power itself stays in play (someone still has to
   // see it through), so a small chip brings the prompt back; a new step of the power shows it again.
   const [closedKey, setClosedKey] = useState("");
@@ -306,6 +308,45 @@ export function EventPanel() {
           }
           onPick={(id) => eventChoice({ targetId: id })}
         />
+      ) : null}
+
+      {ev.kind === "gambler" && (ev.step === "intro" || ev.step === "pick-bet") && acting ? (
+        <div className="mt-3">
+          {!betOpen ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button data-sfx="confirm" onClick={() => setBetOpen(true)}>
+                Gamble
+              </Button>
+              <Button variant="outline" data-sfx="deny" onClick={() => eventChoice({ gamble: false })}>
+                Don't gamble
+              </Button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-paper">What kind of card will you be shown for your next suggestion?</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {(["suspect", "weapon", "room", ...(state.settings.timeOfDayEnabled ? (["time"] as const) : [])] as const).map((cat) => (
+                  <Button
+                    key={cat}
+                    variant="outline"
+                    onClick={() => {
+                      setBetOpen(false);
+                      eventChoice({ category: cat });
+                    }}
+                  >
+                    {cat === "suspect" ? "Character" : cat === "weapon" ? "Item" : cat === "room" ? "Room" : "Hour"}
+                  </Button>
+                ))}
+              </div>
+              <Button variant="ghost" className="mt-2 w-full text-paper" onClick={() => setBetOpen(false)}>
+                Back
+              </Button>
+            </>
+          )}
+          <p className="mt-3 text-xs text-muted">
+            Right: you get another suggestion. Wrong: you don't get to see the card. Name a card you hold, and the gamble is called off.
+          </p>
+        </div>
       ) : null}
 
       {ev.kind === "call-card" && (ev.step === "intro" || ev.step === "pick-category") && acting ? (

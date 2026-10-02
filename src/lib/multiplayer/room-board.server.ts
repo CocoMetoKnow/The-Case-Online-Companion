@@ -137,6 +137,7 @@ function settingsStamp(state: GameState): string {
     settings.heist ? "1" : "0",
     settings.manualNotes ? "1" : "0",
     settings.speakMode ? "1" : "0",
+    settings.extraDifficulty ? "1" : "0",
     settings.classicNames ? "1" : "0",
     settings.timeOfDayEnabled ? "1" : "0",
     String(settings.maxPlayers),
@@ -156,7 +157,7 @@ function fxStamp(state: GameState): string {
     .map(([id, turns]) => `${id}:${turns}`)
     .join(",");
   const influences = (state.influences ?? []).map((item) => `${item.victimId}:${item.controllerId}`).join(",");
-  return shortStamp([spy, hush, locks, influences, (state.skipIds ?? []).join(","), state.shortDieId ?? ""]);
+  return shortStamp([spy, hush, locks, influences, (state.skipIds ?? []).join(","), state.shortDieId ?? "", String(state.extraDie ?? ""), state.gambler ? `${state.gambler.playerId}:${state.gambler.category}` : ""]);
 }
 
 /** Only what this phone needs for the current turn. The deck and rules stay on the phone after the first look. */
@@ -205,6 +206,8 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     pace: safe.pace ?? null,
     shortDieId: safe.shortDieId ?? null,
     singleDie: Boolean(safe.singleDie),
+    extraDie: safe.extraDie ?? null,
+    gambler: safe.gambler ?? null,
     spy: safe.spy ?? null,
     actionsLeft: safe.actionsLeft ?? 0,
     freeQuestion: Boolean(safe.freeQuestion),

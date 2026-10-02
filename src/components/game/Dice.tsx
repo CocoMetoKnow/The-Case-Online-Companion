@@ -18,6 +18,7 @@ export function DicePair({
   large = false,
   ready = false,
   single = false,
+  extra = null,
   onRoll,
 }: {
   values: [number, number] | null;
@@ -27,6 +28,8 @@ export function DicePair({
   large?: boolean;
   ready?: boolean;
   single?: boolean;
+  /** Thief: the die stolen from another player. Drawn as a third die beside the pair. */
+  extra?: number | null;
   onRoll?: () => void;
 }) {
   const a = values?.[0] ?? 5;
@@ -37,13 +40,26 @@ export function DicePair({
   const body = (
     <div
       className={cn("dice-drop", small && "dice-sm", large && "dice-lg", ready && "dice-ready")}
-      aria-label={!live ? "Dice" : single ? `Rolled ${a}` : glass ? `Magnifying glass and ${b}` : `Rolled ${a} and ${b}`}
+      aria-label={
+        !live
+          ? "Dice"
+          : single
+            ? `Rolled ${a}`
+            : extra
+              ? `${glass ? "Magnifying glass" : a}, ${b} and a stolen die showing ${extra}`
+              : glass
+                ? `Magnifying glass and ${b}`
+                : `Rolled ${a} and ${b}`
+      }
     >
       <span className="dice-shadow" />
       <Die n={a} toss={toss} delay={0} snake={eyes || glass} live={live} glass={glass} large={large} small={small} />
       {single ? null : (
         <Die n={b} toss={toss} delay={90} snake={eyes && !glass} live={live} large={large} small={small} />
       )}
+      {live && !single && extra ? (
+        <Die n={extra} toss={toss} delay={180} live={live} large={large} small={small} />
+      ) : null}
       {ready ? (
         <span className="dice-tap" aria-hidden>
           <Pointer className="size-4" />

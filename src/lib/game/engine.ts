@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, applyClassicNames, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
 import { START_HALL, isQuestionRoom, roomById } from "./board";
-import { PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
+import { NPC_ID, PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
 
 export function fisherYates(arr, rand = Math.random) {
@@ -256,6 +256,8 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		shortDieId: null,
 		pace: null,
 		singleDie: false,
+		extraDie: null,
+		gambler: null,
 		notice: null,
 		noticeSelf: null,
 		noticeFor: null,
@@ -622,8 +624,42 @@ export function canAsk(state: GameState, playerId: string): boolean {
 	if (state.settings.playMode === "online" || state.freeQuestion) return true;
 	return isQuestionRoom(p.position, state.settings.enabledRoomIds);
 }
+/** Extra Difficulty is on: the NPC holds cards. */
+function npcOn(state) {
+	return Boolean(state?.settings?.extraDifficulty);
+}
+/**
+ * The NPC is the last stop. If nobody at the table could show a card and the NPC holds one of the
+ * named cards, it picks one at random. Needs the secrets, and a suggestion whose cards are known.
+ */
+function npcPick(state, secrets, q) {
+	if (!npcOn(state) || !secrets || !q) return null;
+	const want = new Set(askedIds(q));
+	if (!want.size) return null;
+	const matches = cardsHeldBy(secrets, NPC_ID).filter((id) => want.has(id));
+	if (!matches.length) return null;
+	return matches[Math.floor(Math.random() * matches.length)];
+}
+/** A card was just shown. If the asker made a Gambler bet, the bet is settled here. */
+function markShown(q, state, cardId) {
+	const card = (state.cards ?? []).find((c) => String(c.id) === String(cardId));
+	const bet = q.gamble?.category;
+	const result = bet && card ? (card.category === bet ? "won" : "lost") : (q.gambleResult ?? null);
+	return { ...q, shownCardId: cardId, shownToAsker: false, cardShown: true, gambleResult: result };
+}
+/** Gambler: a bet only stands if the asker did not name a card they hold. Otherwise it is called off and the table is told. */
+function settleBet(state, subject, askedList, secrets) {
+	const bet = state.gambler;
+	if (!bet || bet.playerId !== subject) return { gamble: null, off: false, line: "" };
+	const name = state.players.find((p) => p.id === subject)?.name ?? "A guest";
+	const mine = new Set(cardsHeldBy(secrets, subject));
+	if (askedList.some((id) => mine.has(String(id)))) {
+		return { gamble: null, off: true, line: `${name} has chosen not to gamble.` };
+	}
+	return { gamble: { category: bet.category }, off: false, line: `${name} is gambling on this suggestion.` };
+}
 export function beginQuestion(state: GameState, playerId: string, pick, secrets: Secrets): GameState {
-	if (state.settings?.speakMode) return beginSpokenQuestion(state, playerId);
+	if (state.settings?.speakMode) return beginSpokenQuestion(state, playerId, pick, secrets);
 	if (!canAsk(state, playerId)) return state;
 	const subject = subjectOf(state, playerId);
 	if (!subject) return state;
@@ -641,6 +677,7 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 	const hush = state.hush;
 	const hit = Boolean(hush && hush.byId !== subject && ids.map(String).includes(hush.cardId));
 	const silencedId = hit ? hush?.cardId ?? null : null;
+	const bet = settleBet(state, subject, ids, secrets);
 	const order = rotateAfter(state.turnOrder, subject).filter((id) => {
 		const seated = state.players.find((p) => p.id === id);
 		return Boolean(seated && !seated.eliminated && seated.id !== subject);
@@ -660,8 +697,11 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 		notice: null,
 		noticeSelf: null,
 		noticeFor: null,
+		gambler: state.gambler && state.gambler.playerId === subject ? null : state.gambler ?? null,
 		question: {
 			askerId: subject,
+			gamble: bet.gamble,
+			gambleOff: bet.off,
 			suspectId: pick.suspectId,
 			roomId: pick.roomId,
 			weaponId: pick.weaponId,
@@ -684,7 +724,8 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 	const roomName = announced ? roomById(announced)?.name : "the hall";
 	const silencedName = silencedId ? state.cards.find((c) => c.id === silencedId)?.name : "";
 	const hushLine = silencedName ? ` The hush lifts: ${silencedName} is silenced, so no one shows it.` : "";
-	return advanceQuestion(log(next, `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}`), secrets);
+	const betLine = bet.line ? ` ${bet.line}` : "";
+	return advanceQuestion(log(next, `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}${betLine}`), secrets);
 }
 
 function spokenOrder(state, subject) {
@@ -703,12 +744,22 @@ function spokenOrder(state, subject) {
  * The game never learns which cards were named. It only walks the table in order
  * and asks each player: do you have a card that was asked for?
  */
-export function beginSpokenQuestion(state: GameState, playerId: string): GameState {
+export function beginSpokenQuestion(state: GameState, playerId: string, pick?, secrets?: Secrets): GameState {
 	if (!canAsk(state, playerId)) return state;
 	const subject = subjectOf(state, playerId);
 	if (!subject) return state;
 	const asker = state.players.find((p) => p.id === subject);
 	if (!asker) return state;
+	// The cards are still said out loud and the table is still asked the same way. The picks only stay on
+	// the asker's screen as a reminder, and let the NPC know what to look for when Extra Difficulty is on.
+	const known = (id) => (typeof id === "string" && state.cards.some((c) => c.id === id) ? id : "");
+	const picked = {
+		suspectId: known(pick?.suspectId),
+		roomId: known(pick?.roomId),
+		weaponId: known(pick?.weaponId),
+		timeId: known(pick?.timeId) || undefined
+	};
+	const bet = settleBet(state, subject, [picked.suspectId, picked.roomId, picked.weaponId, picked.timeId].filter(Boolean), secrets);
 	const next = {
 		...state,
 		phase: "question",
@@ -719,11 +770,15 @@ export function beginSpokenQuestion(state: GameState, playerId: string): GameSta
 		notice: null,
 		noticeSelf: null,
 		noticeFor: null,
+		gambler: state.gambler && state.gambler.playerId === subject ? null : state.gambler ?? null,
 		question: {
 			askerId: subject,
-			suspectId: "",
-			roomId: "",
-			weaponId: "",
+			gamble: bet.gamble,
+			gambleOff: bet.off,
+			suspectId: picked.suspectId,
+			roomId: picked.roomId,
+			weaponId: picked.weaponId,
+			timeId: picked.timeId,
 			announcedRoomId: null,
 			cursor: 0,
 			responderIds: spokenOrder(state, subject),
@@ -739,9 +794,9 @@ export function beginSpokenQuestion(state: GameState, playerId: string): GameSta
 			spoken: true
 		}
 	};
-	return advanceSpoken(log(next, `${asker.name} is in a room and makes a suggestion out loud.`));
+	return advanceSpoken(log(next, `${asker.name} is in a room and makes a suggestion out loud.${bet.line ? ` ${bet.line}` : ""}`), secrets);
 }
-function advanceSpoken(state) {
+function advanceSpoken(state, secrets?) {
 	const q = state?.question;
 	if (!q || !q.spoken || q.resolved) return state;
 	let cursor = q.cursor ?? 0;
@@ -764,6 +819,14 @@ function advanceSpoken(state) {
 			}
 		};
 	}
+	// Extra Difficulty: the NPC is asked last. It tells nobody but the asker.
+	const npcCard = npcPick(state, secrets, q);
+	if (npcCard) {
+		return {
+			...state,
+			question: markShown({ ...q, cursor, askingId: null, showerId: NPC_ID, matchingCardIds: [], npcShown: true }, state, npcCard)
+		};
+	}
 	// Nobody at the table had a card to show. The turn ends right here, the same way it does when a
 	// suggestion comes up empty in the normal game. It never waits for the asker to tap "end turn".
 	const line = "No one had a card to show.";
@@ -781,7 +844,7 @@ function advanceSpoken(state) {
 	return next === closed ? next : { ...next, notice: `${line} ${state.players.find((p) => p.id === q.askerId)?.name ?? "The asker"}'s turn is over.` };
 }
 /** The player being asked says whether they hold a card that was named. */
-export function answerSpoken(state: GameState, playerId: string, has: boolean, retract = false): GameState {
+export function answerSpoken(state: GameState, playerId: string, has: boolean, retract = false, secrets?: Secrets): GameState {
 	const q = state?.question;
 	if (!q?.spoken || state.phase !== "question" || q.resolved) return state;
 	if (retract) {
@@ -799,7 +862,7 @@ export function answerSpoken(state: GameState, playerId: string, has: boolean, r
 				matchingCardIds: [],
 				shownCardId: null
 			}
-		}, `${quitter?.name ?? "A guest"} has nothing to show.`));
+		}, `${quitter?.name ?? "A guest"} has nothing to show.`), secrets);
 	}
 	if (!q.askingId || q.askingId !== playerId) return state;
 	const who = state.players.find((p) => p.id === playerId);
@@ -823,7 +886,7 @@ export function answerSpoken(state: GameState, playerId: string, has: boolean, r
 			cursor: (q.cursor ?? 0) + 1,
 			askingId: null
 		}
-	}, `${who?.name ?? "A guest"} has nothing to show.`));
+	}, `${who?.name ?? "A guest"} has nothing to show.`), secrets);
 }
 /** Any card from the hand may be shown. Only the asker sees which one. */
 export function chooseSpokenCard(state: GameState, secrets: Secrets, playerId: string, cardId: string): GameState {
@@ -836,12 +899,7 @@ export function chooseSpokenCard(state: GameState, secrets: Secrets, playerId: s
 	const asker = state.players.find((p) => p.id === q.askerId);
 	return log({
 		...state,
-		question: {
-			...q,
-			shownCardId: cardId,
-			shownToAsker: false,
-			cardShown: true
-		}
+		question: markShown(q, state, cardId)
 	}, `${shower?.name ?? "A guest"} shows a card privately to ${asker?.name ?? "the asker"}.`);
 }
 function formatQuestion(state, pick) {
@@ -884,16 +942,14 @@ function advanceQuestion(state, secrets) {
 			return {
 				...state,
 				autoShowTurn: false,
-				question: {
+				question: markShown({
 					...q,
 					cursor,
 					skips,
 					missId: null,
 					showerId: pid,
-					matchingCardIds: matches,
-					shownCardId: cardId,
-					shownToAsker: false
-				}
+					matchingCardIds: matches
+				}, state, cardId)
 			};
 		}
 		return {
@@ -933,6 +989,25 @@ function advanceQuestion(state, secrets) {
 				}
 			};
 		}
+	}
+	// Extra Difficulty: the NPC is asked last. It tells nobody but the asker.
+	const npcCard = npcPick(state, secrets, q);
+	if (npcCard) {
+		return {
+			...state,
+			phase: "question",
+			question: markShown({
+				...q,
+				cursor,
+				skips,
+				missId: null,
+				showerId: NPC_ID,
+				matchingCardIds: [],
+				nobodyHad: false,
+				offerAccusation: false,
+				npcShown: true
+			}, state, npcCard)
+		};
 	}
 	const blocked = solutionBlocked(state, secrets, q.askerId, asked);
 	if (blocked === "asker") {
@@ -1098,12 +1173,7 @@ export function chooseShownCard(state: GameState, playerId: string, cardId: stri
 	const asker = state.players.find((p) => p.id === q.askerId);
 	return log({
 		...state,
-		question: {
-			...q,
-			shownCardId: cardId,
-			shownToAsker: false,
-			cardShown: true
-		}
+		question: markShown(q, state, cardId)
 	}, `${shower?.name ?? "A guest"} shows a card privately to ${asker?.name ?? "the asker"}.`);
 }
 export function ackShownCard(state: GameState, playerId: string): GameState {
@@ -1131,7 +1201,21 @@ export function ackShownCard(state: GameState, playerId: string): GameState {
 	}
 	if (!q.shownCardId) return state;
 	if (playerId !== q.askerId && !state.influences?.some((i) => i.victimId === q.askerId && i.controllerId === playerId)) return state;
-	return endTurn({
+	const gamblerName = state.players.find((p) => p.id === q.askerId)?.name ?? "The asker";
+	if (q.gambleResult === "won") {
+		// Right call: the same player makes another suggestion.
+		const line = `${gamblerName} won the gamble and gets another suggestion.`;
+		return log({
+			...state,
+			phase: "action",
+			actionsLeft: 1,
+			question: null,
+			notice: line,
+			noticeSelf: null,
+			noticeFor: null
+		}, line);
+	}
+	const ended = endTurn({
 		...state,
 		phase: "action",
 		question: {
@@ -1141,6 +1225,11 @@ export function ackShownCard(state: GameState, playerId: string): GameState {
 			matchingCardIds: []
 		}
 	}, playerId);
+	if (q.gambleResult === "lost" && ended.phase !== "action") {
+		// Wrong call: the card was never seen. The turn is over, and the table hears why.
+		return { ...ended, notice: `${gamblerName} lost the gamble and did not get to see the card.`, noticeSelf: null, noticeFor: null };
+	}
+	return ended;
 }
 export function rememberReveal(secrets: Secrets, _fromId: string, _toId: string, _cardId: string): Secrets {
 	return secrets;
@@ -1335,6 +1424,8 @@ export function endTurn(state: GameState, playerId: string): GameState {
 			dice: null,
 			pace: null,
 			singleDie: false,
+			extraDie: null,
+			gambler: null,
 			moveBudget: 0,
 			actionsLeft: 0,
 			freeQuestion: true,
@@ -1486,9 +1577,15 @@ function splitEven(state, secrets) {
 	if (!players.length) {
 		return { state: { ...state, leftover: pool }, secrets: { ...secrets, solution, hands } };
 	}
-	const size = Math.floor(pool.length / players.length);
-	const leftover = pool.slice(size * players.length);
-	for (let i = 0; i < size * players.length; i++) hands[players[i % players.length].id].push(pool[i]);
+	// Extra Difficulty: the NPC is dealt a hand like everyone else, but it is never a seat at the table.
+	const seats = players.map((player) => player.id);
+	if (npcOn(state)) {
+		hands[NPC_ID] = [];
+		seats.push(NPC_ID);
+	}
+	const size = Math.floor(pool.length / seats.length);
+	const leftover = pool.slice(size * seats.length);
+	for (let i = 0; i < size * seats.length; i++) hands[seats[i % seats.length]].push(pool[i]);
 	return { state: { ...state, leftover }, secrets: { ...secrets, solution, hands } };
 }
 function dealIsEven(state, secrets) {
@@ -1505,10 +1602,12 @@ function dealIsEven(state, secrets) {
 	}
 	const players = (state.players ?? []).filter((player) => !player.eliminated);
 	if (!players.length) return true;
+	const seats = players.map((player) => player.id);
+	if (npcOn(state)) seats.push(NPC_ID);
 	const pool = deck.filter((card) => !answers.has(card.id)).length;
-	const size = Math.floor(pool / players.length);
-	if ((state.leftover ?? []).length !== pool % players.length) return false;
-	return players.every((player) => (secrets.hands?.[player.id] ?? []).length === size);
+	const size = Math.floor(pool / seats.length);
+	if ((state.leftover ?? []).length !== pool % seats.length) return false;
+	return seats.every((id) => (secrets.hands?.[id] ?? []).length === size);
 }
 export function ensureObjective(state, secrets) {
 	if (!state?.startedAt) return { state, secrets };
@@ -1665,6 +1764,8 @@ export function dropPlayer(state, secrets, playerId) {
 			dice: null,
 			pace: null,
 			singleDie: false,
+			extraDie: null,
+			gambler: null,
 			moveBudget: 0,
 			actionsLeft: 0,
 			freeQuestion: true,

@@ -10,6 +10,7 @@ import { AccusationPanel, AccusationWatch, QuestionPanel, QuestionResolve } from
 import { sfxDice, sfxPaper } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
+import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
 
@@ -17,7 +18,10 @@ function rollWords(state: GameState): { title: string; detail: string } | null {
   if (!state.dice) return null;
   const total = state.singleDie ? state.dice[0] : (movementTotal(state.dice) ?? 0);
   const move = state.pace ?? total;
-  return { title: String(move), detail: "You can move this many." };
+  return {
+    title: String(move),
+    detail: state.extraDie ? `You can move this many, with the stolen die (${state.extraDie}).` : "You can move this many.",
+  };
 }
 
 function SyncVote() {
@@ -278,7 +282,7 @@ export function Briefcase() {
     qShow && (state.influences ?? []).some((item) => item.victimId === qShow.askerId && item.controllerId === actor),
   );
   const askedMe = Boolean(
-    shownCard && qShow && !qShow.missId && state.phase === "question" && (qShow.askerId === actor || guidedSee),
+    shownCard && qShow && !qShow.missId && qShow.gambleResult !== "lost" && state.phase === "question" && (qShow.askerId === actor || guidedSee),
   );
   const spySee = Boolean(
     shownCard &&
@@ -292,7 +296,7 @@ export function Briefcase() {
     shownCard && (askedMe || spySee)
       ? {
           card: shownCard,
-          who: state.players.find((player) => player.id === qShow?.showerId)?.name ?? "A guest",
+          who: qShow?.showerId === NPC_ID ? "The NPC" : state.players.find((player) => player.id === qShow?.showerId)?.name ?? "A guest",
           ack: askedMe,
         }
       : null;
@@ -360,6 +364,7 @@ export function Briefcase() {
                 toss={toss}
                 snake={Boolean(state.dice && !state.singleDie && state.dice[0] === 1 && state.dice[1] === 1)}
                 single={Boolean(state.singleDie)}
+                extra={state.extraDie}
                 onRoll={canRoll ? roll : undefined}
               />
               <p className="pb-0.5 text-right leading-none">
@@ -491,6 +496,7 @@ export function Briefcase() {
                 values={state.dice}
                 toss={toss}
                 single={Boolean(state.singleDie)}
+                extra={state.extraDie}
                 snake={Boolean(state.dice && !state.singleDie && state.dice[0] === 1 && state.dice[1] === 1)}
               />
             </div>

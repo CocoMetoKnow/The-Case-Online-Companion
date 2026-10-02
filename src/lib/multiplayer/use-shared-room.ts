@@ -83,6 +83,8 @@ function mergeWire(next: GameState, prev: GameState | null, keepFx = false): Gam
         influences: prev.influences ?? [],
         skipIds: prev.skipIds ?? [],
         shortDieId: prev.shortDieId ?? null,
+        extraDie: prev.extraDie ?? null,
+        gambler: prev.gambler ?? null,
       }
     : {
         notesLock: { ...(prev.notesLock ?? {}), ...(next.notesLock ?? {}) },

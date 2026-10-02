@@ -2,6 +2,9 @@ export const SAVE_VERSION = 1;
 
 export type CategoryId = "suspect" | "room" | "weapon" | "time";
 
+/** Extra Difficulty: the id of the NPC who holds a hand but never takes a turn. */
+export const NPC_ID = "npc";
+
 export type PlayMode = "hotseat" | "online" | "inperson";
 
 export type Phase =
@@ -72,6 +75,14 @@ export interface QuestionState {
   spoken?: boolean;
   /** Speak mode. The player who is being asked "do you have a card?" right now. */
   askingId?: string | null;
+  /** Gambler: the kind of card the asker bet they would be shown. Hidden from the table until the bet is settled. */
+  gamble?: { category: CategoryId | "" } | null;
+  /** Gambler: the bet was called off because the asker named a card they hold, or chose not to gamble. */
+  gambleOff?: boolean;
+  /** Gambler: settled once a card is shown. A lost bet means the asker does not get to see the card. */
+  gambleResult?: "won" | "lost" | null;
+  /** Extra Difficulty: the NPC is the one showing. Only the asker is ever told. */
+  npcShown?: boolean;
 }
 
 export type EventKind =
@@ -109,7 +120,8 @@ export type EventKind =
   | "send-home"
   | "thief"
   | "spy"
-  | "about-face";
+  | "about-face"
+  | "gambler";
 
 export interface EventState {
   deckId: string;
@@ -153,6 +165,8 @@ export interface GameSettings {
   manualNotes?: boolean;
   /** Turns run as normal, but the suggestion is said out loud. The game asks each player in order if they hold a card. */
   speakMode?: boolean;
+  /** Extra Difficulty: an NPC holds a hand, never takes a turn, and shows you a card last, in private. */
+  extraDifficulty?: boolean;
   /** Easter egg: guests wear their original Clue names. Switched by typing "clue" in the lobby. */
   classicNames?: boolean;
   /** Power-ups that can be drawn. Missing means every power is on. */
@@ -180,6 +194,10 @@ export interface GameState {
   shortDieId?: string | null;
   /** The current roll was a single die. */
   singleDie?: boolean;
+  /** Thief: the third die stolen this turn. Shown beside the two dice and already counted in the move. */
+  extraDie?: number | null;
+  /** Gambler: this player bet on the kind of card their next suggestion will be shown. */
+  gambler?: { playerId: string; category: CategoryId | "" } | null;
   /** Someone is spying. Only that player can see who. */
   spy?: { byId: string; targetId: string; armed: boolean } | null;
   /** After a roll, one action remains unless a snake-eyes card grants another. */
@@ -276,6 +294,8 @@ export interface DeckToggles {
   speakMode: boolean;
   manualNotes: boolean;
   evenDeal: boolean;
+  /** Missing on decks saved by an older build. */
+  extraDifficulty?: boolean;
   /** Power-ups left on. Missing means every power is on. */
   enabledEvents?: EventKind[];
 }
