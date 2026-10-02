@@ -966,12 +966,12 @@ export function avatarCharacters(deck: CardDef[] | undefined, classic = false): 
 }
 
 
-/** Profile pictures: one round, pre-cropped portrait per character (public/portraits, 600px WebP with transparent corners). */
+/** Profile pictures: one round, pre-cropped portrait per character (public/portraits, 600px JPEG, shown in a circle by CSS). */
 const PORTRAIT_IDS = new Set([
 	"mrs-white", "colonel-mustard", "miss-scarlet", "mr-green", "dr-finch", "lady-violet",
 	"lord-harrington", "mrs-peacock", "professor-plum", "miss-penny", "chef-marco", "the-butler",
 	"mr-broke", "oakley-autumns", "mr-fairwind", "ki-annie", "madame-coral", "the-chauffeur",
 ]);
 export function portraitArt(id: string | undefined): string | undefined {
-	return id && PORTRAIT_IDS.has(id) ? `/portraits/${id}.webp?v=1` : undefined;
+	return id && PORTRAIT_IDS.has(id) ? `/portraits/${id}.jpg?v=2` : undefined;
 }

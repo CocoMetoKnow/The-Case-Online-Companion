@@ -22,12 +22,16 @@ export function avatarFor(player: Pick<Player, "avatar"> | undefined, cards: Car
  */
 export function Headshot({ src, className, label }: { src: string; className?: string; label?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
-  if (failed === src) return null;
-  // Built-in portraits are already round headshots, so they fill the circle with no extra crop.
-  const ready = src.startsWith("/portraits/");
+  // A portrait that will not load (missing file, bad cache) falls back to the card painting, so the circle is never empty.
+  const isPortrait = src.startsWith("/portraits/");
+  const fallback = isPortrait ? defaultCardArt(src.slice("/portraits/".length).replace(/\.jpg.*$/, "")) : undefined;
+  const useFallback = isPortrait && failed === src && Boolean(fallback);
+  const shown = useFallback ? fallback! : src;
+  if (failed === shown) return null;
+  const ready = isPortrait && !useFallback;
   return (
     <span className={cn("avatar-crop", ready && "avatar-crop-ready", className)} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
-      <img src={src} alt="" decoding="async" draggable={false} onError={() => setFailed(src)} />
+      <img src={shown} alt="" decoding="async" draggable={false} onError={() => setFailed(shown)} />
     </span>
   );
 }
