@@ -365,19 +365,19 @@ body {
    border-image so the corners stay crisp at any card size. The back uses the same slice with
    "fill", which makes the whole back picture fit the card box exactly: the ornate border is never
    cropped and matches the front's border. */
-:root{--card-back:url(/cards/backs/red.jpg)}
+:root{--card-back:url(/cards/backs/red.jpg);--card-frame:url(/cards/frames/red.jpg)}
 .card-frame,.card-back-art{position:absolute;inset:0;pointer-events:none;box-sizing:border-box;border:1px solid transparent;border-image-source:var(--card-back);border-image-repeat:stretch}
-.card-frame{border-image-slice:68;border-image-width:7.556% 11.333%}
+.card-frame{border-image-source:var(--card-frame);border-image-slice:72;border-image-width:7.556% 11.333%}
 .card-back-art{border-image-slice:68 fill;border-image-width:7.556% 11.333%}
 .card-window{position:absolute;inset:7.2% 10.8%;overflow:hidden;border-radius:3px}
 .card-frame-thin{border-image-width:4.4% 6.6%}
 .card-window-thin{inset:4.1% 6.2%;border-radius:2px}
-:root[data-card="orange"]{--card-back:url(/cards/backs/orange.jpg)}
-:root[data-card="yellow"]{--card-back:url(/cards/backs/yellow.jpg)}
-:root[data-card="green"]{--card-back:url(/cards/backs/green.jpg)}
-:root[data-card="teal"]{--card-back:url(/cards/backs/teal.jpg)}
-:root[data-card="blue"]{--card-back:url(/cards/backs/blue.jpg)}
-:root[data-card="purple"]{--card-back:url(/cards/backs/purple.jpg)}
-:root[data-card="pink"]{--card-back:url(/cards/backs/pink.jpg)}
-:root[data-card="brown"]{--card-back:url(/cards/backs/brown.jpg)}
-:root[data-card="black"]{--card-back:url(/cards/backs/black.jpg)}
+:root[data-card="orange"]{--card-back:url(/cards/backs/orange.jpg);--card-frame:url(/cards/frames/orange.jpg)}
+:root[data-card="yellow"]{--card-back:url(/cards/backs/yellow.jpg);--card-frame:url(/cards/frames/yellow.jpg)}
+:root[data-card="green"]{--card-back:url(/cards/backs/green.jpg);--card-frame:url(/cards/frames/green.jpg)}
+:root[data-card="teal"]{--card-back:url(/cards/backs/teal.jpg);--card-frame:url(/cards/frames/teal.jpg)}
+:root[data-card="blue"]{--card-back:url(/cards/backs/blue.jpg);--card-frame:url(/cards/frames/blue.jpg)}
+:root[data-card="purple"]{--card-back:url(/cards/backs/purple.jpg);--card-frame:url(/cards/frames/purple.jpg)}
+:root[data-card="pink"]{--card-back:url(/cards/backs/pink.jpg);--card-frame:url(/cards/frames/pink.jpg)}
+:root[data-card="brown"]{--card-back:url(/cards/backs/brown.jpg);--card-frame:url(/cards/frames/brown.jpg)}
+:root[data-card="black"]{--card-back:url(/cards/backs/black.jpg);--card-frame:url(/cards/frames/black.jpg)}

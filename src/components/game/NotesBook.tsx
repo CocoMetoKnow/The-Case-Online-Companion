@@ -1,3 +1,4 @@
+import { Castle, Diamond, Moon, Sword, UserRound } from "lucide-react";
 import { cardsByCategory } from "@/lib/game/cards";
 import { haptic } from "@/lib/game/haptics";
 import { sfxPaper } from "@/lib/game/sfx";
@@ -18,6 +19,9 @@ function asMark(mark: string | undefined): SheetMark {
   return "blank";
 }
 type Leaf = "sheet" | "notes";
+
+/** The same category symbols the cards use (person, room, weapon, time; a jewel in heist mode). */
+const CATEGORY_ICON = { suspect: UserRound, room: Castle, weapon: Sword, time: Moon } as const;
 
 export function NotesBook() {
   const state = useGame((s) => s.state);
@@ -164,7 +168,13 @@ function Sheet({
                   if (!frozen && myHandIds.has(card.id)) {
                     return (
                       <tr key={card.id}>
-                        <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
+                        <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">
+                          {(() => {
+                            const Icon = state.settings.heist && card.category === "weapon" ? Diamond : CATEGORY_ICON[card.category];
+                            return <Icon className="mr-1.5 inline-block size-4 align-[-3px] text-[#8a5a12]" aria-hidden />;
+                          })()}
+                          {card.name}
+                        </td>
                         <td colSpan={players.length + 1} className="px-1 py-1 text-center text-sm italic text-[#5c4a38]">
                           This Evidence belongs to You
                         </td>
