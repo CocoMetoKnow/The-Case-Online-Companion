@@ -48,7 +48,7 @@ export function applyPlay(
         secrets,
       };
     case "reply":
-      return { state: answerSpoken(state, from, Boolean(data.has)), secrets };
+      return { state: answerSpoken(state, from, Boolean(data.has), Boolean(data.retract)), secrets };
     case "show": {
       const next = state.question?.spoken
         ? chooseSpokenCard(state, secrets, from, String(data.cardId ?? ""))

@@ -1,12 +1,12 @@
-import { avatarCharacters, defaultCardArt } from "@/lib/game/cards";
+import { avatarCharacters, defaultCardArt, portraitArt } from "@/lib/game/cards";
 import type { CardDef, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
-/** The art for a suspect card. Custom uploads win, then the built-in painting. */
+/** The profile picture for a character. Custom uploads win, then the round portrait, then the card painting. */
 export function suspectArt(card: CardDef | undefined): string | undefined {
   if (!card) return undefined;
-  return card.imageDataUrl || defaultCardArt(card.id);
+  return card.imageDataUrl || portraitArt(card.id) || defaultCardArt(card.id);
 }
 
 /** The chosen character's card art for a player, or nothing if they have not picked one. */
@@ -23,8 +23,10 @@ export function avatarFor(player: Pick<Player, "avatar"> | undefined, cards: Car
 export function Headshot({ src, className, label }: { src: string; className?: string; label?: string }) {
   const [failed, setFailed] = useState<string | null>(null);
   if (failed === src) return null;
+  // Built-in portraits are already round headshots, so they fill the circle with no extra crop.
+  const ready = src.startsWith("/portraits/");
   return (
-    <span className={cn("avatar-crop", className)} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
+    <span className={cn("avatar-crop", ready && "avatar-crop-ready", className)} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true}>
       <img src={src} alt="" decoding="async" draggable={false} onError={() => setFailed(src)} />
     </span>
   );

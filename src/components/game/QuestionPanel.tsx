@@ -325,6 +325,8 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   const actor = useActorId();
   const hand = useMyHand();
   const reply = useGame((s) => s.reply);
+  const retractReply = useGame((s) => s.retractReply);
+  const [confirmNoCard, setConfirmNoCard] = useState(false);
   const showCard = useGame((s) => s.showCard);
   const ackCard = useGame((s) => s.ackCard);
   // A card tapped in this panel opens bigger on top of it. When you are choosing which card to show, the
@@ -373,6 +375,24 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
             </div>
           ))}
         </div>
+        {confirmNoCard ? (
+          <div className="mt-4 rounded-xl border border-paper/20 bg-black/30 p-3">
+            <p className="font-display text-xl text-paper">Are you sure?</p>
+            <p className="mt-1 text-sm text-muted">The next player in line will be asked instead.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button variant="outline" data-sfx="deny" onClick={() => setConfirmNoCard(false)}>
+                No
+              </Button>
+              <Button data-sfx="confirm" onClick={() => { setConfirmNoCard(false); retractReply(); }}>
+                Yes
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="ghost" className="mt-4 w-full text-paper" data-sfx="select" onClick={() => setConfirmNoCard(true)}>
+            I actually don't have a card for you
+          </Button>
+        )}
       </>
     );
   } else if (q.showerId) {

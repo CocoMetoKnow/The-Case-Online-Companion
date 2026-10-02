@@ -286,6 +286,8 @@ export interface CardSet {
   cards: CardDef[];
   createdAt: number;
   timeOfDayEnabled?: boolean;
+  /** Which time-of-day cards were on when saved. Missing on older saves, which use their card list. */
+  timeCardIds?: string[];
   /** Missing on decks saved by an older build. Those keep the switches as they are. */
   toggles?: DeckToggles;
 }

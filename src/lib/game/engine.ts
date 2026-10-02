@@ -781,9 +781,26 @@ function advanceSpoken(state) {
 	return next === closed ? next : { ...next, notice: `${line} ${state.players.find((p) => p.id === q.askerId)?.name ?? "The asker"}'s turn is over.` };
 }
 /** The player being asked says whether they hold a card that was named. */
-export function answerSpoken(state: GameState, playerId: string, has: boolean): GameState {
+export function answerSpoken(state: GameState, playerId: string, has: boolean, retract = false): GameState {
 	const q = state?.question;
 	if (!q?.spoken || state.phase !== "question" || q.resolved) return state;
+	if (retract) {
+		// The player said Yes, then admitted they have no card. Only possible before a card is picked.
+		if (q.showerId !== playerId || q.shownCardId) return state;
+		const quitter = state.players.find((p) => p.id === playerId);
+		return advanceSpoken(log({
+			...state,
+			question: {
+				...q,
+				skips: q.skips.includes(playerId) ? q.skips : [...q.skips, playerId],
+				cursor: (q.cursor ?? 0) + 1,
+				askingId: null,
+				showerId: null,
+				matchingCardIds: [],
+				shownCardId: null
+			}
+		}, `${quitter?.name ?? "A guest"} has nothing to show.`));
+	}
 	if (!q.askingId || q.askingId !== playerId) return state;
 	const who = state.players.find((p) => p.id === playerId);
 	if (has) {

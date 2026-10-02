@@ -251,6 +251,7 @@ body {
 /* ===== Profile pictures: tight circular headshots ===== */
 .avatar-crop{position:relative;display:block;overflow:hidden;border-radius:9999px;background:#1a1410;flex:none}
 .avatar-crop img{position:absolute;max-width:none;width:150%;height:auto;left:-25%;top:-10%;pointer-events:none;-webkit-user-select:none;user-select:none}
+.avatar-crop-ready img{width:100%;left:0;top:0}
 .profile-badge{--ring:#f6f1e6;--photo:0px;--letter:22px;position:relative;display:inline-block;flex:none;width:var(--letter);height:var(--letter);vertical-align:middle}
 .profile-badge-sm{--photo:28px;--letter:18px}
 .profile-badge-md{--photo:32px;--letter:20px}

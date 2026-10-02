@@ -83,6 +83,8 @@ interface GameStore {
   removeDeckCard: (id: string) => void;
   loadPreset: (preset: "classic" | "harrington" | "take") => void;
   loadFile: (id: string) => void;
+  /** Writes the deck on screen (cards, switches, time-of-day cards, name) into the active saved file. Nothing is written until this runs. */
+  saveFile: (name?: string) => void;
   renameFile: (id: string, name: string) => void;
   clearFile: (id: string) => void;
   snakeEyes: () => void;
@@ -101,6 +103,8 @@ interface GameStore {
   ask: (pick?: { suspectId: string; roomId: string; weaponId: string; timeId?: string }) => void;
   showCard: (cardId: string) => void;
   reply: (has: boolean) => void;
+  /** Speak Mode: after tapping Yes, admit there is no card to show; the next player in line is asked. */
+  retractReply: () => void;
   ackCard: () => void;
   accuse: (pick: { suspectId: string; roomId: string; weaponId: string; timeId?: string }) => void;
   dismissVerdict: () => void;
@@ -328,21 +332,34 @@ function withToggles(settings: GameSettings, toggles: DeckToggles): GameSettings
   };
 }
 
-function rememberFile(get: () => GameStore, set: (partial: Partial<GameStore>) => void) {
+function rememberFile(get: () => GameStore, set: (partial: Partial<GameStore>) => void, name?: string) {
   const setup = get().setup;
   if (!setup.setId.startsWith("file-")) return;
   const prev = get().cardSets.find((s) => s.id === setup.setId);
   const cardSet: CardSet = {
     id: setup.setId,
-    name: prev?.name?.trim() || `Deck ${setup.setId.slice(-1)}`,
+    name: (name ?? prev?.name)?.trim().slice(0, 24) || `Deck ${setup.setId.slice(-1)}`,
     cards: setup.deck.map((c) => ({ ...c })),
     createdAt: prev?.createdAt || Date.now(),
     timeOfDayEnabled: setup.settings.timeOfDayEnabled,
+    // Which of the ten hours are on is saved by name too, so the choice comes back exactly as it was.
+    timeCardIds: setup.deck.filter((c) => c.category === "time").map((c) => c.id),
     toggles: pickToggles(setup.settings),
   };
   const sets = [...get().cardSets.filter((s) => s.id !== cardSet.id), cardSet];
   saveCardSets(sets);
   set({ cardSets: sets });
+}
+
+/** The saved deck's cards with its chosen time-of-day cards put back (older saves just use their own card list). */
+function cardsWithSavedTimes(saved: CardSet): CardDef[] {
+  const cards = saved.cards.map((c) => ({ ...c }));
+  if (!saved.timeCardIds) return cards;
+  const keep = new Set(saved.timeCardIds);
+  const times = DEFAULT_CARDS.filter((c) => c.category === "time" && keep.has(c.id)).map(
+    (c) => saved.cards.find((item) => item.id === c.id) ?? { ...c },
+  );
+  return [...cards.filter((c) => c.category !== "time"), ...times.map((c) => ({ ...c }))];
 }
 
 function seatToPlay(state: GameState, localId: string): string {
@@ -613,7 +630,6 @@ export const useGame = create<GameStore>((set, get) => ({
   patchSettings: (patch) => {
     if ("classicNames" in patch) saveClueCode(Boolean(patch.classicNames));
     set({ setup: { ...get().setup, settings: { ...get().setup.settings, ...patch } } });
-    rememberFile(get, set);
   },
   setCounts: (counts) => {
     const rooms = activeCards({ ...get().setup, counts }).filter((c) => c.category === "room").map((c) => c.id);
@@ -621,18 +637,15 @@ export const useGame = create<GameStore>((set, get) => ({
   },
   setDeck: (deck) => {
     set({ setup: withDeck(get().setup, deck) });
-    rememberFile(get, set);
   },
   updateDeckCard: (id, patch) => {
     const deck = get().setup.deck.map((c) => (c.id === id ? { ...c, ...patch } : c));
     set({ setup: withDeck(get().setup, deck) });
-    rememberFile(get, set);
   },
   addDeckCard: (category) => {
     const deck = get().setup.deck;
     const n = deck.filter((c) => c.category === category).length + 1;
     set({ setup: withDeck(get().setup, [...deck, blankCard(category, n)]) });
-    rememberFile(get, set);
   },
   removeDeckCard: (id) => {
     const deck = get().setup.deck;
@@ -641,7 +654,6 @@ export const useGame = create<GameStore>((set, get) => ({
     const same = deck.filter((c) => c.category === card.category);
     if (same.length <= MIN_CATEGORY_CARDS) return;
     set({ setup: withDeck(get().setup, deck.filter((c) => c.id !== id)) });
-    rememberFile(get, set);
   },
   loadPreset: (preset) => {
     const base = get().setup;
@@ -653,7 +665,6 @@ export const useGame = create<GameStore>((set, get) => ({
           DEFAULT_CARDS.map((c) => ({ ...c })),
         ),
       });
-      rememberFile(get, set);
       return;
     }
     if (preset === "take") {
@@ -663,7 +674,6 @@ export const useGame = create<GameStore>((set, get) => ({
           takeDeck(),
         ),
       });
-      rememberFile(get, set);
       return;
     }
     set({
@@ -672,11 +682,8 @@ export const useGame = create<GameStore>((set, get) => ({
         CLASSIC_CARDS.map((c) => ({ ...c })),
       ),
     });
-    rememberFile(get, set);
   },
   loadFile: (id) => {
-    const currentId = get().setup.setId;
-    if (currentId.startsWith("file-") && currentId !== id) rememberFile(get, set);
     const existing = get().cardSets.find((s) => s.id === id);
     if (!existing) {
       const setup = get().setup;
@@ -686,6 +693,7 @@ export const useGame = create<GameStore>((set, get) => ({
         cards: setup.deck.map((c) => ({ ...c })),
         createdAt: Date.now(),
         timeOfDayEnabled: setup.settings.timeOfDayEnabled,
+        timeCardIds: setup.deck.filter((c) => c.category === "time").map((c) => c.id),
         toggles: pickToggles(setup.settings),
       };
       const sets = [...get().cardSets.filter((s) => s.id !== id), cardSet];
@@ -699,10 +707,11 @@ export const useGame = create<GameStore>((set, get) => ({
     set({
       setup: withDeck(
         { ...get().setup, setId: id, settings: { ...restored, cardSetId: id } },
-        existing.cards.map((c) => ({ ...c })),
+        cardsWithSavedTimes(existing),
       ),
     });
   },
+  saveFile: (name) => rememberFile(get, set, name),
   renameFile: (id, name) => {
     const prev = get().cardSets.find((s) => s.id === id);
     if (!prev) return;
@@ -906,6 +915,7 @@ export const useGame = create<GameStore>((set, get) => ({
     play(get, set, "show", { cardId });
   },
   reply: (has) => play(get, set, "reply", { has }),
+  retractReply: () => play(get, set, "reply", { has: false, retract: true }),
   ackCard: () => play(get, set, "ack", { missId: get().state?.question?.missId ?? "" }),
   accuse: (pick) => play(get, set, "accuse", pick),
   dismissVerdict: () => set({ verdict: null, verdictSeen: get().verdictHold || get().verdictSeen, verdictHold: null }),

@@ -14,6 +14,7 @@ import {
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { portraitFor } from "@/lib/game/cast";
+import { portraitArt } from "@/lib/game/cards";
 
 const CELL = 24;
 const STARTS = new Set(START_HALL.map((s) => `${s.x},${s.y}`));
@@ -225,7 +226,7 @@ function Character({ player, isTurn, crowd, lift }: { player: Player; isTurn: bo
       title={player.name}
     >
       <img
-        src={face.src}
+        src={portraitArt(player.avatar) ?? face.src}
         alt=""
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).style.visibility = "hidden";

@@ -1,7 +1,7 @@
 import { cardsByCategory } from "@/lib/game/cards";
 import { haptic } from "@/lib/game/haptics";
 import { sfxPaper } from "@/lib/game/sfx";
-import { useGame, useMyNotes } from "@/lib/game/store";
+import { useGame, useMyHand, useMyNotes } from "@/lib/game/store";
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
@@ -102,6 +102,7 @@ function Sheet({
   frozen?: boolean;
 }) {
   const players = state.players.filter((player) => player.id !== ownerId);
+  const myHandIds = new Set(useMyHand().map((c) => c.id));
   const cats: CategoryId[] = state.settings.timeOfDayEnabled
     ? ["suspect", "weapon", "room", "time"]
     : ["suspect", "weapon", "room"];
@@ -158,7 +159,19 @@ function Sheet({
                         : CATEGORY_LABEL[cat]}
                   </td>
                 </tr>
-                {cardsByCategory(state.cards, cat).map((card) => (
+                {cardsByCategory(state.cards, cat).map((card) => {
+                  // A card in your own hand needs no marks: you know where it is.
+                  if (!frozen && myHandIds.has(card.id)) {
+                    return (
+                      <tr key={card.id}>
+                        <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
+                        <td colSpan={players.length + 1} className="px-1 py-1 text-center text-sm italic text-[#5c4a38]">
+                          This Evidence belongs to You
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return (
                   <tr key={card.id}>
                     <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
                     <Mark
@@ -179,7 +192,8 @@ function Sheet({
                       />
                     ))}
                   </tr>
-                ))}
+                  );
+                })}
               </Fragment>
             ))}
           </tbody>

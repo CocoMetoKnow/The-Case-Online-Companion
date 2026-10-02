@@ -9,7 +9,7 @@ import { ClueCodeField } from "./ClueCodeField";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 const BASE_SUSPECTS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c.category === "suspect"));
 const BASE_ROOMS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c.category === "room"));
@@ -24,13 +24,50 @@ export function SetupScreen() {
   const hostTable = useGame((s) => s.hostTable);
   const loadPreset = useGame((s) => s.loadPreset);
   const loadFile = useGame((s) => s.loadFile);
-  const renameFile = useGame((s) => s.renameFile);
+  const saveFile = useGame((s) => s.saveFile);
   const clearFile = useGame((s) => s.clearFile);
   const cardSets = useGame((s) => s.cardSets);
   const setDeck = useGame((s) => s.setDeck);
 
   const files = ["file-1", "file-2", "file-3"] as const;
   const activeFile = cardSets.find((s) => s.id === setup.setId);
+  // Nothing is written to a saved deck until Save preset is tapped. The name box is a draft too.
+  const [draftName, setDraftName] = useState<{ id: string; name: string } | null>(null);
+  const [switchTo, setSwitchTo] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const nameNow = activeFile ? (draftName?.id === activeFile.id ? draftName.name : activeFile.name) : "";
+  const unsaved = useMemo(() => {
+    if (!activeFile) return false;
+    const ids = (cards: CardDef[]) => JSON.stringify(cards.map((c) => [c.id, c.name, c.blurb, c.imageDataUrl ?? ""]));
+    const timesNow = setup.deck.filter((c) => c.category === "time").map((c) => c.id);
+    const timesSaved = activeFile.timeCardIds ?? activeFile.cards.filter((c) => c.category === "time").map((c) => c.id);
+    const t = activeFile.toggles;
+    const s = setup.settings;
+    const togglesSame =
+      !t ||
+      (t.timeOfDayEnabled === Boolean(s.timeOfDayEnabled) &&
+        t.heist === Boolean(s.heist) &&
+        t.speakMode === Boolean(s.speakMode) &&
+        t.manualNotes === Boolean(s.manualNotes) &&
+        t.evenDeal === Boolean(s.evenDeal) &&
+        JSON.stringify(t.enabledEvents ?? null) === JSON.stringify(s.enabledEvents ?? null));
+    return (
+      ids(setup.deck.filter((c) => c.category !== "time")) !== ids(activeFile.cards.filter((c) => c.category !== "time")) ||
+      JSON.stringify([...timesNow].sort()) !== JSON.stringify([...timesSaved].sort()) ||
+      !togglesSame ||
+      nameNow.trim() !== activeFile.name.trim()
+    );
+  }, [activeFile, setup.deck, setup.settings, nameNow]);
+  const pickFile = (id: string) => {
+    setJustSaved(false);
+    // Tapping an empty slot keeps the deck on screen in a new file, so there is nothing to lose.
+    if (unsaved && id !== setup.setId && cardSets.some((f) => f.id === id)) {
+      setSwitchTo(id);
+      return;
+    }
+    setDraftName(null);
+    loadFile(id);
+  };
   const groups: CategoryId[] = setup.settings.timeOfDayEnabled ? ["suspect", "room", "weapon", "time"] : ["suspect", "room", "weapon"];
   const answers = answerCards(setup.settings.timeOfDayEnabled);
   const activeCount = setup.deck.filter((card) => groups.includes(card.category)).length;
@@ -75,7 +112,7 @@ export function SetupScreen() {
                   <button
                     key={id}
                     type="button"
-                    onClick={() => loadFile(id)}
+                    onClick={() => pickFile(id)}
                     className={`min-h-20 rounded-[14px] border px-2 py-2 text-left ${
                       active ? "border-brass bg-raised" : "border-line"
                     }`}
@@ -92,15 +129,62 @@ export function SetupScreen() {
               })}
             </div>
             {activeFile ? (
-              <div className="mt-2 flex items-center gap-2">
-                <Input
-                  aria-label="Saved deck name"
-                  value={activeFile.name}
-                  onChange={(e) => renameFile(activeFile.id, e.target.value)}
-                />
-                <Button variant="ghost" size="sm" onClick={() => clearFile(activeFile.id)}>
-                  Clear
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <Input
+                    aria-label="Saved deck name"
+                    value={nameNow}
+                    maxLength={24}
+                    onChange={(e) => {
+                      setJustSaved(false);
+                      setDraftName({ id: activeFile.id, name: e.target.value });
+                    }}
+                  />
+                  <Button variant="ghost" size="sm" onClick={() => clearFile(activeFile.id)}>
+                    Clear
+                  </Button>
+                </div>
+                <Button
+                  className="mt-2 w-full"
+                  variant={unsaved ? "default" : "outline"}
+                  disabled={!unsaved}
+                  data-sfx="confirm"
+                  onClick={() => {
+                    saveFile(nameNow);
+                    setDraftName(null);
+                    setJustSaved(true);
+                  }}
+                >
+                  {unsaved ? "Save preset" : justSaved ? "Preset saved ✓" : "Save preset"}
                 </Button>
+                <p className={`mt-1 text-xs ${unsaved ? "text-brass" : "text-subtle"}`}>
+                  {unsaved
+                    ? "You have changes that are not saved to this file yet. Cards, switches and time cards are only kept once you tap Save preset."
+                    : "Everything on screen matches this file."}
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-subtle">Pick a file above, then tap Save preset to keep changes to it.</p>
+            )}
+            {switchTo ? (
+              <div className="mt-2 rounded-xl border border-line bg-black/20 p-3">
+                <p className="font-display text-xl">Leave without saving?</p>
+                <p className="mt-1 text-sm text-muted">This file has changes that were not saved. Switching drops them.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button variant="outline" onClick={() => setSwitchTo(null)}>
+                    Stay
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const id = switchTo;
+                      setSwitchTo(null);
+                      setDraftName(null);
+                      loadFile(id);
+                    }}
+                  >
+                    Switch anyway
+                  </Button>
+                </div>
               </div>
             ) : null}
           </div>

@@ -964,3 +964,14 @@ export function avatarCharacters(deck: CardDef[] | undefined, classic = false): 
 	for (const card of inDeck.values()) if (!known.has(card.id)) out.push(card);
 	return classic ? applyClassicNames(out, true) : out;
 }
+
+
+/** Profile pictures: one round, pre-cropped portrait per character (public/portraits, 600px WebP with transparent corners). */
+const PORTRAIT_IDS = new Set([
+	"mrs-white", "colonel-mustard", "miss-scarlet", "mr-green", "dr-finch", "lady-violet",
+	"lord-harrington", "mrs-peacock", "professor-plum", "miss-penny", "chef-marco", "the-butler",
+	"mr-broke", "oakley-autumns", "mr-fairwind", "ki-annie", "madame-coral", "the-chauffeur",
+]);
+export function portraitArt(id: string | undefined): string | undefined {
+	return id && PORTRAIT_IDS.has(id) ? `/portraits/${id}.webp?v=1` : undefined;
+}
