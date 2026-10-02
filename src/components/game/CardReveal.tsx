@@ -80,8 +80,11 @@ export function CardReveal({
         <p className="reveal-kicker">Shown only to you</p>
         <p className="reveal-who">{held?.who ?? ""} shows you a card</p>
         <div className="reveal-card">
-          {art ? <img src={art} alt="" decoding="async" draggable={false} /> : null}
-          <span className="reveal-name">{shown?.name ?? ""}</span>
+          <span className="card-window">
+            {art ? <img src={art} alt="" decoding="async" draggable={false} /> : null}
+            <span className="reveal-name">{shown?.name ?? ""}</span>
+          </span>
+          <span className="card-frame" aria-hidden="true" />
         </div>
         <p className="reveal-note">
           {held?.note ?? (manualNotes ? "Mark it in your journal." : "Added to your journal.")}

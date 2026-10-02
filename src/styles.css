@@ -28,7 +28,7 @@ body {
 
 .parchment{color:var(--color-ink);background:linear-gradient(#ffffff59,#0000 30%),linear-gradient(#f6edd9,#e7d7b8)}
 
-.leather{background:radial-gradient(at 50% 0,#b08d5729,#0000 46%),linear-gradient(var(--ui-leather-top,#2a1c16) 0%,var(--ui-leather-bot,#140e0b) 100%)}
+.leather{background:radial-gradient(at 50% 0,color-mix(in srgb,var(--color-brass) 16%,transparent),#0000 46%),linear-gradient(var(--ui-leather-top,#2a1c16) 0%,var(--ui-leather-bot,#140e0b) 100%)}
 
 @supports (color:color-mix(in lab, red, red)){.leather{background:radial-gradient(ellipse at 50% 0%, color-mix(in oklab, var(--color-brass) 16%, transparent), transparent 46%), linear-gradient(180deg, var(--ui-leather-top,#2a1c16) 0%, var(--ui-leather-bot,#140e0b) 100%)}}
 
@@ -38,21 +38,21 @@ body {
 
 @supports (color:color-mix(in lab, red, red)){.case-shell{background:linear-gradient(180deg, color-mix(in oklab, var(--color-brass) 18%, var(--ui-shell-top,#3a241c)), var(--ui-shell-mid,#241610) 28%, var(--ui-shell-bot,#1a100c))}}
 
-.case-shell{border:1px solid #b08d5773}
+.case-shell{border:1px solid color-mix(in srgb,var(--color-brass) 45%,transparent)}
 
 @supports (color:color-mix(in lab, red, red)){.case-shell{border:1px solid color-mix(in oklab, var(--color-brass) 45%, transparent)}}
 
-.case-shell{box-shadow:inset 0 0 0 6px var(--ui-shell-inset,#140e0b),inset 0 0 0 7px #6a5435,0 22px 48px #0006}
+.case-shell{box-shadow:inset 0 0 0 6px var(--ui-shell-inset,#140e0b),inset 0 0 0 7px color-mix(in srgb,var(--color-brass) 55%,#140e0b),0 22px 48px #0006}
 
 @supports (color:color-mix(in lab, red, red)){.case-shell{box-shadow:inset 0 0 0 6px var(--ui-shell-inset,#140e0b), inset 0 0 0 7px color-mix(in oklab, var(--color-brass) 55%, var(--ui-shell-inset,#140e0b)), 0 22px 48px #0006}}
 
-.stitch{background-image:repeating-linear-gradient(90deg,#c0a479 0 8px,#0000 8px 16px);height:2px}
+.stitch{background-image:repeating-linear-gradient(90deg,color-mix(in srgb,var(--color-brass) 80%,white) 0 8px,#0000 8px 16px);height:2px}
 
 @supports (color:color-mix(in lab, red, red)){.stitch{background-image:repeating-linear-gradient(90deg, color-mix(in oklab, var(--color-brass) 80%, white) 0 8px, transparent 8px 16px)}}
 
 .stitch{opacity:.75}
 
-.folio-tab{background:linear-gradient(#efe2c8,#d9c7a4);border:1px solid #9d7f4c}
+.folio-tab{background:linear-gradient(#efe2c8,#d9c7a4);border:1px solid color-mix(in srgb,var(--color-brass) 50%,#8a7040)}
 
 @supports (color:color-mix(in lab, red, red)){.folio-tab{border:1px solid color-mix(in oklab, var(--color-brass) 50%, #8a7040)}}
 
@@ -262,9 +262,9 @@ body {
 
 /* ===== "Pick Your Character" popup ===== */
 .picker-layer{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:16px;background:#140e0bcc}
-.picker-choice{display:block;width:100%;padding:8px 6px 6px;border-radius:16px;border:1px solid #b08d5740;background:#1a100c;touch-action:manipulation}
+.picker-choice{display:block;width:100%;padding:8px 6px 6px;border-radius:16px;border:1px solid color-mix(in srgb,var(--color-brass) 25%,transparent);background:#1a100c;touch-action:manipulation}
 .picker-photo{display:block;aspect-ratio:1;width:100%;border-radius:9999px;overflow:hidden}
-.picker-choice-on{border-color:var(--color-brass);box-shadow:0 0 0 2px #b08d5799}
+.picker-choice-on{border-color:var(--color-brass);box-shadow:0 0 0 2px color-mix(in srgb,var(--color-brass) 60%,transparent)}
 .picker-choice-taken{opacity:.45}
 
 /* ===== Card reveal: one reusable container, GPU transform only ===== */
@@ -285,7 +285,7 @@ body {
 
 /* ===== Power-up prompts: always a way out ===== */
 .power-close{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:36px;height:36px;border-radius:9999px;border:1px solid #f3ead855;background:#140e0bcc;color:var(--color-paper);font-size:16px;line-height:1;touch-action:manipulation}
-.power-chip{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:70;max-width:min(70vw,260px);padding:8px 14px;border-radius:14px;border:1px solid #b08d5799;background:#2a1410;color:var(--color-paper);text-align:left;box-shadow:0 10px 24px #0008}
+.power-chip{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:70;max-width:min(70vw,260px);padding:8px 14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--color-brass) 60%,transparent);background:#2a1410;color:var(--color-paper);text-align:left;box-shadow:0 10px 24px #0008}
 
 /* ===== Show-a-card: requested cards and your hand swap places ===== */
 .swap-group{will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
@@ -346,3 +346,37 @@ body {
 :root[data-journal="pink"]{--jh:330;--js:45%;--j-img-filter:hue-rotate(108deg) saturate(1) brightness(1.5)}
 :root[data-journal="brown"]{--jh:25;--js:35%;--j-img-filter:hue-rotate(165deg) saturate(0.7) brightness(0.95)}
 :root[data-journal="black"]{--jh:0;--js:0%;--j-img-filter:grayscale(1) brightness(0.55)}
+
+/* Gold text / border color (see theme.ts). No attribute = the original gold. */
+:root[data-accent="red"]{--color-brass:#d9594f}
+:root[data-accent="orange"]{--color-brass:#e48b3a}
+:root[data-accent="yellow"]{--color-brass:#e6c64a}
+:root[data-accent="green"]{--color-brass:#5fbb7c}
+:root[data-accent="teal"]{--color-brass:#4fb6b2}
+:root[data-accent="blue"]{--color-brass:#5d9ddb}
+:root[data-accent="purple"]{--color-brass:#a681dc}
+:root[data-accent="pink"]{--color-brass:#e47fae}
+:root[data-accent="silver"]{--color-brass:#b9bdc6}
+:root[data-accent="white"]{--color-brass:#f1ece2}
+
+/* ===== Card back + the border wrapped around card fronts (see theme.ts: data-card) =====
+   The border is the outer 68px of the card-back picture (source is 600x900), drawn as a 9-slice
+   border-image so the corners stay crisp at any card size. The back uses the same slice with
+   "fill", which makes the whole back picture fit the card box exactly: the ornate border is never
+   cropped and matches the front's border. */
+:root{--card-back:url(/cards/backs/red.jpg)}
+.card-frame,.card-back-art{position:absolute;inset:0;pointer-events:none;box-sizing:border-box;border:1px solid transparent;border-image-source:var(--card-back);border-image-repeat:stretch}
+.card-frame{border-image-slice:68;border-image-width:7.556% 11.333%}
+.card-back-art{border-image-slice:68 fill;border-image-width:7.556% 11.333%}
+.card-window{position:absolute;inset:7.2% 10.8%;overflow:hidden;border-radius:3px}
+.card-frame-thin{border-image-width:4.4% 6.6%}
+.card-window-thin{inset:4.1% 6.2%;border-radius:2px}
+:root[data-card="orange"]{--card-back:url(/cards/backs/orange.jpg)}
+:root[data-card="yellow"]{--card-back:url(/cards/backs/yellow.jpg)}
+:root[data-card="green"]{--card-back:url(/cards/backs/green.jpg)}
+:root[data-card="teal"]{--card-back:url(/cards/backs/teal.jpg)}
+:root[data-card="blue"]{--card-back:url(/cards/backs/blue.jpg)}
+:root[data-card="purple"]{--card-back:url(/cards/backs/purple.jpg)}
+:root[data-card="pink"]{--card-back:url(/cards/backs/pink.jpg)}
+:root[data-card="brown"]{--card-back:url(/cards/backs/brown.jpg)}
+:root[data-card="black"]{--card-back:url(/cards/backs/black.jpg)}

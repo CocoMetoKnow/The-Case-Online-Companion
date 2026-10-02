@@ -43,24 +43,14 @@ const MARK_LABEL: Record<CategoryId, string> = {
 };
 
 export function CardBack() {
-  const back = useImgFallback("/cards/back.jpg");
+  // The picture is drawn by .card-back-art (styles.css), so it always fits the card box exactly
+  // and follows the card color chosen in Settings. The gradient only shows if the picture is slow.
   return (
     <article
-      className="relative block h-56 w-40 overflow-hidden rounded-[16px] border border-[#e7c98a] shadow-[0_10px_22px_rgba(0,0,0,0.45)]"
+      className="relative block h-56 w-40 overflow-hidden rounded-[16px] border border-[#e7c98a] bg-gradient-to-b from-[#2a1c0c] to-[#1a1208] shadow-[0_10px_22px_rgba(0,0,0,0.45)]"
       aria-label="Card back"
     >
-      {back.failed ? (
-        <div className="absolute inset-0 bg-gradient-to-b from-[#2a1c0c] to-[#1a1208]" />
-      ) : (
-        <img
-          src="/cards/back.jpg"
-          alt=""
-          decoding="async"
-          loading="lazy"
-          onError={back.onError}
-          className="absolute inset-0 size-full object-cover"
-        />
-      )}
+      <span className="card-back-art" aria-hidden="true" />
     </article>
   );
 }
@@ -101,6 +91,8 @@ export function CardFace({
   const imgFallback = useImgFallback(art);
   const showArt = Boolean(art) && !imgFallback.failed;
   const paintedTime = card.category === "time" && showArt;
+  // Small cards get a thinner border so the name and marks keep room to read.
+  const thin = compact || fill;
   const inner = (
     <>
       {showArt ? (
@@ -192,6 +184,14 @@ export function CardFace({
     </>
   );
 
+  // Everything on the card sits inside the window; the border from the card back wraps around it.
+  const framed = (
+    <>
+      <span className={cn("card-window", thin && "card-window-thin")}>{inner}</span>
+      <span className={cn("card-frame", thin && "card-frame-thin")} aria-hidden="true" />
+    </>
+  );
+
   const cls = cn(
     "relative block overflow-hidden border bg-ink text-left shadow-[0_8px_18px_rgba(0,0,0,0.35)]",
     large
@@ -210,13 +210,13 @@ export function CardFace({
   if (onClick) {
     return (
       <button type="button" onClick={onClick} className={cls} aria-label={label} data-sfx={choice ? "select" : undefined}>
-        {inner}
+        {framed}
       </button>
     );
   }
   return (
     <article className={cls} aria-label={label}>
-      {inner}
+      {framed}
     </article>
   );
 }

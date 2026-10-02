@@ -10,6 +10,8 @@
 
 const UI_KEY = "gmm.uiColor";
 const JOURNAL_KEY = "gmm.journalColor";
+const ACCENT_KEY = "gmm.accentColor";
+const CARD_KEY = "gmm.cardColor";
 
 export interface UiColor {
   id: string;
@@ -28,6 +30,50 @@ export interface JournalColor {
 
 export const DEFAULT_UI = "classic";
 export const DEFAULT_JOURNAL = "blue";
+export const DEFAULT_ACCENT = "gold";
+export const DEFAULT_CARD = "red";
+
+/** The main color of the card backs and of the border wrapped around card fronts. */
+export interface CardColor {
+  id: string;
+  label: string;
+}
+
+/** Each id has a matching /cards/backs/<id>.jpg and <id>-thumb.jpg, and a :root[data-card] rule in styles.css. */
+export const CARD_COLORS: CardColor[] = [
+  { id: "red", label: "Red" },
+  { id: "orange", label: "Orange" },
+  { id: "yellow", label: "Yellow" },
+  { id: "green", label: "Green" },
+  { id: "teal", label: "Teal" },
+  { id: "blue", label: "Blue" },
+  { id: "purple", label: "Purple" },
+  { id: "pink", label: "Pink" },
+  { id: "brown", label: "Brown" },
+  { id: "black", label: "Black" },
+];
+
+/** The color of the "gold" text, borders, outlines and highlights (--color-brass in styles.css). */
+export interface AccentColor {
+  id: string;
+  label: string;
+  /** Must match the :root[data-accent] rules in styles.css. */
+  hex: string;
+}
+
+export const ACCENT_COLORS: AccentColor[] = [
+  { id: "gold", label: "Gold", hex: "#b08d57" },
+  { id: "red", label: "Red", hex: "#d9594f" },
+  { id: "orange", label: "Orange", hex: "#e48b3a" },
+  { id: "yellow", label: "Yellow", hex: "#e6c64a" },
+  { id: "green", label: "Green", hex: "#5fbb7c" },
+  { id: "teal", label: "Teal", hex: "#4fb6b2" },
+  { id: "blue", label: "Blue", hex: "#5d9ddb" },
+  { id: "purple", label: "Purple", hex: "#a681dc" },
+  { id: "pink", label: "Pink", hex: "#e47fae" },
+  { id: "silver", label: "Silver", hex: "#b9bdc6" },
+  { id: "white", label: "White", hex: "#f1ece2" },
+];
 
 export const UI_COLORS: UiColor[] = [
   { id: "classic", label: "Classic", h: 28, s: 30 },
@@ -76,6 +122,14 @@ function write(key: string, value: string) {
 
 export function getUiColor(): string {
   return read(UI_KEY, DEFAULT_UI, UI_COLORS.map((c) => c.id));
+}
+
+export function getAccentColor(): string {
+  return read(ACCENT_KEY, DEFAULT_ACCENT, ACCENT_COLORS.map((c) => c.id));
+}
+
+export function getCardColor(): string {
+  return read(CARD_KEY, DEFAULT_CARD, CARD_COLORS.map((c) => c.id));
 }
 
 export function getJournalColor(): string {
@@ -132,15 +186,33 @@ export function setJournalColor(id: string): string {
   return next;
 }
 
-/** Re-applies both saved choices. Safe to call any number of times. */
+export function setAccentColor(id: string): string {
+  const next = ACCENT_COLORS.some((c) => c.id === id) ? id : DEFAULT_ACCENT;
+  write(ACCENT_KEY, next);
+  applyAttr("data-accent", next, DEFAULT_ACCENT);
+  return next;
+}
+
+export function setCardColor(id: string): string {
+  const next = CARD_COLORS.some((c) => c.id === id) ? id : DEFAULT_CARD;
+  write(CARD_KEY, next);
+  applyAttr("data-card", next, DEFAULT_CARD);
+  return next;
+}
+
+/** Re-applies all saved choices. Safe to call any number of times. */
 export function initTheme() {
   setUiColor(getUiColor());
   setJournalColor(getJournalColor());
+  setAccentColor(getAccentColor());
+  setCardColor(getCardColor());
 }
 
 /** Source of the pre-paint script in routes/__root.tsx (kept here so the keys stay in sync). */
-export const THEME_BOOT_SCRIPT = `try{var d=document.documentElement,u=localStorage.getItem(${JSON.stringify(
-  UI_KEY,
-)}),j=localStorage.getItem(${JSON.stringify(
-  JOURNAL_KEY,
-)});if(u&&u!=="${DEFAULT_UI}")d.setAttribute("data-ui",u);if(j&&j!=="${DEFAULT_JOURNAL}")d.setAttribute("data-journal",j)}catch(e){}`;
+export const THEME_BOOT_SCRIPT =
+  "try{var d=document.documentElement,g=function(k){return localStorage.getItem(k)};" +
+  `var u=g(${JSON.stringify(UI_KEY)}),j=g(${JSON.stringify(JOURNAL_KEY)}),a=g(${JSON.stringify(ACCENT_KEY)}),c=g(${JSON.stringify(CARD_KEY)});` +
+  `if(u&&u!==${JSON.stringify(DEFAULT_UI)})d.setAttribute("data-ui",u);` +
+  `if(j&&j!==${JSON.stringify(DEFAULT_JOURNAL)})d.setAttribute("data-journal",j);` +
+  `if(a&&a!==${JSON.stringify(DEFAULT_ACCENT)})d.setAttribute("data-accent",a);` +
+  `if(c&&c!==${JSON.stringify(DEFAULT_CARD)})d.setAttribute("data-card",c)}catch(e){}`;

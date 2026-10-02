@@ -5,19 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { musicEnabled, setMusic, setSfx, sfxEnabled, unlockAudio } from "@/lib/game/sfx";
 import {
+  ACCENT_COLORS,
+  CARD_COLORS,
+  getAccentColor,
+  getCardColor,
   getJournalColor,
   getUiColor,
   JOURNAL_COLORS,
+  setAccentColor,
+  setCardColor,
   setJournalColor,
   setUiColor,
   UI_COLORS,
   uiPreview,
+  type AccentColor,
+  type CardColor,
   type JournalColor,
   type UiColor,
 } from "@/lib/game/theme";
 import { cn } from "@/lib/utils";
 
-type Panel = "main" | "ui" | "journal";
+type Panel = "main" | "ui" | "accent" | "card" | "journal";
 
 /** A tiny picture of the screen in one background color. */
 function UiTile({ color }: { color: UiColor }) {
@@ -31,6 +39,33 @@ function UiTile({ color }: { color: UiColor }) {
       <span
         className="block h-full w-full rounded-lg border border-white/15"
         style={{ background: `linear-gradient(${p.shellTop}, ${p.shellBottom})` }}
+      />
+    </span>
+  );
+}
+
+/** A tiny sample of text and a border in one gold-replacement color. */
+function AccentTile({ hex }: { hex: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-14 w-full items-center justify-center rounded-xl bg-[#1a100c]"
+      style={{ border: `2px solid ${hex}`, color: hex }}
+    >
+      <span className="font-display text-xl leading-none">Aa</span>
+    </span>
+  );
+}
+
+/** A tiny card back in one card color. */
+function CardTile({ id }: { id: string }) {
+  return (
+    <span aria-hidden="true" className="flex h-14 w-full items-center justify-center">
+      <img
+        src={`/cards/backs/${id}-thumb.jpg`}
+        alt=""
+        draggable={false}
+        className="h-full w-auto rounded-[4px] shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
       />
     </span>
   );
@@ -96,12 +131,16 @@ export function SettingsGear() {
   const [music, setMusicOn] = useState(true);
   const [sounds, setSoundsOn] = useState(true);
   const [ui, setUi] = useState(getUiColor);
+  const [accent, setAccent] = useState(getAccentColor);
+  const [card, setCard] = useState(getCardColor);
   const [journal, setJournal] = useState(getJournalColor);
 
   function openSettings() {
     setMusicOn(musicEnabled());
     setSoundsOn(sfxEnabled());
     setUi(getUiColor());
+    setAccent(getAccentColor());
+    setCard(getCardColor());
     setJournal(getJournalColor());
     setPanel("main");
   }
@@ -117,6 +156,8 @@ export function SettingsGear() {
   }, [panel]);
 
   const uiColor = UI_COLORS.find((c) => c.id === ui) ?? UI_COLORS[0];
+  const accentColor = ACCENT_COLORS.find((c) => c.id === accent) ?? ACCENT_COLORS[0];
+  const cardColor = CARD_COLORS.find((c) => c.id === card) ?? CARD_COLORS[0];
   const journalColor = JOURNAL_COLORS.find((c) => c.id === journal) ?? JOURNAL_COLORS[0];
 
   const popup =
@@ -179,6 +220,34 @@ export function SettingsGear() {
                     <button
                       type="button"
                       className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                      onClick={() => setPanel("accent")}
+                    >
+                      <span>Text &amp; border color</span>
+                      <span className="flex items-center gap-2 text-sm text-muted">
+                        <span className="w-14">
+                          <AccentTile hex={accentColor.hex} />
+                        </span>
+                        {accentColor.label}
+                        <ChevronRight className="size-4" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 py-3 text-left"
+                      onClick={() => setPanel("card")}
+                    >
+                      <span>Card color</span>
+                      <span className="flex items-center gap-2 text-sm text-muted">
+                        <span className="w-14">
+                          <CardTile id={cardColor.id} />
+                        </span>
+                        {cardColor.label}
+                        <ChevronRight className="size-4" />
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 py-3 text-left"
                       onClick={() => setPanel("journal")}
                     >
                       <span>Journal color</span>
@@ -215,9 +284,15 @@ export function SettingsGear() {
                       <X className="size-5" />
                     </button>
                   </div>
-                  <h2 className="mt-1 font-display text-2xl">{panel === "ui" ? "UI color" : "Journal color"}</h2>
+                  <h2 className="mt-1 font-display text-2xl">{panel === "ui" ? "UI color" : panel === "accent" ? "Text & border color" : panel === "card" ? "Card color" : "Journal color"}</h2>
                   <p className="mt-0.5 text-sm text-muted">
-                    {panel === "ui" ? "Pick the color of the background and case." : "Pick the color of your journal."}
+                    {panel === "ui"
+                      ? "Pick the color of the background and case."
+                      : panel === "accent"
+                        ? "Pick the color of the gold text, borders and highlights."
+                        : panel === "card"
+                          ? "Pick the main color of the card backs and the border around every card."
+                          : "Pick the color of your journal."}
                   </p>
                   {panel === "ui" ? (
                     <SwatchGrid<UiColor>
@@ -225,6 +300,20 @@ export function SettingsGear() {
                       selected={ui}
                       onPick={(id) => setUi(setUiColor(id))}
                       tile={(item) => <UiTile color={item} />}
+                    />
+                  ) : panel === "accent" ? (
+                    <SwatchGrid<AccentColor>
+                      items={ACCENT_COLORS}
+                      selected={accent}
+                      onPick={(id) => setAccent(setAccentColor(id))}
+                      tile={(item) => <AccentTile hex={item.hex} />}
+                    />
+                  ) : panel === "card" ? (
+                    <SwatchGrid<CardColor>
+                      items={CARD_COLORS}
+                      selected={card}
+                      onPick={(id) => setCard(setCardColor(id))}
+                      tile={(item) => <CardTile id={item.id} />}
                     />
                   ) : (
                     <SwatchGrid<JournalColor>
