@@ -301,13 +301,18 @@ export function blockingPlayerIds(state: GameState): string[] {
 	};
 	const ev = state.event;
 	if (state.phase === "event" && ev) {
-		if (ev.step === "reveal" || ev.step === "ack" || ev.step === "show-all") {
+		// Only the player who drew the power-up confirms the reveal. Everyone else just reads along, so the
+		// shared phone must go to the seat on turn, not to whoever is first in the player list.
+		if (ev.step === "reveal") return [String(turnActorId(state) ?? currentPlayer(state)?.id ?? "")].filter(Boolean);
+		if (ev.step === "ack" || ev.step === "show-all") {
 			const key = ev.step === "ack" ? "acked" : "seen";
 			const seen = new Set(Array.isArray(ev.data?.[key]) ? (ev.data[key] as string[]).map(String) : []);
 			for (const player of state.players) if (!player.eliminated && !seen.has(player.id)) add(player.id);
 			return [...ids];
 		}
 		if (ev.data?.waitingId) add(String(ev.data.waitingId));
+		// Swap a Card: the other guest picks which card to hand back, so the shared phone goes to them.
+		else if (ev.kind === "swap-card" && ev.step === "pick-take" && ev.data?.targetId) add(String(ev.data.targetId));
 		else if (ev.step === "show-private") add(ev.data?.viewerId ? String(ev.data.viewerId) : null);
 		else add(turnActorId(state));
 		return [...ids];

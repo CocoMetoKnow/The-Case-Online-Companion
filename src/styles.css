@@ -64,7 +64,7 @@ body {
 
 .die-body{background:var(--color-paper);border-radius:10px;width:56px;height:56px;position:relative;box-shadow:0 8px #c4b396,0 14px 18px #00000059}
 
-.die-hit{animation:.95s cubic-bezier(.2,.7,.2,1) both die-hit}
+.die-hit{animation:.65s cubic-bezier(.2,.7,.2,1) both die-hit}
 
 .dice-sm{gap:8px;min-height:48px;padding-bottom:2px}
 

@@ -106,7 +106,7 @@ export function Briefcase() {
   });
   const [spyClosed, setSpyClosed] = useState("");
   const [toss, setToss] = useState(0);
-  const diceSig = state?.dice ? `${state.turnIndex}:${state.singleDie ? "1" : "2"}:${state.dice[0]}-${state.dice[1]}` : "";
+  const diceSig = state?.dice ? `${currentPlayer(state)?.id ?? state.turnIndex}:${state.singleDie ? "1" : "2"}:${state.dice[0]}-${state.dice[1]}` : "";
   const offerKey = state?.question?.offerAccusation
     ? `${state.turnIndex}:${state.question.suspectId}:${state.question.roomId}:${state.question.weaponId}:${state.question.timeId ?? ""}`
     : "";
@@ -129,7 +129,7 @@ export function Briefcase() {
     if (shownRoll.current === diceSig) return;
     shownRoll.current = diceSig;
     // Let the dice finish tumbling before the result note covers them.
-    const wait = setTimeout(() => setRollNote(diceSig), 950);
+    const wait = setTimeout(() => setRollNote(diceSig), 700);
     return () => clearTimeout(wait);
   }, [diceSig, state, actor]);
 
@@ -491,10 +491,11 @@ export function Briefcase() {
           <div className="case-shell w-full max-w-sm rounded-[28px] px-6 py-7 text-center">
             <p className="text-xs uppercase tracking-[0.22em] text-brass">Your roll</p>
             <div className="mt-4 flex justify-center">
+              {/* toss stays 0 here: the prompt shows the landed dice, it never replays the roll animation. */}
               <DicePair
                 large
                 values={state.dice}
-                toss={toss}
+                toss={0}
                 single={Boolean(state.singleDie)}
                 extra={state.extraDie}
                 snake={Boolean(state.dice && !state.singleDie && state.dice[0] === 1 && state.dice[1] === 1)}

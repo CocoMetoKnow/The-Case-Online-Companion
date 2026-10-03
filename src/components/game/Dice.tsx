@@ -56,10 +56,10 @@ export function DicePair({
       <span className="dice-shadow" />
       <Die n={a} toss={toss} delay={0} snake={eyes || glass} live={live} glass={glass} large={large} small={small} />
       {single ? null : (
-        <Die n={b} toss={toss} delay={90} snake={eyes && !glass} live={live} large={large} small={small} />
+        <Die n={b} toss={toss} delay={60} snake={eyes && !glass} live={live} large={large} small={small} />
       )}
       {live && !single && extra ? (
-        <Die n={extra} toss={toss} delay={180} live={live} large={large} small={small} />
+        <Die n={extra} toss={toss} delay={120} live={live} large={large} small={small} />
       ) : null}
       {ready ? (
         <span className="dice-tap" aria-hidden>
@@ -80,8 +80,8 @@ export function DicePair({
  * A real roll: the faces flick through random numbers while the die tumbles, then it lands on the
  * result. Players who ask their phone to reduce motion just see the result.
  */
-const TUMBLE_MS = 850;
-const FLICK_MS = 70;
+const TUMBLE_MS = 580;
+const FLICK_MS = 55;
 function useTumble(n: number, toss: number, delay: number, live: boolean) {
   const [shown, setShown] = useState(n);
   const [rolling, setRolling] = useState(false);

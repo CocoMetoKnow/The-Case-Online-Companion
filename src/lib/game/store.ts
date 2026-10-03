@@ -582,7 +582,9 @@ function commitLocal(
   if (next.state === prev && next.secrets === get().secrets) return;
   cueLocal(prev, next.state);
   const { localPlayerId } = get();
-  const passed = prev.turnIndex !== next.state.turnIndex || prev.startedAt !== next.state.startedAt;
+  const seatOn = (s: GameState) => s.turnOrder[Math.max(0, s.turnIndex) % Math.max(1, s.turnOrder.length)];
+  // About Face renumbers the seats but the same guest is still on turn, so that is not a new turn.
+  const passed = seatOn(prev) !== seatOn(next.state) || prev.startedAt !== next.state.startedAt;
   const state = passed && (next.state.log?.length ?? 0) > 1 ? { ...next.state, log: next.state.log.slice(-1) } : next.state;
   const secrets = passed ? rememberRound(state, next.secrets) : next.secrets;
   const pass = maybePass(state, localPlayerId, Boolean(state.settings.honorHands));

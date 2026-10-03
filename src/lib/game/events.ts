@@ -358,9 +358,14 @@ export function resolveEventChoice(
   if (choice.finish) {
     const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
     const involved = !isOut(state, playerId) && waitingOn.includes(playerId);
-    if (!isTurnActor && !involved) return { state, secrets };
+    // One shared phone: whoever is holding it can end the power-up, so it can never hang on the wrong seat.
+    const sharedPhone = state.settings.playMode !== "online" && !isOut(state, playerId);
+    if (!isTurnActor && !involved && !sharedPhone) return { state, secrets };
     const who = state.players.find((p) => p.id === playerId);
-    return { state: settle(state, `${who?.name ?? "A guest"} read the notice and finished the ${ev.title} power-up. The turn goes on.`), secrets };
+    const line = choice.skip
+      ? `${who?.name ?? "A guest"} skipped the ${ev.title} power-up. The turn goes on.`
+      : `${who?.name ?? "A guest"} read the notice and finished the ${ev.title} power-up. The turn goes on.`;
+    return { state: settle(state, line), secrets };
   }
 
   if (ev.step === "reveal") {

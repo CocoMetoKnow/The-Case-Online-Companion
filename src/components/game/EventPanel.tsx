@@ -32,12 +32,12 @@ export function EventPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [promptKey, hidden]);
   // A power drawn by a roll waits for the dice to finish tumbling before it covers them.
-  const diceSig = state?.dice ? `${state.turnIndex}:${state.dice[0]}-${state.dice[1]}` : "";
+  const diceSig = state?.dice ? `${currentPlayer(state)?.id ?? state.turnIndex}:${state.dice[0]}-${state.dice[1]}` : "";
   const [settling, setSettling] = useState("");
   useEffect(() => {
     if (!diceSig || !live || live.step !== "reveal") return;
     setSettling(diceSig);
-    const wait = setTimeout(() => setSettling(""), 950);
+    const wait = setTimeout(() => setSettling(""), 700);
     return () => clearTimeout(wait);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diceSig, Boolean(live)]);
@@ -68,6 +68,7 @@ export function EventPanel() {
       <PowerShell onClose={close} className="wood-panel max-h-[calc(100dvh-32px)] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
         <SnakeCallout title={ev.title} description={String(ev.data.boardNote ?? description)} />
         <BoardConfirm />
+        <SkipPower />
       </PowerShell>
     );
   }
@@ -87,6 +88,7 @@ export function EventPanel() {
           ) : (
             <p className="mt-3 text-sm text-muted">Waiting on {cur?.name ?? "the player"} to confirm.</p>
           )}
+          <SkipPower />
         </>
       </PowerShell>
     );
@@ -118,6 +120,7 @@ export function EventPanel() {
               This power is in effect
             </Button>
           )}
+          <SkipPower />
         </>
       </PowerShell>
     );
@@ -432,7 +435,8 @@ export function EventPanel() {
         <PlayerPick exclude={actor} label="Play their next turn" onPick={(id) => eventChoice({ targetId: id })} />
       ) : null}
 
-      <button type="button" className="mt-3 w-full text-center text-sm text-subtle underline" onClick={close}>
+      <SkipPower />
+      <button type="button" className="mt-2 w-full text-center text-sm text-subtle underline" onClick={close}>
         Close for now
       </button>
       </>
@@ -741,6 +745,32 @@ function RoomPick({
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The way out of every power-up screen. Whatever step a power is on, whoever is holding the phone can
+ * end it and carry the turn on. Two taps so it is never hit by accident.
+ */
+function SkipPower() {
+  const eventChoice = useGame((s) => s.eventChoice);
+  const [sure, setSure] = useState(false);
+  return sure ? (
+    <div className="mt-3 space-y-2 text-center">
+      <p className="text-sm text-paper">Skip this power-up? Its effect will not happen.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" data-sfx="deny" onClick={() => setSure(false)}>
+          Keep going
+        </Button>
+        <Button data-sfx="confirm" onClick={() => eventChoice({ finish: true, skip: true })}>
+          Yes, skip it
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <button type="button" className="mt-3 w-full text-center text-sm text-subtle underline" onClick={() => setSure(true)}>
+      Skip this power-up
+    </button>
   );
 }
 
