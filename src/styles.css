@@ -455,7 +455,7 @@ body {
 .cs-sub-late{opacity:0;animation:cs-fade .5s ease .5s forwards}
 .cs-tap{position:absolute;z-index:6;right:16px;top:calc(env(safe-area-inset-top) + 14px);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#ffe7a3b0;animation:cs-fade .5s ease both}
 
-.cs-heartbeat{position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 110px 26px #b4141499;animation:cs-beat 1.15s ease-in-out infinite}
+.cs-heartbeat{position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 52px 2px #b4141466;animation:cs-beat 3s ease-in-out infinite}
 .cs-heartbeat-self{position:fixed;z-index:41}
 .cs-flash{position:absolute;inset:0;z-index:6;pointer-events:none;background:#fff;animation:cs-flash .5s ease-out forwards}
 .cs-curtain{position:absolute;inset:0;z-index:7;pointer-events:none}
@@ -481,7 +481,7 @@ body {
 @keyframes cs-caret{50%{border-right-color:transparent}}
 @keyframes cs-pulse{50%{opacity:.45;transform:scale(.985)}}
 @keyframes cs-who-in{from{opacity:0;transform:translateY(-14px) scale(1.12);letter-spacing:.18em}to{opacity:1;transform:none}}
-@keyframes cs-beat{0%,100%{opacity:.25}12%{opacity:1}26%{opacity:.35}40%{opacity:.85}62%{opacity:.25}}
+@keyframes cs-beat{0%,100%{opacity:.2}10%{opacity:.65}22%{opacity:.28}34%{opacity:.5}60%{opacity:.2}}
 @keyframes cs-flash{0%{opacity:.9}100%{opacity:0}}
 @keyframes cs-open-up{to{transform:translateY(-101%)}}
 @keyframes cs-open-down{to{transform:translateY(101%)}}
@@ -496,13 +496,16 @@ body {
 }
 
 /* ===== Extra Visuals: the suggestion as a background only ===== */
+/* Right at the back, centred behind the question screen; that screen turns see-through so it can be seen on a narrow phone. */
 .cs-ambient{position:fixed;inset:0;z-index:58;pointer-events:none;animation:cs-fade .7s ease both}
 .cs-ambient .cs-board{background:#0a0605}
-.cs-ambient .cs-dim{background:linear-gradient(to bottom,#000b 0,#0002 26%,#0002 62%,#000c 100%)}
+.cs-ambient .cs-dim{background:linear-gradient(to bottom,#000a 0,#0001 22%,#0001 70%,#000b 100%)}
 .cs-ambient .cs-spot,.cs-ambient .cs-dust,.cs-ambient .cs-lens,.cs-ambient .cs-tag{display:none}
-.cs-ambient .cs-people{justify-content:flex-start;top:34%;bottom:3%;padding-left:2%}
-.cs-ambient .cs-suspect>img{max-width:48vw}
-.cs-ambient .cs-things{right:2%;bottom:4%;width:42%;height:22%}
+.cs-ambient .cs-people{top:11%;bottom:9%;justify-content:center;padding:0}
+.cs-ambient .cs-suspect>img{max-width:86vw}
+.cs-ambient .cs-things{left:0;right:0;width:auto;bottom:8%;height:24%;justify-content:center}
+.cs-ambient .cs-weapon-art>img{max-width:70vw}
 .cs-ambient .cs-notes{top:calc(env(safe-area-inset-top) + 8px);bottom:auto}
-html[data-extra-visuals] .roll-stage{background:#140e0b52}
+html[data-extra-visuals] .roll-stage{background:#140e0b33!important}
+html[data-extra-visuals] .roll-stage .case-shell{background:color-mix(in srgb,var(--ui-shell-mid,#241610) 52%,transparent);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 @media (prefers-reduced-motion:reduce){.cs-ambient{animation:none}}
