@@ -211,7 +211,8 @@ export function useSharedRoom(room: string, selfId: string, name: string): { sta
       const alreadyMyRoll = prev?.phase === "roll" && prev.turnIndex === next.turnIndex && turnActorId(prev) === selfId;
       if (myRoll && !alreadyMyRoll) sfxTurn();
       if ((next.notesLock?.[selfId] ?? 0) > (prev?.notesLock?.[selfId] ?? 0)) sfxBlocked();
-      if (won) sfxWin();
+      // With a guess behind it, the win sound plays with the stamp in the Solve the Case reveal instead.
+      if (won && !next.accusation) sfxWin();
       if (body.error) setDetail(body.error);
       else setDetail("");
       setStatus("live");

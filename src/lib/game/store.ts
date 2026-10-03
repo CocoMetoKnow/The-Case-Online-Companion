@@ -18,7 +18,7 @@ import {
   rememberRound,
 } from "@/lib/game/engine";
 import { autoResolveIfPossible } from "@/lib/game/events";
-import { sfxCard, sfxFail, sfxPaper, sfxPencil, sfxPower, sfxReceive, sfxSnake, sfxTurn, sfxWin, unlockAudio } from "@/lib/game/sfx";
+import { sfxCard, sfxFail, sfxPaper, sfxPencil, sfxPower, sfxReceive, sfxSnake, sfxTurn, unlockAudio } from "@/lib/game/sfx";
 import {
   emptyNotes,
   loadVault,
@@ -546,9 +546,10 @@ function cueLocal(prev: GameState, next: GameState) {
     sfxSnake();
     sfxPower();
   }
-  if (next.phase === "gameover" && prev.phase !== "gameover") {
-    if (next.accusation?.correct) sfxWin();
-    else sfxFail();
+  // When the case is closed by a guess, the win or fail sound plays with the "Case closed" / "Wrong" stamp in the
+  // Solve the Case reveal, so it never gives the result away early. A game over with no guess behind it plays here.
+  if (next.phase === "gameover" && prev.phase !== "gameover" && !next.accusation) {
+    sfxFail();
   }
 }
 

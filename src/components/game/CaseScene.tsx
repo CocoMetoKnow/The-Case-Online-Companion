@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cardArt } from "@/lib/game/cards";
 import { charCutout, itemCutout, roomBackdrop, timeWords } from "@/lib/game/scene-art";
-import { sfxDrama, sfxReveal } from "@/lib/game/sfx";
+import { sfxFail, sfxReveal, sfxWin } from "@/lib/game/sfx";
 import { useExtraVisuals } from "@/lib/game/extra-visuals";
 import { turnActorId, useActorId, useGame } from "@/lib/game/store";
 import type { CardDef, CategoryId } from "@/lib/game/types";
@@ -251,12 +251,14 @@ export function FinalReveal() {
     lastReveal = key;
     setShown(key);
     setCanClose(false);
+    const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const cues = [
       window.setTimeout(() => sfxReveal(), 500),
       window.setTimeout(() => sfxReveal(), 1500),
       window.setTimeout(() => sfxReveal(), 2400),
       window.setTimeout(() => sfxReveal(), 3300),
-      window.setTimeout(() => sfxDrama(), 4600),
+      // The result sound lands with the stamp, not before it.
+      window.setTimeout(() => (acc?.correct ? sfxWin() : sfxFail()), reduced ? 3150 : 4900),
       window.setTimeout(() => setCanClose(true), 5200),
     ];
     const end = window.setTimeout(() => setShown((cur) => (cur === key ? null : cur)), 7600);

@@ -64,7 +64,7 @@ function SyncVote() {
   );
 }
 
-export function Briefcase() {
+function BriefcaseTable() {
   const state = useGame((s) => s.state);
   const leave = useGame((s) => s.leave);
   const done = useGame((s) => s.done);
@@ -634,7 +634,6 @@ export function Briefcase() {
 
       {state.phase !== "gameover" ? <FinalWatch onLeave={() => setSureLeave(true)} /> : null}
       <ExtraVisualsBackdrop />
-      <FinalReveal />
 
       {state.phase === "gameover" ? (
         <Victory
@@ -861,4 +860,17 @@ function scoreLine(state: GameState, solution: Secrets["solution"], youId: strin
   if (acc.correct) return `You got all ${rows.length} right.`;
   if (!right.length) return "You got none of them right.";
   return `You got ${right.length} of ${rows.length} right: ${right.map((row) => row.name).join(", ")}.`;
+}
+
+/**
+ * The table, with the Solve the Case reveal kept outside it. The table swaps itself for the verdict screen, the pass-the-phone
+ * screen and others, so the reveal lives out here to stay put and play for everyone, the player who guessed included.
+ */
+export function Briefcase() {
+  return (
+    <>
+      <BriefcaseTable />
+      <FinalReveal />
+    </>
+  );
 }
