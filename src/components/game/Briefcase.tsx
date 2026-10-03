@@ -73,6 +73,7 @@ export function Briefcase() {
   const secrets = useGame((s) => s.secrets);
   const roll = useGame((s) => s.roll);
   const namePick = useGame((s) => s.namePick);
+  const draftPick = useGame((s) => s.draftPick);
   const actor = useActorId();
   const localId = useGame((s) => s.localPlayerId);
   const hand = useMyHand();
@@ -600,7 +601,15 @@ export function Briefcase() {
       {suggest ? (
         <div className="folio-sheet flex flex-col overflow-hidden" style={{ background: "#140e0b" }}>
           <div className="mx-auto flex h-full min-h-0 w-full max-w-lg flex-col px-3 pb-3 pt-2">
-            <Button variant="ghost" size="sm" className="self-start" onClick={() => setSuggest(false)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => {
+                setSuggest(false);
+                draftPick(null);
+              }}
+            >
               Close
             </Button>
             <div className="mt-1 min-h-0 flex-1">

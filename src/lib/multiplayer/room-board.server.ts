@@ -233,7 +233,10 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     hush: safe.hush ?? null,
     wait: safe.wait ?? null,
     sync: safe.sync ? { byId: String(safe.sync.byId), agreed: (safe.sync.agreed ?? []).map(String).slice(0, 15) } : null,
-    naming: safe.phase === "gameover" || safe.naming?.playerId === peer ? (safe.naming ?? null) : null,
+    // Solve the Case picks are shown live to the whole table, so every phone gets them, not just the guesser's.
+    naming: safe.naming ?? null,
+    // Live suggestion picks. Phones only use them for the Extra Visuals background, and only when it is on.
+    drafting: safe.drafting ?? null,
     privateShow: safe.privateShow ?? null,
     lastSuggestion: safe.lastSuggestion ?? null,
     // Private to the guest it belongs to: it spells out which cards are in the envelope.

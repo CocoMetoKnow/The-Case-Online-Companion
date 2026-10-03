@@ -144,7 +144,7 @@ export function FinalWatch({ onLeave }: { onLeave?: () => void }) {
   const who = state.players.find((player) => player.id === naming.playerId)?.name ?? "Someone";
   const heist = Boolean(state.settings.heist);
   return (
-    <div className="cs-root cs-final folio-sheet" role="dialog" aria-label={`${who} is naming the solution`}>
+    <div className="cs-root cs-final folio-sheet" role="dialog" aria-label={`${who} is attempting to Solve the Case`}>
       <EvidenceBoard cards={state.cards} pick={pick} heist={heist} />
       <div className="cs-heartbeat" aria-hidden />
       {flash ? <div key={flash} className="cs-flash" aria-hidden /> : null}
@@ -158,7 +158,7 @@ export function FinalWatch({ onLeave }: { onLeave?: () => void }) {
           ) : null}
         </div>
         <h2 className="cs-who">{who}</h2>
-        <p className="cs-sub">is accusing. Every card lands as it is picked.</p>
+        <p className="cs-sub">is attempting to Solve the Case. Every card lands as it is picked.</p>
       </header>
     </div>
   );
@@ -193,14 +193,32 @@ export function ExtraVisualsBackdrop() {
     return () => window.clearTimeout(timer);
   }, [sugId]);
 
+  const actor = useActorId();
   const q = state?.question ?? null;
   const questionOpen = Boolean(q) && state?.phase === "question";
+  // Someone else is picking a suggestion right now: their picks land on this background as they are chosen.
+  const draft = state?.drafting ?? null;
+  const drafted = Boolean(
+    state &&
+      draft &&
+      draft.turn === state.turnIndex &&
+      state.phase === "action" &&
+      draft.playerId !== actor &&
+      turnActorId(state) !== actor &&
+      (draft.suspectId || draft.weaponId || draft.roomId || draft.timeId),
+  );
   const look =
     sug?.look ??
     (q && q.suspectId && q.roomId && q.weaponId
       ? { suspectId: q.suspectId, roomId: q.roomId, weaponId: q.weaponId, timeId: q.timeId }
       : undefined);
-  const active = Boolean(on && state && look && (questionOpen || recent) && state.phase !== "gameover" && state.phase !== "lobby");
+  const active = Boolean(
+    on &&
+      state &&
+      ((look && (questionOpen || recent)) || drafted) &&
+      state.phase !== "gameover" &&
+      state.phase !== "lobby",
+  );
 
   useEffect(() => {
     if (!active) return;
@@ -211,10 +229,13 @@ export function ExtraVisualsBackdrop() {
     };
   }, [active]);
 
-  if (!active || !state || !look) return null;
-  const pick: Pick = { suspect: look.suspectId, weapon: look.weaponId, room: look.roomId, time: look.timeId };
+  if (!active || !state) return null;
+  // The live draft wins while it is happening. Once the suggestion is asked it is replaced by the finished one.
+  const shownLook = drafted && draft ? { suspectId: draft.suspectId, roomId: draft.roomId, weaponId: draft.weaponId, timeId: draft.timeId } : look;
+  if (!shownLook) return null;
+  const pick: Pick = { suspect: shownLook.suspectId, weapon: shownLook.weaponId, room: shownLook.roomId, time: shownLook.timeId };
   return (
-    <div key={sugId || "now"} className="cs-ambient" aria-hidden>
+    <div key={drafted ? "draft" : sugId || "now"} className="cs-ambient" aria-hidden>
       <EvidenceBoard cards={state.cards} pick={pick} heist={Boolean(state.settings.heist)} showEmpty={false} />
     </div>
   );

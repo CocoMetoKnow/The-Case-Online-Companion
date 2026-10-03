@@ -12,6 +12,7 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
   const state = useGame((s) => s.state);
   const actor = useActorId();
   const ask = useGame((s) => s.ask);
+  const draftPick = useGame((s) => s.draftPick);
   const hand = useMyHand();
   const [open, setOpen] = useState(startOpen);
   if (!state) return null;
@@ -43,6 +44,15 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
       confirmTitle={speak ? "Say this out loud" : "Your suggestion"}
       doneLabel={speak ? "Suggest" : "Ask the table"}
       fit={fit}
+      // Live to other phones, used only for their Extra Visuals background (speak mode included).
+      onPick={(chosen) =>
+        draftPick({
+          suspectId: chosen.suspect,
+          roomId: chosen.room,
+          weaponId: chosen.weapon,
+          timeId: chosen.time,
+        })
+      }
       onDone={(pick) => {
         if (!pick.suspect || !pick.weapon || !pick.room) return;
         ask({

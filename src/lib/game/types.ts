@@ -254,6 +254,11 @@ export interface GameState {
   wait?: { ids: string[]; since: number } | null;
   /** Cards chosen so far while this player is making their Solve the Case attempt. */
   naming?: NamingState | null;
+  /**
+   * Cards chosen so far while this player is building a suggestion. Only used so phones with Extra Visuals on can dress
+   * their background live. Nothing else reads it (speak mode's hidden cards stay hidden), and it is cleared the moment the suggestion is asked.
+   */
+  drafting?: DraftingState | null;
   /** The most recent suggestion and who showed a card for it. Stays until each player closes it. */
   lastSuggestion?: LastSuggestion | null;
   /** A card just shown in speak mode. Blank card id means this phone must not see it. */
@@ -278,6 +283,11 @@ export interface LastSuggestion {
    * speak mode: the suggestion was said out loud, so the table already knows it, and a phone with Extra Visuals on can still dress its screen.
    */
   look?: { suspectId: string; roomId: string; weaponId: string; timeId?: string };
+}
+
+export interface DraftingState extends NamingState {
+  /** The turn this draft belongs to, so a stale draft can never show up on a later turn. */
+  turn: number;
 }
 
 export interface NamingState {
