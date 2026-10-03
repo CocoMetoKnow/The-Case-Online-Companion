@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { cardArt } from "@/lib/game/cards";
 import { charCutout, itemCutout, roomBackdrop, timeWords } from "@/lib/game/scene-art";
-import { sfxDrama, sfxReveal, sfxSolveStart } from "@/lib/game/sfx";
-import { useImmersion } from "@/lib/game/immersion";
+import { sfxDrama, sfxReveal } from "@/lib/game/sfx";
+import { useExtraVisuals } from "@/lib/game/extra-visuals";
 import { turnActorId, useActorId, useGame } from "@/lib/game/store";
 import type { CardDef, CategoryId } from "@/lib/game/types";
 
@@ -169,61 +169,54 @@ export function Heartbeat() {
   return <div className="cs-heartbeat cs-heartbeat-self" aria-hidden />;
 }
 
-let lastSuggestion = "";
-
-/** Immersion Mode: a short scene for each suggestion. Tap anywhere to close it; it closes itself after a few seconds. */
-export function SuggestionScene() {
+/**
+ * Extra Visuals: the screen's background becomes the room that was named, with the suspect and the weapon standing
+ * behind the question screen and the time of day written across the top. It is only a background: no scene, no sound,
+ * nothing to tap, and the normal screen stays on top. It stays while the suggestion is being answered.
+ * It reads the cards from the suggestion's "look", which still reaches every phone in speak mode.
+ */
+export function ExtraVisualsBackdrop() {
   const state = useGame((s) => s.state);
-  const immersion = useImmersion();
-  const [shown, setShown] = useState<string | null>(null);
-  const q = state?.question;
-  const key =
-    state && q && q.suspectId && q.roomId && q.weaponId && state.phase !== "gameover" && state.phase !== "lobby"
-      ? `${state.startedAt ?? ""}:${state.turnIndex}:${q.askerId}:${q.suspectId}:${q.roomId}:${q.weaponId}:${q.timeId ?? ""}`
-      : "";
+  const on = useExtraVisuals();
+  const sug = state?.lastSuggestion ?? null;
+  const sugId = sug?.id ?? "";
+  const seen = useRef(sugId);
+  const [recent, setRecent] = useState(false);
 
   useEffect(() => {
-    if (!immersion || !key || key === lastSuggestion) return;
-    lastSuggestion = key;
-    setShown(key);
-    sfxSolveStart();
-    const timer = window.setTimeout(() => setShown((cur) => (cur === key ? null : cur)), 5600);
+    if (sugId === seen.current) return;
+    seen.current = sugId;
+    if (!sugId) return;
+    // A suggestion that nobody had to answer never opens a question screen, so its background lingers for a moment.
+    setRecent(true);
+    const timer = window.setTimeout(() => setRecent(false), 6500);
     return () => window.clearTimeout(timer);
-  }, [immersion, key]);
+  }, [sugId]);
 
-  if (!state || !q || !immersion || !shown || shown !== key) return null;
-  const asker = state.players.find((player) => player.id === q.askerId)?.name ?? "Someone";
-  const heist = Boolean(state.settings.heist);
-  const pick: Pick = { suspect: q.suspectId, weapon: q.weaponId, room: q.roomId, time: q.timeId };
-  const suspect = find(state.cards, q.suspectId);
-  const weapon = find(state.cards, q.weaponId);
-  const room = find(state.cards, q.roomId);
-  const time = find(state.cards, q.timeId);
+  const q = state?.question ?? null;
+  const questionOpen = Boolean(q) && state?.phase === "question";
+  const look =
+    sug?.look ??
+    (q && q.suspectId && q.roomId && q.weaponId
+      ? { suspectId: q.suspectId, roomId: q.roomId, weaponId: q.weaponId, timeId: q.timeId }
+      : undefined);
+  const active = Boolean(on && state && look && (questionOpen || recent) && state.phase !== "gameover" && state.phase !== "lobby");
+
+  useEffect(() => {
+    if (!active) return;
+    // Lets the question screens thin out their dark cover so the background can be seen through them.
+    document.documentElement.dataset.extraVisuals = "1";
+    return () => {
+      delete document.documentElement.dataset.extraVisuals;
+    };
+  }, [active]);
+
+  if (!active || !state || !look) return null;
+  const pick: Pick = { suspect: look.suspectId, weapon: look.weaponId, room: look.roomId, time: look.timeId };
   return (
-    <button type="button" className="cs-root cs-suggest" onClick={() => setShown(null)} aria-label="Close the scene" data-sfx="soft">
-      <EvidenceBoard cards={state.cards} pick={pick} heist={heist} staged showEmpty={false} />
-      <header className="cs-head">
-        <p className="cs-kicker">{heist ? "A theory" : "A suggestion"}</p>
-        <h2 className="cs-who cs-who-sm">{asker}</h2>
-      </header>
-      <p className="cs-line">
-        {heist ? "Did " : "Was it "}
-        <b>{suspect?.name}</b>
-        {heist ? " take the " : ", with the "}
-        <b>{weapon?.name}</b>
-        {", "}
-        {heist ? "from the " : "in the "}
-        <b>{room?.name}</b>
-        {time ? (
-          <>
-            {", at "}
-            <b>{timeWords(time)}</b>
-          </>
-        ) : null}
-        {"?"}
-      </p>
-      <span className="cs-tap">Tap to close</span>
-    </button>
+    <div key={sugId || "now"} className="cs-ambient" aria-hidden>
+      <EvidenceBoard cards={state.cards} pick={pick} heist={Boolean(state.settings.heist)} showEmpty={false} />
+    </div>
   );
 }
 

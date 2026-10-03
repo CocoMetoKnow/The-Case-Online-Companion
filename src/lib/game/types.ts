@@ -273,6 +273,11 @@ export interface LastSuggestion {
   /** The player who showed a card, or null when no one did. Never the card itself. */
   showerId: string | null;
   spoken?: boolean;
+  /**
+   * The same cards, kept for the Extra Visuals background only. Unlike cardIds this is not blanked on other phones in
+   * speak mode: the suggestion was said out loud, so the table already knows it, and a phone with Extra Visuals on can still dress its screen.
+   */
+  look?: { suspectId: string; roomId: string; weaponId: string; timeId?: string };
 }
 
 export interface NamingState {

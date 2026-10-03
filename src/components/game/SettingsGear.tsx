@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { setImmersion, useImmersion } from "@/lib/game/immersion";
+import { setExtraVisuals, useExtraVisuals } from "@/lib/game/extra-visuals";
 import { musicVolume, setMusicVolume, setSfxVolume, sfxTap, sfxVolume, unlockAudio } from "@/lib/game/sfx";
 import {
   ACCENT_COLORS,
@@ -133,7 +133,7 @@ export function SettingsGear() {
   // Volume bars, 0 to 100.
   const [music, setMusicLevel] = useState(() => Math.round(musicVolume() * 100));
   const [sounds, setSoundsLevel] = useState(() => Math.round(sfxVolume() * 100));
-  const immersion = useImmersion();
+  const extraVisuals = useExtraVisuals();
   const [ui, setUi] = useState(getUiColor);
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
@@ -238,18 +238,18 @@ export function SettingsGear() {
                     </div>
                     <div className="py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <span id="immersion-label">Immersion Mode</span>
+                        <span id="extra-visuals-label">Extra Visuals</span>
                         <Switch
-                          aria-labelledby="immersion-label"
-                          checked={immersion}
+                          aria-labelledby="extra-visuals-label"
+                          checked={extraVisuals}
                           onCheckedChange={(on) => {
-                            setImmersion(on);
+                            setExtraVisuals(on);
                             sfxTap();
                           }}
                         />
                       </div>
                       <p className="mt-1 text-xs text-muted">
-                        Each suggestion plays a scene: the room becomes the background, with the suspect, the weapon and the time of day. Solve the Case always plays its scene.
+                        During a suggestion the background becomes the room, with the suspect, the weapon and the time of day behind it. Works in speak mode too. Solve the Case always plays its scene.
                       </p>
                     </div>
                     <button

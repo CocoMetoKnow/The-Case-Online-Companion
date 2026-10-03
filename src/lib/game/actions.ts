@@ -61,6 +61,16 @@ function trackSuggestion(before: GameState, after: GameState, kind: string, payl
             cardIds,
             showerId: null,
             ...(before.settings?.speakMode ? { spoken: true } : {}),
+            ...(typeof pick.suspectId === "string" && typeof pick.roomId === "string" && typeof pick.weaponId === "string"
+              ? {
+                  look: {
+                    suspectId: pick.suspectId,
+                    roomId: pick.roomId,
+                    weaponId: pick.weaponId,
+                    ...(typeof pick.timeId === "string" && pick.timeId ? { timeId: pick.timeId } : {}),
+                  },
+                }
+              : {}),
           },
         };
       }
@@ -77,6 +87,11 @@ function trackSuggestion(before: GameState, after: GameState, kind: string, payl
     cardIds: [q.suspectId, q.roomId, q.weaponId, q.timeId].filter((id): id is string => Boolean(id)),
     showerId: shown ? (q.showerId ?? null) : null,
     ...(q.spoken ? { spoken: true } : {}),
+    ...(q.suspectId && q.roomId && q.weaponId
+      ? { look: { suspectId: q.suspectId, roomId: q.roomId, weaponId: q.weaponId, ...(q.timeId ? { timeId: q.timeId } : {}) } }
+      : continuing && prev?.look
+        ? { look: prev.look }
+        : {}),
   };
   if (
     prev &&
