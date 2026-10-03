@@ -194,7 +194,7 @@ export const DEFAULT_CARDS: CardDef[] = [
 	{
 		id: "poison-bottle",
 		category: "weapon",
-		name: "Poison Bottle",
+		name: "Poison",
 		blurb: "A chemist’s vial with a cracked seal.",
 		icon: "FlaskConical"
 	},

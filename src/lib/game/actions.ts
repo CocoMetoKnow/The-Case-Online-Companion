@@ -14,8 +14,8 @@ import {
   rollDice,
   setAvatar,
   setClassicNames,
-  setDrafting,
   setNaming,
+  setSuggesting,
   skipMove,
   turnActorId,
   voteSync,
@@ -23,7 +23,7 @@ import {
 import { resolveEventChoice } from "./events";
 import type { GameState, LastSuggestion, PiecePos, Secrets } from "./types";
 
-export type PlayKind = "roll" | "move" | "stay" | "ask" | "show" | "reply" | "ack" | "accuse" | "done" | "event" | "snake" | "name" | "draft" | "sync" | "avatar" | "classic";
+export type PlayKind = "roll" | "move" | "stay" | "ask" | "show" | "reply" | "ack" | "accuse" | "done" | "event" | "snake" | "name" | "suggesting" | "sync" | "avatar" | "classic";
 
 /**
  * One shared rules pass. The room runs this so every phone sees the same result.
@@ -37,10 +37,11 @@ export function applyPlay(
   kind: string,
   payload?: unknown,
 ): { state: GameState; secrets: Secrets } {
-  const played = applyPlayCore(state, secrets, from, kind, payload);
-  // Asking the table ends the live draft, whatever the answer turns out to be.
-  const result =
-    kind === "ask" && played.state.drafting ? { state: { ...played.state, drafting: null }, secrets: played.secrets } : played;
+  let result = applyPlayCore(state, secrets, from, kind, payload);
+  // Live suggestion picks only last while the asker is choosing. Anything else that happens ends them.
+  if (result.state.suggesting && !["suggesting", "name", "sync", "avatar", "classic"].includes(kind)) {
+    result = { state: { ...result.state, suggesting: null }, secrets: result.secrets };
+  }
   const tracked = trackSuggestion(state, result.state, kind, payload);
   return tracked === result.state ? result : { state: tracked, secrets: result.secrets };
 }
@@ -168,8 +169,8 @@ function applyPlayCore(
       return makeAccusation(state, from, data as { suspectId: string; roomId: string; weaponId: string; timeId?: string }, secrets);
     case "name":
       return { state: setNaming(state, from, data.clear ? null : data), secrets };
-    case "draft":
-      return { state: setDrafting(state, from, data.clear ? null : data), secrets };
+    case "suggesting":
+      return { state: setSuggesting(state, from, data.clear ? null : data), secrets };
     case "snake":
       return { state: declareSnakeEyes(state, from), secrets };
     case "done": {

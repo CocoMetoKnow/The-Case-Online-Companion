@@ -109,8 +109,8 @@ interface GameStore {
   accuse: (pick: { suspectId: string; roomId: string; weaponId: string; timeId?: string }) => void;
   dismissVerdict: () => void;
   namePick: (pick: { suspectId?: string; roomId?: string; weaponId?: string; timeId?: string } | null) => void;
-  /** Live suggestion picks for other phones with Extra Visuals on. Null clears them. */
-  draftPick: (pick: { suspectId?: string; roomId?: string; weaponId?: string; timeId?: string } | null) => void;
+  /** Live preview of a suggestion being picked, for phones with Extra Visuals on. */
+  suggestPick: (pick: { suspectId?: string; roomId?: string; weaponId?: string; timeId?: string } | null) => void;
   done: () => void;
   syncTable: (choice: { agree?: boolean; cancel?: boolean }) => void;
   eventChoice: (choice: Record<string, unknown>) => void;
@@ -172,7 +172,7 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
   const { state } = get();
   if (!state || state.settings.playMode !== "online") return false;
   if (!onlineSend) return false;
-  if (intent.kind === "name" || intent.kind === "draft" || intent.kind === "avatar" || intent.kind === "classic") {
+  if (intent.kind === "name" || intent.kind === "suggesting" || intent.kind === "avatar" || intent.kind === "classic") {
     onlineSend(intent);
     return true;
   }
@@ -958,11 +958,7 @@ export const useGame = create<GameStore>((set, get) => ({
   accuse: (pick) => play(get, set, "accuse", pick),
   dismissVerdict: () => set({ verdict: null, verdictSeen: get().verdictHold || get().verdictSeen, verdictHold: null }),
   namePick: (pick) => play(get, set, "name", pick ? pick : { clear: true }),
-  draftPick: (pick) => {
-    // Only an online table has other phones to show it to.
-    if (get().state?.settings.playMode !== "online") return;
-    play(get, set, "draft", pick ? pick : { clear: true });
-  },
+  suggestPick: (pick) => play(get, set, "suggesting", pick ? pick : { clear: true }),
   done: () => play(get, set, "done"),
   syncTable: (choice) => play(get, set, "sync", choice),
   eventChoice: (choice) => play(get, set, "event", choice),

@@ -84,3 +84,25 @@ test("the look follows the suggestion through to the answer", () => {
   assert.equal(cur.state.lastSuggestion?.id, id);
   assert.equal(cur.state.lastSuggestion?.look?.roomId, "hall");
 });
+
+test("live suggestion picks reach everyone and end when the question is asked", () => {
+  const start = base();
+  let cur = applyPlay(start, secrets(), "ada", "suggesting", { roomId: "study" });
+  assert.equal(cur.state.suggesting?.roomId, "study");
+  cur = applyPlay(cur.state, secrets(), "ada", "suggesting", { roomId: "study", suspectId: "lord", weaponId: "knife" });
+  const seen = sanitizeState(cur.state, "bea");
+  assert.equal(seen.suggesting?.suspectId, "lord", "other phones see the picks as they are made");
+  cur = applyPlay(cur.state, secrets(), "ada", "ask", { suspectId: "lord", roomId: "study", weaponId: "knife" });
+  assert.equal(cur.state.suggesting ?? null, null);
+});
+
+test("someone who is not on turn cannot put a live suggestion on the table", () => {
+  const out = applyPlay(base(), secrets(), "bea", "suggesting", { roomId: "study" });
+  assert.equal(out.state.suggesting ?? null, null);
+});
+
+test("closing the picker clears the live suggestion", () => {
+  let cur = applyPlay(base(), secrets(), "ada", "suggesting", { roomId: "study" });
+  cur = applyPlay(cur.state, secrets(), "ada", "suggesting", { clear: true });
+  assert.equal(cur.state.suggesting ?? null, null);
+});

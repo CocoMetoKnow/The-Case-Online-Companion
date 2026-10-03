@@ -1342,35 +1342,29 @@ export function setNaming(state: GameState, playerId: string, pick): GameState {
 		naming
 	};
 }
-/** Live picks for a suggestion, shown only as the Extra Visuals background on other phones. Works in speak mode too. */
-export function setDrafting(state: GameState, playerId: string, pick): GameState {
+export function setSuggesting(state: GameState, playerId: string, pick: { suspectId?: unknown; roomId?: unknown; weaponId?: unknown; timeId?: unknown; clear?: unknown } | null): GameState {
 	if (!pick || pick.clear) {
-		if (!state.drafting) return state;
-		if (state.drafting.playerId !== playerId && turnActorId(state) !== playerId) return state;
-		return {
-			...state,
-			drafting: null
-		};
+		if (!state.suggesting) return state;
+		if (state.suggesting.playerId !== playerId && turnActorId(state) !== playerId) return state;
+		return { ...state, suggesting: null };
 	}
-	if (state.phase !== "action") return state;
+	if (state.phase !== "action" || state.question) return state;
 	if ((state.actionsLeft ?? 1) <= 0) return state;
+	const cur = currentPlayer(state);
+	if (cur && (state.influences ?? []).some((item) => item.victimId === cur.id)) return state;
 	if (!canAct(state, playerId)) return state;
 	const subject = subjectOf(state, playerId);
 	if (!subject) return state;
-	const drafting = {
+	const next = {
 		playerId: subject,
-		turn: state.turnIndex,
 		suspectId: namedId(state, pick.suspectId, "suspect"),
 		roomId: namedId(state, pick.roomId, "room"),
 		weaponId: namedId(state, pick.weaponId, "weapon"),
 		timeId: state.settings.timeOfDayEnabled ? namedId(state, pick.timeId, "time") : undefined
 	};
-	const prev = state.drafting;
-	if (prev && prev.playerId === drafting.playerId && prev.turn === drafting.turn && prev.suspectId === drafting.suspectId && prev.roomId === drafting.roomId && prev.weaponId === drafting.weaponId && prev.timeId === drafting.timeId) return state;
-	return {
-		...state,
-		drafting
-	};
+	const prev = state.suggesting;
+	if (prev && prev.playerId === next.playerId && prev.suspectId === next.suspectId && prev.roomId === next.roomId && prev.weaponId === next.weaponId && prev.timeId === next.timeId) return state;
+	return { ...state, suggesting: next };
 }
 export function makeAccusation(state: GameState, playerId: string, pick, secrets: Secrets): { state: GameState; secrets: Secrets } {
 	const held = { state, secrets };

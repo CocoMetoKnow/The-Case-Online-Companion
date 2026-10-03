@@ -12,9 +12,26 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
   const state = useGame((s) => s.state);
   const actor = useActorId();
   const ask = useGame((s) => s.ask);
-  const draftPick = useGame((s) => s.draftPick);
   const hand = useMyHand();
+  const suggestPick = useGame((s) => s.suggestPick);
   const [open, setOpen] = useState(startOpen);
+  const sharing = useRef(false);
+  // Closing the picker, or leaving the screen, takes the live preview off everyone else's phone.
+  useEffect(() => {
+    if (!open && sharing.current) {
+      sharing.current = false;
+      suggestPick(null);
+    }
+  }, [open, suggestPick]);
+  useEffect(
+    () => () => {
+      if (sharing.current) {
+        sharing.current = false;
+        suggestPick(null);
+      }
+    },
+    [suggestPick],
+  );
   if (!state) return null;
   if (!canAsk(state, actor)) return null;
   // Speak mode picks cards the same way as every other mode. The table is still asked out loud, one player at
@@ -44,17 +61,18 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
       confirmTitle={speak ? "Say this out loud" : "Your suggestion"}
       doneLabel={speak ? "Suggest" : "Ask the table"}
       fit={fit}
-      // Live to other phones, used only for their Extra Visuals background (speak mode included).
-      onPick={(chosen) =>
-        draftPick({
+      onPick={(chosen) => {
+        sharing.current = true;
+        suggestPick({
           suspectId: chosen.suspect,
           roomId: chosen.room,
           weaponId: chosen.weapon,
           timeId: chosen.time,
-        })
-      }
+        });
+      }}
       onDone={(pick) => {
         if (!pick.suspect || !pick.weapon || !pick.room) return;
+        sharing.current = false;
         ask({
           suspectId: pick.suspect,
           roomId: pick.room,
