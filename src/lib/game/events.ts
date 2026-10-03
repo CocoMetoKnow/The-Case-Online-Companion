@@ -355,6 +355,8 @@ export function resolveEventChoice(
   // The way out for a power with nothing left to do (nowhere to move, nobody to pick). The player
   // reads the notice and taps "I've read it"; whoever is playing the turn, or the guest the power
   // is waiting on, can end it that way.
+  // A power-up can never be skipped: a request that says so is ignored, and the player has to play it out.
+  if (choice.skip) return { state, secrets };
   if (choice.finish) {
     const waitingOn = [ev.data.waitingId, ev.data.targetId, ev.data.viewerId, ev.data.holderId].map((id) => String(id ?? ""));
     const involved = !isOut(state, playerId) && waitingOn.includes(playerId);
@@ -362,9 +364,7 @@ export function resolveEventChoice(
     const sharedPhone = state.settings.playMode !== "online" && !isOut(state, playerId);
     if (!isTurnActor && !involved && !sharedPhone) return { state, secrets };
     const who = state.players.find((p) => p.id === playerId);
-    const line = choice.skip
-      ? `${who?.name ?? "A guest"} skipped the ${ev.title} power-up. The turn goes on.`
-      : `${who?.name ?? "A guest"} read the notice and finished the ${ev.title} power-up. The turn goes on.`;
+    const line = `${who?.name ?? "A guest"} read the notice and finished the ${ev.title} power-up. The turn goes on.`;
     return { state: settle(state, line), secrets };
   }
 

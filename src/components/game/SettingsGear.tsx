@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { setImmersion, useImmersion } from "@/lib/game/immersion";
 import { musicVolume, setMusicVolume, setSfxVolume, sfxTap, sfxVolume, unlockAudio } from "@/lib/game/sfx";
 import {
   ACCENT_COLORS,
@@ -131,6 +133,7 @@ export function SettingsGear() {
   // Volume bars, 0 to 100.
   const [music, setMusicLevel] = useState(() => Math.round(musicVolume() * 100));
   const [sounds, setSoundsLevel] = useState(() => Math.round(sfxVolume() * 100));
+  const immersion = useImmersion();
   const [ui, setUi] = useState(getUiColor);
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
@@ -232,6 +235,22 @@ export function SettingsGear() {
                         // Let go of the bar and a click plays, so the level can be judged by ear.
                         onValueCommit={() => sfxTap()}
                       />
+                    </div>
+                    <div className="py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span id="immersion-label">Immersion Mode</span>
+                        <Switch
+                          aria-labelledby="immersion-label"
+                          checked={immersion}
+                          onCheckedChange={(on) => {
+                            setImmersion(on);
+                            sfxTap();
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        Each suggestion plays a scene: the room becomes the background, with the suspect, the weapon and the time of day. Solve the Case always plays its scene.
+                      </p>
                     </div>
                     <button
                       type="button"

@@ -6,7 +6,8 @@ import { CardFace } from "./CardFace";
 import { CardHand } from "./CardHand";
 import { EventPanel } from "./EventPanel";
 import { CardReveal } from "./CardReveal";
-import { AccusationPanel, AccusationWatch, QuestionPanel, QuestionResolve } from "./QuestionPanel";
+import { AccusationPanel, QuestionPanel, QuestionResolve } from "./QuestionPanel";
+import { FinalReveal, FinalWatch, SuggestionScene } from "./CaseScene";
 import { sfxDice, sfxPaper } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
@@ -631,7 +632,9 @@ export function Briefcase() {
         </div>
       ) : null}
 
-      {state.phase !== "gameover" ? <AccusationWatch onLeave={() => setSureLeave(true)} /> : null}
+      {state.phase !== "gameover" ? <FinalWatch onLeave={() => setSureLeave(true)} /> : null}
+      <SuggestionScene />
+      <FinalReveal />
 
       {state.phase === "gameover" ? (
         <Victory

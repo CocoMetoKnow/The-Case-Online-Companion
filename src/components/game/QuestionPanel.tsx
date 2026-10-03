@@ -4,6 +4,7 @@ import { canAsk, currentPlayer, turnActorId, useActorId, useGame, useMyHand, use
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
+import { Heartbeat } from "./CaseScene";
 import { cn } from "@/lib/utils";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -663,6 +664,8 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
   const forced = Boolean(offered && steps.every((step) => initialPick[step]));
 
   return (
+    <>
+    {open ? <Heartbeat /> : null}
     <PickFlow
       open={open}
       onOpen={() => setOpen(true)}
@@ -701,6 +704,7 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
         });
       }}
     />
+    </>
   );
 }
 
@@ -733,43 +737,6 @@ function slotLine(cat: CategoryId, heist?: boolean) {
   if (cat === "weapon") return "Stolen";
   if (cat === "room") return "Where";
   return "When";
-}
-
-export function AccusationWatch({ onLeave }: { onLeave?: () => void }) {
-  const state = useGame((s) => s.state);
-  const actor = useActorId();
-  if (!state?.naming || state.phase === "gameover" || state.phase === "lobby") return null;
-  if (turnActorId(state) === actor) return null;
-  const naming = state.naming;
-  const who = state.players.find((player) => player.id === naming.playerId)?.name ?? "Someone";
-  const steps: CategoryId[] = state.settings.timeOfDayEnabled
-    ? ["suspect", "weapon", "room", "time"]
-    : ["suspect", "weapon", "room"];
-  const pick: Partial<Record<CategoryId, string>> = {
-    suspect: naming.suspectId,
-    weapon: naming.weaponId,
-    room: naming.roomId,
-    time: naming.timeId,
-  };
-  return (
-    <div className="folio-sheet overflow-auto" style={{ background: "#6d1a1a" }}>
-      <div className="mx-auto flex min-h-full max-w-lg flex-col px-4 py-5">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-xs uppercase tracking-[0.22em] text-[#ffe7a3]">
-            {"Solve the Case"}
-          </p>
-          {onLeave ? (
-            <button type="button" className="text-sm text-[#ffd7d2]" onClick={onLeave}>
-              Leave
-            </button>
-          ) : null}
-        </div>
-        <h2 className="mt-2 font-display text-5xl leading-none text-[#fff6f4]">{who}</h2>
-        <p className="mt-2 text-sm text-[#ffd7d2]">is naming the solution. Each card pops in, and a change replaces that card.</p>
-        <FinalSlots steps={steps} pick={pick} cards={state.cards} />
-      </div>
-    </div>
-  );
 }
 
 function FinalSlots({
