@@ -21,18 +21,18 @@ const ROOM_IDS = new Set([
 /** A host's own photo wins; otherwise the cut-out, otherwise nothing (the scene falls back to a framed card). */
 export function charCutout(card: CardDef | undefined): string | undefined {
   if (!card || card.imageDataUrl) return undefined;
-  return CHAR_IDS.has(card.id) ? `/cutouts/chars/${card.id}.webp` : undefined;
+  return CHAR_IDS.has(card.id) ? `/cutouts/chars/${card.id}.webp?v=2` : undefined;
 }
 
 export function itemCutout(card: CardDef | undefined, heist: boolean): string | undefined {
   if (!card || card.imageDataUrl) return undefined;
   if (!ITEM_IDS.has(card.id)) return undefined;
-  return heist ? `/cutouts/items/heist/${card.id}.webp` : `/cutouts/items/${card.id}.webp`;
+  return heist ? `/cutouts/items/heist/${card.id}.webp?v=2` : `/cutouts/items/${card.id}.webp?v=2`;
 }
 
 export function roomBackdrop(card: CardDef | undefined): string | undefined {
   if (!card || card.imageDataUrl) return card?.imageDataUrl;
-  return ROOM_IDS.has(card.id) ? `/cutouts/rooms/${card.id}.webp` : undefined;
+  return ROOM_IDS.has(card.id) ? `/cutouts/rooms/${card.id}.webp?v=2` : undefined;
 }
 
 /** The time of day in words: "Dusk", or "Dusk · 6:30" when the card prints a clock. */
