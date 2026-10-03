@@ -157,7 +157,7 @@ function fxStamp(state: GameState): string {
     .map(([id, turns]) => `${id}:${turns}`)
     .join(",");
   const influences = (state.influences ?? []).map((item) => `${item.victimId}:${item.controllerId}`).join(",");
-  return shortStamp([spy, hush, locks, influences, (state.skipIds ?? []).join(","), state.shortDieId ?? "", String(state.extraDie ?? ""), state.gambler ? `${state.gambler.playerId}:${state.gambler.category}` : ""]);
+  return shortStamp([spy, hush, locks, influences, (state.skipIds ?? []).join(","), state.shortDieId ?? "", String(state.extraDie ?? ""), state.gambler ? `${state.gambler.playerId}:${state.gambler.category}` : "", state.bonusRoom?.playerId ?? ""]);
 }
 
 /** Only what this phone needs for the current turn. The deck and rules stay on the phone after the first look. */
@@ -211,6 +211,7 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     spy: safe.spy ?? null,
     actionsLeft: safe.actionsLeft ?? 0,
     freeQuestion: Boolean(safe.freeQuestion),
+    bonusRoom: safe.bonusRoom ?? null,
     whisperMode: Boolean(safe.whisperMode),
     question: safe.phase === "question" ? safe.question : null,
     notice: safe.noticeFor === peer && safe.noticeSelf ? safe.noticeSelf : (safe.notice ?? null),
@@ -234,6 +235,7 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     sync: safe.sync ? { byId: String(safe.sync.byId), agreed: (safe.sync.agreed ?? []).map(String).slice(0, 15) } : null,
     naming: safe.phase === "gameover" || safe.naming?.playerId === peer ? (safe.naming ?? null) : null,
     privateShow: safe.privateShow ?? null,
+    lastSuggestion: safe.lastSuggestion ?? null,
     // Private to the guest it belongs to: it spells out which cards are in the envelope.
     pendingAnswer: safe.pendingAnswer && safe.pendingAnswer.askerId === peer ? safe.pendingAnswer : null,
   } as GameState;

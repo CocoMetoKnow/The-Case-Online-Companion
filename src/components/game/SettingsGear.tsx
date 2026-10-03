@@ -2,8 +2,8 @@ import { Check, ChevronLeft, ChevronRight, Settings, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { musicEnabled, setMusic, setSfx, sfxEnabled, unlockAudio } from "@/lib/game/sfx";
+import { Slider } from "@/components/ui/slider";
+import { musicVolume, setMusicVolume, setSfxVolume, sfxTap, sfxVolume, unlockAudio } from "@/lib/game/sfx";
 import {
   ACCENT_COLORS,
   CARD_COLORS,
@@ -128,16 +128,17 @@ function SwatchGrid<T extends { id: string; label: string }>({
  */
 export function SettingsGear() {
   const [panel, setPanel] = useState<Panel | null>(null);
-  const [music, setMusicOn] = useState(true);
-  const [sounds, setSoundsOn] = useState(true);
+  // Volume bars, 0 to 100.
+  const [music, setMusicLevel] = useState(() => Math.round(musicVolume() * 100));
+  const [sounds, setSoundsLevel] = useState(() => Math.round(sfxVolume() * 100));
   const [ui, setUi] = useState(getUiColor);
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
   const [journal, setJournal] = useState(getJournalColor);
 
   function openSettings() {
-    setMusicOn(musicEnabled());
-    setSoundsOn(sfxEnabled());
+    setMusicLevel(Math.round(musicVolume() * 100));
+    setSoundsLevel(Math.round(sfxVolume() * 100));
     setUi(getUiColor());
     setAccent(getAccentColor());
     setCard(getCardColor());
@@ -188,21 +189,50 @@ export function SettingsGear() {
                   </div>
 
                   <div className="mt-4 divide-y divide-line">
-                    <label className="flex items-center justify-between py-3">
-                      <span>Music</span>
-                      <Switch
-                        checked={music}
-                        aria-label="Music"
-                        onCheckedChange={(on) => {
+                    <div className="py-3">
+                      <div className="flex items-center justify-between">
+                        <span id="music-volume-label">Music</span>
+                        <span className="text-sm tabular-nums text-muted" aria-hidden="true">
+                          {music === 0 ? "Off" : `${music}%`}
+                        </span>
+                      </div>
+                      <Slider
+                        className="mt-3 h-6"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[music]}
+                        aria-label="Music volume"
+                        onValueChange={([value]) => {
+                          // Dragging is a real touch, so it also wakes audio on iOS Safari.
                           unlockAudio();
-                          setMusicOn(setMusic(on));
+                          setMusicLevel(value);
+                          setMusicVolume(value / 100);
                         }}
                       />
-                    </label>
-                    <label className="flex items-center justify-between py-3">
-                      <span>Sound effects</span>
-                      <Switch checked={sounds} aria-label="Sound effects" onCheckedChange={(on) => setSoundsOn(setSfx(on))} />
-                    </label>
+                    </div>
+                    <div className="py-3">
+                      <div className="flex items-center justify-between">
+                        <span id="sfx-volume-label">Sound effects</span>
+                        <span className="text-sm tabular-nums text-muted" aria-hidden="true">
+                          {sounds === 0 ? "Off" : `${sounds}%`}
+                        </span>
+                      </div>
+                      <Slider
+                        className="mt-3 h-6"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={[sounds]}
+                        aria-label="Sound effects volume"
+                        onValueChange={([value]) => {
+                          setSoundsLevel(value);
+                          setSfxVolume(value / 100);
+                        }}
+                        // Let go of the bar and a click plays, so the level can be judged by ear.
+                        onValueCommit={() => sfxTap()}
+                      />
+                    </div>
                     <button
                       type="button"
                       className="flex w-full items-center justify-between gap-3 py-3 text-left"

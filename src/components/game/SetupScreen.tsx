@@ -1,6 +1,6 @@
 import { asHeist, cardArt, classicName, CLASSIC_CARDS, DEFAULT_CARDS, EVENT_DEFS, EXTRA_GUESTS, EXTRA_WEAPONS, MIN_CATEGORY_CARDS, PHYSICAL_EVENTS, UNDERGROUND_ROOMS, answerCards } from "@/lib/game/cards";
 import { useGame } from "@/lib/game/store";
-import type { CardDef, CategoryId, EventKind } from "@/lib/game/types";
+import type { CardDef, CategoryId, EventKind, GameSettings } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -15,6 +15,148 @@ const BASE_SUSPECTS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => 
 const BASE_ROOMS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c.category === "room"));
 const BASE_WEAPONS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c.category === "weapon"));
 const TIME_CARDS = DEFAULT_CARDS.filter((c) => c.category === "time");
+
+const PRESET_NAMES: Record<string, string> = { classic: "Opening Night", default: "Harrington House", take: "The Take" };
+
+/**
+ * One button on the setup screen that opens a popup with the three choices made before anyone joins:
+ * the Preset Decks, how many phones are in play, and how many players can join.
+ */
+function StartingSettings({
+  setId,
+  playMode,
+  picked,
+  seatMax,
+  answers,
+  loadPreset,
+  patchSettings,
+}: {
+  setId: string;
+  playMode: string;
+  picked: number;
+  seatMax: number;
+  answers: number;
+  loadPreset: (id: "classic" | "harrington" | "take") => void;
+  patchSettings: (patch: Partial<GameSettings>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const deck = PRESET_NAMES[setId];
+  const phones = playMode === "hotseat" ? "This phone" : "One phone each";
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-between gap-3 rounded-[16px] border border-line px-4 py-3 text-left"
+      >
+        <span>
+          <span className="block font-display text-xl leading-tight">Starting Settings</span>
+          <span className="mt-0.5 block text-sm text-muted">
+            {deck ? `${deck} · ` : ""}
+            {phones} · up to {picked} players
+          </span>
+        </span>
+        <span aria-hidden className="text-muted">
+          ›
+        </span>
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent title="Starting Settings" className="max-h-[min(720px,calc(100%-24px))] overflow-y-auto">
+          <div className="mt-4 space-y-5">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-subtle">Preset Decks</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => loadPreset("classic")}
+                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setId === "classic" ? "border-brass bg-raised" : "border-line"}`}
+              >
+                Opening Night
+              </button>
+              <button
+                type="button"
+                onClick={() => loadPreset("harrington")}
+                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setId === "default" ? "border-brass bg-raised" : "border-line"}`}
+              >
+                Harrington House
+              </button>
+              <button
+                type="button"
+                onClick={() => loadPreset("take")}
+                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setId === "take" ? "border-brass bg-raised" : "border-line"}`}
+              >
+                The Take
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-subtle">Phones</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["online", "One each"],
+                  ["hotseat", "This phone"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => patchSettings({ playMode: id, honorHands: false })}
+                  className={`h-11 rounded-[12px] border text-sm ${
+                    playMode === id ? "border-brass bg-raised" : "border-line"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-sm text-muted">Online, each person uses their own phone. The lobby stops at the number you pick.</p>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-subtle">How many can join</p>
+            <p className="mt-1 text-sm text-muted">
+              Pick the most that can join, up to 15. If fewer sit down, the deal uses only those players. A full table of 15 needs {answers === 4 ? "19" : "18"} cards on.
+            </p>
+            <div className="mt-2 grid grid-cols-7 gap-2">
+              {Array.from({ length: 14 }, (_, index) => index + 2).map((count) => {
+                return (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => patchSettings({ maxPlayers: count })}
+                    className={`h-11 rounded-[12px] border text-sm ${
+                      picked === count ? "border-brass bg-raised" : "border-line"
+                    }`}
+                  >
+                    {count}
+                  </button>
+                );
+              })}
+            </div>
+            {seatMax < 2 ? (
+              <p className="mt-2 text-sm text-muted">Turn on more cards before anyone can sit down.</p>
+            ) : seatMax < picked ? (
+              <p className="mt-2 text-sm text-brass">
+                You picked {picked}. This deck can give {seatMax} players a card, so the lobby stops there. Any smaller group still gets an even hand.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-brass">
+                {picked} can join. If only some of them sit down, those players are dealt the cards.
+              </p>
+            )}
+          </div>
+
+          </div>
+          <Button className="mt-5 w-full" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export function SetupScreen() {
   const setup = useGame((s) => s.setup);
@@ -190,90 +332,15 @@ export function SetupScreen() {
             ) : null}
           </div>
 
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-subtle">Start from</p>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => loadPreset("classic")}
-                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setup.setId === "classic" ? "border-brass bg-raised" : "border-line"}`}
-              >
-                Opening Night
-              </button>
-              <button
-                type="button"
-                onClick={() => loadPreset("harrington")}
-                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setup.setId === "default" ? "border-brass bg-raised" : "border-line"}`}
-              >
-                Harrington House
-              </button>
-              <button
-                type="button"
-                onClick={() => loadPreset("take")}
-                className={`min-h-11 rounded-[12px] border px-1 py-2 text-xs leading-tight sm:text-sm ${setup.setId === "take" ? "border-brass bg-raised" : "border-line"}`}
-              >
-                The Take
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-subtle">Phones</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["online", "One each"],
-                  ["hotseat", "This phone"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => patchSettings({ playMode: id, honorHands: false })}
-                  className={`h-11 rounded-[12px] border text-sm ${
-                    setup.settings.playMode === id ? "border-brass bg-raised" : "border-line"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-sm text-muted">Online, each person uses their own phone. The lobby stops at the number you pick.</p>
-          </div>
-
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-subtle">How many can join</p>
-            <p className="mt-1 text-sm text-muted">
-              Pick the most that can join, up to 15. If fewer sit down, the deal uses only those players. A full table of 15 needs {answers === 4 ? "19" : "18"} cards on.
-            </p>
-            <div className="mt-2 grid grid-cols-7 gap-2">
-              {Array.from({ length: 14 }, (_, index) => index + 2).map((count) => {
-                return (
-                  <button
-                    key={count}
-                    type="button"
-                    onClick={() => patchSettings({ maxPlayers: count })}
-                    className={`h-11 rounded-[12px] border text-sm ${
-                      picked === count ? "border-brass bg-raised" : "border-line"
-                    }`}
-                  >
-                    {count}
-                  </button>
-                );
-              })}
-            </div>
-            {seatMax < 2 ? (
-              <p className="mt-2 text-sm text-muted">Turn on more cards before anyone can sit down.</p>
-            ) : seatMax < picked ? (
-              <p className="mt-2 text-sm text-brass">
-                You picked {picked}. This deck can give {seatMax} players a card, so the lobby stops there. Any smaller group still gets an even hand.
-              </p>
-            ) : (
-              <p className="mt-2 text-sm text-brass">
-                {picked} can join. If only some of them sit down, those players are dealt the cards.
-              </p>
-            )}
-          </div>
+          <StartingSettings
+            setId={setup.setId}
+            playMode={setup.settings.playMode}
+            picked={picked}
+            seatMax={seatMax}
+            answers={answers}
+            loadPreset={loadPreset}
+            patchSettings={patchSettings}
+          />
 
           <CardGroup
             title={CATEGORY_LABEL.suspect}

@@ -1,4 +1,4 @@
-import type { GameState } from "./types";
+import { NPC_ID, type GameState } from "./types";
 
 export function sanitizeState(state: GameState, viewerId: string): GameState {
   const q = state.question;
@@ -73,5 +73,12 @@ export function sanitizeState(state: GameState, viewerId: string): GameState {
   if (privateShow && viewerId !== privateShow.fromId && viewerId !== privateShow.toId) {
     privateShow = { ...privateShow, cardId: "" };
   }
-  return { ...state, question, event, hush, spy, privateShow, gambler };
+  let lastSuggestion = state.lastSuggestion ?? null;
+  if (lastSuggestion && viewerId !== lastSuggestion.askerId) {
+    // Extra Difficulty: only the asker is told the NPC showed a card. To everyone else it looks like no one did.
+    if (lastSuggestion.showerId === NPC_ID) lastSuggestion = { ...lastSuggestion, showerId: null };
+    // Speak mode: the cards were said out loud, so other screens never carry them.
+    if (lastSuggestion.spoken) lastSuggestion = { ...lastSuggestion, cardIds: [] };
+  }
+  return { ...state, question, event, hush, spy, privateShow, gambler, lastSuggestion };
 }

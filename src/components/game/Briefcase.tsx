@@ -128,7 +128,9 @@ export function Briefcase() {
     if (turnActorId(state) !== actor) return;
     if (shownRoll.current === diceSig) return;
     shownRoll.current = diceSig;
-    setRollNote(diceSig);
+    // Let the dice finish tumbling before the result note covers them.
+    const wait = setTimeout(() => setRollNote(diceSig), 950);
+    return () => clearTimeout(wait);
   }, [diceSig, state, actor]);
 
   useEffect(() => {
@@ -298,6 +300,7 @@ export function Briefcase() {
       ? {
           card: shownCard,
           who: qShow?.showerId === NPC_ID ? "The NPC" : state.players.find((player) => player.id === qShow?.showerId)?.name ?? "A guest",
+          npc: qShow?.showerId === NPC_ID,
           ack: askedMe,
         }
       : null;
@@ -664,6 +667,7 @@ export function Briefcase() {
         card={shownToMe?.card ?? null}
         who={shownToMe?.who ?? ""}
         note={shownToMe && !shownToMe.ack ? "You spied this." : undefined}
+        silent={Boolean(shownToMe?.npc)}
         onDismiss={() => {
           if (!shownToMe) return;
           if (shownToMe.ack) ackCard();

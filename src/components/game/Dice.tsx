@@ -1,4 +1,5 @@
 import { Pointer } from "lucide-react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const PIPS: Record<number, Array<[number, number]>> = {
@@ -75,6 +76,50 @@ export function DicePair({
   );
 }
 
+/**
+ * A real roll: the faces flick through random numbers while the die tumbles, then it lands on the
+ * result. Players who ask their phone to reduce motion just see the result.
+ */
+const TUMBLE_MS = 850;
+const FLICK_MS = 70;
+function useTumble(n: number, toss: number, delay: number, live: boolean) {
+  const [shown, setShown] = useState(n);
+  const [rolling, setRolling] = useState(false);
+  useEffect(() => {
+    const calm = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!live || toss <= 0 || calm) {
+      setShown(n);
+      setRolling(false);
+      return;
+    }
+    let flick: ReturnType<typeof setInterval> | undefined;
+    let land: ReturnType<typeof setTimeout> | undefined;
+    // Each die starts on its own beat, so the pair does not move in lockstep.
+    const start = setTimeout(() => {
+      setRolling(true);
+      let last = 0;
+      flick = setInterval(() => {
+        // Never the same face twice in a row, so it always looks like it is moving.
+        let next = 1 + Math.floor(Math.random() * 6);
+        if (next === last) next = (next % 6) + 1;
+        last = next;
+        setShown(next);
+      }, FLICK_MS);
+      land = setTimeout(() => {
+        if (flick) clearInterval(flick);
+        setShown(n);
+        setRolling(false);
+      }, TUMBLE_MS - delay);
+    }, delay);
+    return () => {
+      clearTimeout(start);
+      if (flick) clearInterval(flick);
+      if (land) clearTimeout(land);
+    };
+  }, [n, toss, delay, live]);
+  return { shown, rolling };
+}
+
 function Die({
   n,
   toss,
@@ -94,14 +139,17 @@ function Die({
   large?: boolean;
   small?: boolean;
 }) {
-  const face = PIPS[n] ?? PIPS[1];
+  const { shown, rolling } = useTumble(n, toss, delay, live);
+  const face = PIPS[shown] ?? PIPS[1];
+  // The magnifying glass and the snake eyes ring only show once the die has stopped.
+  const showGlass = glass && !rolling;
   return (
     <div
       key={toss}
-      className={cn("die-body", live && toss > 0 && "die-hit", snake && "die-snake")}
+      className={cn("die-body", live && toss > 0 && "die-hit", snake && !rolling && "die-snake")}
       style={{ animationDelay: `${delay}ms` }}
     >
-      {!glass ? (
+      {!showGlass ? (
         face.map(([x, y], i) => (
           <span
             key={i}

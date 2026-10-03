@@ -718,8 +718,8 @@ const SLOT: Record<CategoryId, string> = {
   time: "Time",
 };
 
-function askLine(cat: CategoryId, heist?: boolean, suggesting?: boolean) {
-  if (suggesting && cat === "room") return "What room are you in?";
+function askLine(cat: CategoryId, heist?: boolean, suggesting?: boolean, bonus?: boolean) {
+  if (suggesting && cat === "room") return bonus ? "Name any room." : "What room are you in?";
   if (!heist) return ASK[cat];
   if (cat === "suspect") return "Who took it?";
   if (cat === "weapon") return "What was stolen?";
@@ -906,6 +906,8 @@ function PickFlow({
   if (!state) return null;
   const fog = (state.notesLock?.[actorId] ?? 0) > 0;
   const final = tone === "final";
+  // Gambler bonus suggestion: any room may be named, and the asker's character moves into it.
+  const bonusAnyRoom = !final && state.bonusRoom?.playerId === actorId;
   const shownIds = new Set(notes.shown.map((item) => item.cardId));
   for (const [id, cell] of Object.entries(notes.marks)) {
     if (cell?.envelope === "check") shownIds.add(id);
@@ -915,8 +917,18 @@ function PickFlow({
   const chosen = steps
     .map((id) => state.cards.find((c) => c.id === pick[id]))
     .filter((card): card is CardDef => Boolean(card));
+  // Suggestions show the cards you marked as the answer in your journal the same way Solve the Case does:
+  // a star on the card and a ring on it until you pick something else for that group.
+  const marked: Partial<Record<CategoryId, string>> = {};
+  if (suggesting && !fog) {
+    for (const card of state.cards) {
+      if (notes.marks[card.id]?.envelope === "answer" && !handIds.includes(card.id)) marked[card.category] = card.id;
+    }
+  }
+  const picks = final ? circled : marked;
   const statusOf = (id: string): "yours" | "shown" | "unseen" | "answer" | undefined => {
     if (final) return Object.values(circled).includes(id) ? "answer" : undefined;
+    if (Object.values(marked).includes(id)) return "answer";
     if (handIds.includes(id)) return "yours";
     if (shownIds.has(id)) return "shown";
     return "unseen";
@@ -986,16 +998,20 @@ function PickFlow({
         ) : (
           <>
             <div className="shrink-0">
-              <p className="font-display text-3xl leading-none">{askLine(current, state.settings.heist, suggesting)}</p>
+              <p className="font-display text-3xl leading-none">{askLine(current, state.settings.heist, suggesting, bonusAnyRoom)}</p>
               {suggesting && current === "room" ? (
-                <p className="mt-1 text-sm text-[#5c4a38]">That room card has to be in this question.</p>
+                <p className="mt-1 text-sm text-[#5c4a38]">{bonusAnyRoom ? "Your bonus suggestion: any room. Your character moves there too." : "That room card has to be in this question."}</p>
               ) : null}
               <p className={final ? "truncate text-[11px] uppercase tracking-[0.14em] text-[#ffd0c8]" : "truncate text-[11px] uppercase tracking-[0.14em] text-brass"}>
                 {step + 1} of {steps.length}
                 {chosen.length ? ` · ${chosen.map((card) => card.name).join(" · ")}` : ""}
               </p>
               <p className={final ? "truncate text-[11px] text-[#ffe7a8]" : "truncate text-[11px] text-muted"}>
-                {final ? "✓ checked out · ✕ ruled out · ? not sure · ★ the one you marked" : "◆ in your hand · ✓ shown to you · ○ not seen yet"}
+                {final
+                  ? "✓ checked out · ✕ ruled out · ? not sure · ★ the one you marked"
+                  : marked[current]
+                    ? "★ the one you marked · ◆ in your hand · ✓ shown to you · ○ not seen yet"
+                    : "◆ in your hand · ✓ shown to you · ○ not seen yet"}
               </p>
             </div>
             <div
@@ -1012,26 +1028,26 @@ function PickFlow({
                     fill
                     badge={fog || final ? undefined : statusOf(card.id)}
                     sheetMark={fog || final ? sheetOf(card.id) : undefined}
-                    selected={pick[current] ? pick[current] === card.id : circled[current] === card.id}
+                    selected={pick[current] ? pick[current] === card.id : picks[current] === card.id}
                     onClick={() => choose(card.id)}
                   />
                 </div>
               ))}
             </div>
-            {step > 0 || (final && circled[current]) ? (
+            {step > 0 || picks[current] ? (
               <div className="mt-2 flex shrink-0 gap-2">
                 {step > 0 ? (
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => setStep(step - 1)}>
                     Back
                   </Button>
                 ) : null}
-                {final && circled[current] ? (
+                {picks[current] ? (
                   <Button
                     size="sm"
                     variant="paper"
                     className="flex-1"
                     onClick={() => {
-                      const id = circled[current];
+                      const id = picks[current];
                       if (id) choose(id);
                     }}
                   >
@@ -1102,9 +1118,9 @@ function PickFlow({
           <p className={final ? "text-xs uppercase tracking-[0.16em] text-[#ffd0c8]" : "text-xs uppercase tracking-[0.16em] text-brass"}>
             {step + 1} of {steps.length}
           </p>
-          <p className="font-display text-2xl leading-tight">{askLine(current, state.settings.heist, suggesting)}</p>
+          <p className="font-display text-2xl leading-tight">{askLine(current, state.settings.heist, suggesting, bonusAnyRoom)}</p>
           {suggesting && current === "room" ? (
-            <p className="mt-1 text-sm text-muted">That room card has to be in this question.</p>
+            <p className="mt-1 text-sm text-muted">{bonusAnyRoom ? "Your bonus suggestion: any room. Your character moves there too." : "That room card has to be in this question."}</p>
           ) : null}
           {final && circled[current] && !fog ? (
             <p className="mt-1 text-sm text-[#ffe7a8]">
@@ -1128,7 +1144,7 @@ function PickFlow({
                   choice
                   badge={fog || final ? undefined : statusOf(card.id)}
                   sheetMark={fog || final ? sheetOf(card.id) : undefined}
-                  selected={pick[current] ? pick[current] === card.id : circled[current] === card.id}
+                  selected={pick[current] ? pick[current] === card.id : picks[current] === card.id}
                   onClick={() => {
                     const next = { ...pick, [current]: card.id };
                     setPick(next);
@@ -1141,7 +1157,27 @@ function PickFlow({
             ))}
           </div>
           {!final ? (
-            <p className="mt-2 text-xs text-muted">◆ in your hand · ✓ shown to you · ○ not seen yet</p>
+            <>
+              <p className="mt-2 text-xs text-muted">
+                {marked[current] ? "★ the one you marked · " : ""}◆ in your hand · ✓ shown to you · ○ not seen yet
+              </p>
+              {marked[current] ? (
+                <Button
+                  className="mt-3 w-full"
+                  variant="paper"
+                  onClick={() => {
+                    const id = marked[current];
+                    if (!id) return;
+                    const next = { ...pick, [current]: id };
+                    setPick(next);
+                    setStep(step + 1);
+                    onPick?.(next);
+                  }}
+                >
+                  Use the marked card
+                </Button>
+              ) : null}
+            </>
           ) : circled[current] ? (
             <Button
               className="mt-3 w-full"

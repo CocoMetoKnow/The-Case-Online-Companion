@@ -188,8 +188,13 @@ test("Extra Difficulty: the NPC is dealt a hand, but never gets a seat or a turn
   assert.equal(dealt.state.players.length, 3);
   assert.ok(!dealt.state.turnOrder.includes(NPC_ID));
   const sizes = [...dealt.state.players.map((p) => p.id), NPC_ID].map((id) => (dealt.secrets.hands[id] ?? []).length);
-  assert.ok(sizes[sizes.length - 1] > 0, "NPC holds cards");
-  assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 0, `even deal, got ${sizes}`);
+  const npcSize = sizes[sizes.length - 1];
+  const playerSizes = sizes.slice(0, -1);
+  assert.ok(npcSize > 0, "NPC holds cards");
+  assert.ok(Math.max(...playerSizes) - Math.min(...playerSizes) <= 0, `players get an even deal, got ${playerSizes}`);
+  // The NPC also takes the Table cards, even when that gives it more than the players.
+  assert.ok(npcSize >= playerSizes[0], `NPC has at least as many as a player, got ${sizes}`);
+  assert.deepEqual(dealt.state.leftover, [], "no card is left face up on the table");
   const plain = dealAndStart({ ...lobby, settings: { ...lobby.settings, extraDifficulty: false } }, { solution: {}, hands: {} });
   assert.equal(plain.secrets.hands[NPC_ID], undefined);
 });

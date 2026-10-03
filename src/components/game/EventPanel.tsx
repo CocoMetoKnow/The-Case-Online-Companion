@@ -31,7 +31,18 @@ export function EventPanel() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [promptKey, hidden]);
+  // A power drawn by a roll waits for the dice to finish tumbling before it covers them.
+  const diceSig = state?.dice ? `${state.turnIndex}:${state.dice[0]}-${state.dice[1]}` : "";
+  const [settling, setSettling] = useState("");
+  useEffect(() => {
+    if (!diceSig || !live || live.step !== "reveal") return;
+    setSettling(diceSig);
+    const wait = setTimeout(() => setSettling(""), 950);
+    return () => clearTimeout(wait);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diceSig, Boolean(live)]);
   if (!state?.event || state.phase !== "event") return null;
+  if (settling && settling === diceSig && state.event.step === "reveal") return null;
   const ev = state.event;
   const close = () => setClosedKey(promptKey);
   const cur = currentPlayer(state);
@@ -54,7 +65,7 @@ export function EventPanel() {
 
   if (ev.step === "board") {
     return (
-      <PowerShell onClose={close} className="wood-panel max-h-[92dvh] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
+      <PowerShell onClose={close} className="wood-panel max-h-[calc(100dvh-32px)] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
         <SnakeCallout title={ev.title} description={String(ev.data.boardNote ?? description)} />
         <BoardConfirm />
       </PowerShell>
@@ -62,21 +73,19 @@ export function EventPanel() {
   }
 
   if (ev.step === "reveal") {
-    const seen = Array.isArray(ev.data.seen) ? ev.data.seen.map(String) : [];
-    const waiting = state.players.filter((player) => !player.eliminated && !seen.includes(player.id));
-    const agreed = seen.includes(actor);
+    // Only the player who drew the power-up has to confirm it. Everyone else reads along and waits.
     return (
       <PowerShell onClose={close} className="case-shell w-full max-w-sm rounded-[28px] px-6 py-6 text-center">
         <>
-          <h2 className="font-display text-4xl leading-none text-paper">{ev.title}</h2>
+          <p className="text-xs uppercase tracking-[0.18em] text-brass">{acting ? "Your power-up" : `${cur?.name ?? "A player"}'s power-up`}</p>
+          <h2 className="mt-2 font-display text-4xl leading-none text-paper">{ev.title}</h2>
           <p className="mt-3 text-sm text-paper">{description}</p>
-          {waiting.length ? <p className="mt-2 text-sm text-muted">Waiting on {waiting.map((player) => player.name).join(", ")}.</p> : null}
-          {agreed ? (
-            <p className="mt-3 text-sm text-paper">You agreed. This stays the same power for everyone.</p>
-          ) : (
+          {acting ? (
             <Button className="mt-4 w-full" onClick={() => eventChoice({ confirm: true })}>
               This power is in effect
             </Button>
+          ) : (
+            <p className="mt-3 text-sm text-muted">Waiting on {cur?.name ?? "the player"} to confirm.</p>
           )}
         </>
       </PowerShell>
@@ -128,7 +137,7 @@ export function EventPanel() {
     <PowerShell
       onClose={close}
       className={cn(
-        "wood-panel max-h-[96dvh] w-full overflow-y-auto rounded-[20px]",
+        "wood-panel max-h-[calc(100dvh-32px)] w-full overflow-y-auto rounded-[20px]",
         pickingCards ? "max-w-md p-3" : "max-w-sm p-4",
       )}
     >
@@ -270,7 +279,7 @@ export function EventPanel() {
       ) : null}
 
       {ev.kind === "blocked-out" && acting ? (
-        <PlayerPick exclude="" label="Block their notes for two turns" onPick={(id) => eventChoice({ targetId: id })} />
+        <PlayerPick exclude="" label="Block their notes for their next turn" onPick={(id) => eventChoice({ targetId: id })} />
       ) : null}
 
       {(["name-suspect", "name-weapon", "name-room", "name-time"] as const).includes(ev.kind as "name-suspect") &&
@@ -439,12 +448,12 @@ function PowerShell({ onClose, className, children }: { onClose: () => void; cla
   return (
     <div
       className="roll-stage"
-      style={{ zIndex: 70 }}
+      style={{ zIndex: 70, overflowY: "auto", WebkitOverflowScrolling: "touch" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className={cn("relative", className)} role="dialog" aria-label="Power-up">
+      <div className={cn("relative m-auto", className)} role="dialog" aria-label="Power-up">
         <button type="button" aria-label="Close power-up" className="power-close" onClick={onClose}>
           ✕
         </button>

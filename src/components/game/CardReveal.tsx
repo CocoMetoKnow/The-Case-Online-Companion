@@ -21,11 +21,14 @@ export function CardReveal({
   card,
   who,
   note,
+  silent = false,
   onDismiss,
 }: {
   card: CardDef | null;
   who: string;
   note?: string;
+  /** The NPC is showing this card: it slides in without the paper sound (or the press click when it is dismissed). */
+  silent?: boolean;
   onDismiss: () => void;
 }) {
   const syncSheet = useGame((s) => s.syncSheet);
@@ -47,7 +50,7 @@ export function CardReveal({
     syncSheet();
     const frame = requestAnimationFrame(() => {
       setOpen(true);
-      sfxReveal();
+      if (!silent) sfxReveal();
     });
     return () => cancelAnimationFrame(frame);
     // Only a different card re-triggers the reveal.
@@ -72,6 +75,7 @@ export function CardReveal({
       className="reveal-layer"
       data-open={open}
       aria-hidden={!open}
+      data-sfx={silent ? "none" : undefined}
       role="dialog"
       aria-label={shown ? `${held?.who} shows you ${shown.name}` : "Card shown to you"}
       onClick={open ? onDismiss : undefined}

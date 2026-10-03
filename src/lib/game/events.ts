@@ -1,6 +1,6 @@
 import { PHYSICAL_EVENTS, eventsForPlayers } from "./cards";
 import { nearestRooms, roomById, START_HALL } from "./board";
-import { currentName, currentPlayer, holdForBoard, placePlayer, roomsInPlay, turnActorId } from "./engine";
+import { SPEED_BOOST_MULTIPLIER, SPEED_BOOST_TURNS, currentName, currentPlayer, holdForBoard, placePlayer, roomsInPlay, turnActorId } from "./engine";
 import type { CategoryId, EventKind, GameState, PiecePos, Secrets } from "./types";
 import { uid } from "../utils";
 
@@ -264,18 +264,19 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
         secrets,
       };
     case "food-poisoning": {
-      // Every other guest still in the game. The one who drew it keeps their own notes, otherwise
-      // their notes would shut in the middle of the turn they are playing.
+      // Everyone at the table, the player who drew it too. Their notes stay shut for their next turn.
+      // The drawer is already mid turn and the lock ticks down when that turn ends, so they get one
+      // extra tick to still be shut for their next turn.
       const notesLock = { ...(state.notesLock ?? {}) };
       const drawer = currentPlayer(state);
       for (const p of state.players) {
-        if (p.eliminated || p.id === drawer?.id) continue;
-        notesLock[p.id] = (notesLock[p.id] ?? 0) + 1;
+        if (p.eliminated) continue;
+        notesLock[p.id] = (notesLock[p.id] ?? 0) + (p.id === drawer?.id ? 2 : 1);
       }
       return {
         state: settle(
           { ...state, notesLock },
-          "Supper sits badly. Every other guest's notes stay shut for their next turn only.",
+          "Supper sits badly. Everyone's notes stay shut for their next turn.",
         ),
         secrets,
       };
@@ -291,12 +292,21 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
       };
     }
     case "second-wind": {
+      const who = currentPlayer(state);
       const first = state.moveBudget ?? 0;
       const a = 1 + Math.floor(Math.random() * 6);
       const b = 1 + Math.floor(Math.random() * 6);
-      const total = (first || a + b) * 2;
+      const total = (first || a + b) * SPEED_BOOST_MULTIPLIER;
       return {
-        state: settle({ ...state, pace: total, moveBudget: total }, `Speed boost. Move ${total} this turn.`),
+        state: settle(
+          {
+            ...state,
+            pace: total,
+            moveBudget: total,
+            speedBoost: who ? { playerId: who.id, turns: SPEED_BOOST_TURNS } : (state.speedBoost ?? null),
+          },
+          `Speed boost. ${who?.name ?? "The player"} moves ${total} this turn, and triples every roll next turn too.`,
+        ),
         secrets,
       };
     }
@@ -354,24 +364,10 @@ export function resolveEventChoice(
   }
 
   if (ev.step === "reveal") {
+    // Only the player who drew the power-up has to confirm it. Everyone else just reads along.
     const living = state.players.filter((player) => !player.eliminated);
     if (!living.some((player) => player.id === playerId)) return { state, secrets };
-    const seen = Array.isArray(ev.data.seen) ? (ev.data.seen as string[]).map(String) : [];
-    const nextSeen = readyList(state, seen, playerId);
-    const waiting = stillNeed(state, nextSeen);
-    if (waiting.length) {
-      if (nextSeen.length === seen.length) return { state, secrets };
-      return {
-        state: {
-          ...state,
-          event: {
-            ...ev,
-            data: { ...ev.data, seen: nextSeen, lockedKind: ev.data.lockedKind ?? ev.kind },
-          },
-        },
-        secrets,
-      };
-    }
+    if (!isTurnActor && cur?.id !== playerId) return { state, secrets };
     const locked = String(ev.data.lockedKind ?? ev.kind);
     const opened = {
       ...state,
@@ -825,12 +821,12 @@ export function resolveEventChoice(
     if (!targetId || isOut(state, targetId)) return { state, secrets };
     const notesLock = { ...(state.notesLock ?? {}) };
     const extra = targetId === cur?.id ? 1 : 0;
-    notesLock[targetId] = (notesLock[targetId] ?? 0) + 2 + extra;
+    notesLock[targetId] = (notesLock[targetId] ?? 0) + 1 + extra;
     const target = state.players.find((p) => p.id === targetId);
     return {
       state: settle(
         { ...state, notesLock },
-        `${target?.name ?? "A guest"} cannot read their notes for their next two turns. Every mark shows as a question until then.`,
+        `${target?.name ?? "A guest"} cannot read their notes for their next turn. Every mark shows as a question until then.`,
       ),
       secrets,
     };

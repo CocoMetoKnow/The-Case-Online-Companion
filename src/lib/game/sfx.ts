@@ -10,14 +10,18 @@ import { haptic } from "./haptics";
 
 const MUSIC_KEY = "gmm.music";
 const SFX_KEY = "gmm.sfx";
+const MUSIC_VOL_KEY = "gmm.musicVol";
+const SFX_VOL_KEY = "gmm.sfxVol";
 
 /**
- * SFX now sit clearly *under* the music bed instead of above it. Both toggle
- * independently and persist via localStorage. The background music level is
- * untouched (BGM_GAIN).
+ * Music and sound effects each have their own volume bar (Settings), 0 to 100. The bar's
+ * default of 70 plays at exactly the levels the old on/off switches used (0.35 music,
+ * 0.45 effects), so nothing is louder or quieter until a player drags a bar. 100 is a
+ * little louder than before, 0 is silent. SFX still sit under the music bed.
  */
-const SFX_GAIN = 0.45;
-const BGM_GAIN = 0.35;
+const MAX_SFX_GAIN = 0.45 / 0.7;
+const MAX_BGM_GAIN = 0.35 / 0.7;
+const DEFAULT_VOLUME = 0.7;
 
 /**
  * Per-sample trim so the whole set sounds even. Measured (ffmpeg volumedetect):
@@ -76,6 +80,8 @@ let sfxBus: GainNode | null = null;
 const buffers = new Map<SfxName, AudioBuffer>();
 const loading = new Map<SfxName, Promise<AudioBuffer | null>>();
 let bgmEl: HTMLAudioElement | null = null;
+/** The music loop's own volume knob. iOS Safari ignores <audio>.volume, so the loop is routed through Web Audio to make the bar work there too. */
+let musicBus: GainNode | null = null;
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -93,7 +99,7 @@ function bus(): GainNode | null {
   if (!c) return null;
   if (!sfxBus) {
     sfxBus = c.createGain();
-    sfxBus.gain.value = SFX_GAIN;
+    sfxBus.gain.value = sfxVolume() * MAX_SFX_GAIN;
     sfxBus.connect(c.destination);
   }
   return sfxBus;
@@ -166,19 +172,58 @@ function play(name: SfxName, opts: { gain?: number; rate?: number; exclusive?: b
   });
 }
 
+function readVolume(volKey: string, switchKey: string): number {
+  if (typeof localStorage === "undefined") return DEFAULT_VOLUME;
+  const raw = localStorage.getItem(volKey);
+  if (raw !== null) {
+    const n = Number(raw);
+    if (Number.isFinite(n)) return Math.min(1, Math.max(0, n));
+  }
+  // No bar value saved yet: honor the old on/off switch.
+  return localStorage.getItem(switchKey) === "0" ? 0 : DEFAULT_VOLUME;
+}
+
+/** Music volume, 0 to 1 (the Settings bar shows this as 0 to 100). */
+export function musicVolume(): number {
+  return readVolume(MUSIC_VOL_KEY, MUSIC_KEY);
+}
+
+/** Sound effect volume, 0 to 1 (the Settings bar shows this as 0 to 100). */
+export function sfxVolume(): number {
+  return readVolume(SFX_VOL_KEY, SFX_KEY);
+}
+
 export function musicEnabled(): boolean {
-  if (typeof localStorage === "undefined") return true;
-  return localStorage.getItem(MUSIC_KEY) !== "0";
+  return musicVolume() > 0;
 }
 
 export function sfxEnabled(): boolean {
-  if (typeof localStorage === "undefined") return true;
-  return localStorage.getItem(SFX_KEY) !== "0";
+  return sfxVolume() > 0;
 }
 
+/** Drag the sound effects bar. Takes effect on the very next sound, and on any sound already playing. */
+export function setSfxVolume(volume: number): number {
+  const v = Math.min(1, Math.max(0, volume));
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(SFX_VOL_KEY, String(v));
+    localStorage.setItem(SFX_KEY, v > 0 ? "1" : "0");
+  }
+  if (sfxBus && ctx) sfxBus.gain.setTargetAtTime(v * MAX_SFX_GAIN, ctx.currentTime, 0.01);
+  return v;
+}
+
+/** Kept for any older caller: on restores the default volume, off mutes. */
 export function setSfx(on: boolean): boolean {
-  if (typeof localStorage !== "undefined") localStorage.setItem(SFX_KEY, on ? "1" : "0");
+  setSfxVolume(on ? DEFAULT_VOLUME : 0);
   return on;
+}
+
+function applyMusicVolume(v: number) {
+  if (musicBus && ctx) {
+    musicBus.gain.setTargetAtTime(v * MAX_BGM_GAIN, ctx.currentTime, 0.01);
+    return;
+  }
+  if (bgmEl) bgmEl.volume = v * MAX_BGM_GAIN;
 }
 
 function bgm(): HTMLAudioElement | null {
@@ -187,7 +232,24 @@ function bgm(): HTMLAudioElement | null {
     bgmEl = new Audio(BGM_FILE);
     bgmEl.loop = true;
     bgmEl.preload = "auto";
-    bgmEl.volume = BGM_GAIN;
+    bgmEl.volume = musicVolume() * MAX_BGM_GAIN;
+  }
+  if (!musicBus) {
+    const c = ac();
+    if (c) {
+      try {
+        const source = c.createMediaElementSource(bgmEl);
+        musicBus = c.createGain();
+        musicBus.gain.value = musicVolume() * MAX_BGM_GAIN;
+        source.connect(musicBus);
+        musicBus.connect(c.destination);
+        // The gain node now sets the loudness, so the element itself plays at full level.
+        bgmEl.volume = 1;
+      } catch {
+        // Routing failed: fall back to the element's own volume.
+        musicBus = null;
+      }
+    }
   }
   return bgmEl;
 }
@@ -195,7 +257,7 @@ function bgm(): HTMLAudioElement | null {
 function startMusic() {
   const el = bgm();
   if (!el) return;
-  el.volume = BGM_GAIN;
+  applyMusicVolume(musicVolume());
   void el.play().catch(() => {
     // Safari withholds autoplay until a real user gesture; unlockAudio()
     // below runs on the first tap, which is what actually starts this.
@@ -206,10 +268,26 @@ function stopMusic() {
   bgmEl?.pause();
 }
 
+/** Drag the music bar. Changes the loop's loudness live; 0 pauses it, anything above 0 plays it. */
+export function setMusicVolume(volume: number): number {
+  const v = Math.min(1, Math.max(0, volume));
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(MUSIC_VOL_KEY, String(v));
+    localStorage.setItem(MUSIC_KEY, v > 0 ? "1" : "0");
+  }
+  if (v > 0) {
+    const el = bgm();
+    applyMusicVolume(v);
+    if (el?.paused) startMusic();
+  } else {
+    stopMusic();
+  }
+  return v;
+}
+
+/** Kept for any older caller: on restores the default volume, off mutes. */
 export function setMusic(on: boolean): boolean {
-  if (typeof localStorage !== "undefined") localStorage.setItem(MUSIC_KEY, on ? "1" : "0");
-  if (on) startMusic();
-  else stopMusic();
+  setMusicVolume(on ? DEFAULT_VOLUME : 0);
   return on;
 }
 

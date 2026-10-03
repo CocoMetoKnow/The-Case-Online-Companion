@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 export function Slider({
   className,
+  "aria-label": ariaLabel,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   return (
@@ -13,7 +14,7 @@ export function Slider({
       <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-line">
         <SliderPrimitive.Range className="absolute h-full bg-accent" />
       </SliderPrimitive.Track>
-      <SliderPrimitive.Thumb className="block size-5 rounded-full border border-line bg-paper shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50" />
+      <SliderPrimitive.Thumb aria-label={ariaLabel} className="block size-5 rounded-full border border-line bg-paper shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brass/50" />
     </SliderPrimitive.Root>
   );
 }

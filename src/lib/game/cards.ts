@@ -575,7 +575,7 @@ export const EVENT_DEFS = [
 	{
 		kind: "second-wind",
 		title: "Speed Boost",
-		description: "Double your movement points for this turn only."
+		description: "Triple your movement points. It lasts this turn and your next turn."
 	},
 	{
 		kind: "wrong-turn",
@@ -635,12 +635,12 @@ export const EVENT_DEFS = [
 	{
 		kind: "food-poisoning",
 		title: "Food Poisoning",
-		description: "Pick a player. Their detective notes stay closed for their next turn."
+		description: "Every player's detective notes stay closed for their next turn, yours too."
 	},
 	{
 		kind: "blocked-out",
 		title: "Blocked Out",
-		description: "Pick a player. Their detective notes show as question marks for their next 2 turns."
+		description: "Pick a player. Their detective notes show as question marks for their next turn."
 	},
 	{
 		kind: "come-here",
@@ -665,7 +665,7 @@ export const EVENT_DEFS = [
 	{
 		kind: "gambler",
 		title: "The Gambler",
-		description: "Your choice: gamble or don't. Bet on which kind of card (character, item, room or hour) you will be shown for your next suggestion. Right, and you get another suggestion. Wrong, and you don't get to see the card. Don't name a card you hold, or the gamble is called off."
+		description: "Gamble or don't. Bet which kind of card you'll be shown next suggestion. Right: a bonus suggestion that can name any room (your character moves there too). Wrong: you don't see the card. Naming a card you hold calls it off."
 	},
 	{
 		kind: "about-face",

@@ -1,12 +1,13 @@
 import { Castle, Diamond, Moon, Sword, UserRound } from "lucide-react";
 import { cardsByCategory } from "@/lib/game/cards";
+import { characterColor } from "@/lib/game/character-colors";
 import { haptic } from "@/lib/game/haptics";
 import { sfxPaper } from "@/lib/game/sfx";
 import { useGame, useMyHand, useMyNotes } from "@/lib/game/store";
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
-import { Fragment, useRef, useState, type ReactNode } from "react";
+import { Fragment, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileBadge } from "./PlayerBadge";
 
 const CYCLE: Record<"card" | "guest", SheetMark[]> = {
@@ -139,17 +140,31 @@ function Sheet({
               <th className="sticky left-0 bg-[#f6f1e6] py-1 pr-2 text-left font-display text-base font-normal">Card</th>
               <th className="px-1 py-1 text-center font-display text-sm font-normal">Env</th>
               {players.map((p) => (
-                <th key={p.id} className="px-1 py-1 text-center">
+                <th
+                  key={p.id}
+                  className="px-1 py-1 text-center"
+                  style={columnStyle(characterColor(p.avatar))}
+                  data-coded={p.avatar ? "true" : undefined}
+                >
                   <ProfileBadge player={p} cards={state.cards} size="md" className="mx-auto" />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {cats.map((cat) => (
+            {cats.map((cat, catIndex) => (
               <Fragment key={cat}>
+                {/* A clear break between groups: a gap, a heavy double rule, and a shaded heading band. */}
+                {catIndex > 0 ? (
+                  <tr aria-hidden="true">
+                    <td colSpan={players.length + 2} className="h-4 p-0" />
+                  </tr>
+                ) : null}
                 <tr>
-                  <td colSpan={players.length + 2} className="pt-3 pb-1 font-display text-xl text-[#1c2430]">
+                  <td
+                    colSpan={players.length + 2}
+                    className="border-y-[3px] border-double border-[#1c2430]/70 bg-[#e6d9bb] px-2 py-1.5 font-display text-xl text-[#1c2430]"
+                  >
                     {state.settings.heist
                       ? cat === "suspect"
                         ? "Who took it"
@@ -167,7 +182,7 @@ function Sheet({
                   // A card in your own hand needs no marks: you know where it is.
                   if (!frozen && myHandIds.has(card.id)) {
                     return (
-                      <tr key={card.id}>
+                      <tr key={card.id} className="border-b border-[#1c2430]/10">
                         <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">
                           {(() => {
                             const Icon = state.settings.heist && card.category === "weapon" ? Diamond : CATEGORY_ICON[card.category];
@@ -182,7 +197,7 @@ function Sheet({
                     );
                   }
                   return (
-                  <tr key={card.id}>
+                  <tr key={card.id} className="border-b border-[#1c2430]/10">
                     <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
                     <Mark
                       card={card}
@@ -194,6 +209,7 @@ function Sheet({
                     {players.map((p) => (
                       <Mark
                         key={p.id}
+                        tint={characterColor(p.avatar)}
                         card={card}
                         column={p.id}
                         mark={frozen ? "maybe" : asMark(notes.marks[card.id]?.[p.id])}
@@ -294,13 +310,24 @@ const CHOICES: Array<{ id: SheetMark; label: string; name: string }> = [
   { id: "answer", label: "O", name: "This is the one" },
 ];
 
+/** The tinted strip behind one guest's whole column, in the color of the character they picked. */
+function columnStyle(color: string | undefined): CSSProperties | undefined {
+  if (!color) return undefined;
+  return {
+    backgroundColor: `${color}2e`,
+    boxShadow: `inset 2px 0 0 ${color}, inset -2px 0 0 ${color}`,
+  };
+}
+
 function Mark({
   card,
   column,
   mark,
   onMark,
+  tint,
   frozen = false,
 }: {
+  tint?: string;
   card: CardDef;
   column: string;
   mark: SheetMark;
@@ -320,10 +347,11 @@ function Mark({
   }
 
   return (
-    <td className="px-1 py-1 text-center">
+    <td className="px-1 py-1 text-center" style={columnStyle(tint)}>
       <button
         type="button"
         aria-label={`${card.name} mark`}
+        style={tint ? { borderColor: tint, borderWidth: 2 } : undefined}
         onContextMenu={(e) => e.preventDefault()}
         onPointerDown={(e) => {
           if (frozen) return;

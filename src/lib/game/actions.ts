@@ -20,12 +20,77 @@ import {
   voteSync,
 } from "./engine";
 import { resolveEventChoice } from "./events";
-import type { GameState, PiecePos, Secrets } from "./types";
+import type { GameState, LastSuggestion, PiecePos, Secrets } from "./types";
 
 export type PlayKind = "roll" | "move" | "stay" | "ask" | "show" | "reply" | "ack" | "accuse" | "done" | "event" | "snake" | "name" | "sync" | "avatar" | "classic";
 
-/** One shared rules pass. The room runs this so every phone sees the same result. */
+/**
+ * One shared rules pass. The room runs this so every phone sees the same result.
+ * After every play it also keeps `lastSuggestion` current, so when the question screen
+ * is gone each player can still read what was asked and who showed a card.
+ */
 export function applyPlay(
+  state: GameState,
+  secrets: Secrets,
+  from: string,
+  kind: string,
+  payload?: unknown,
+): { state: GameState; secrets: Secrets } {
+  const result = applyPlayCore(state, secrets, from, kind, payload);
+  const tracked = trackSuggestion(state, result.state, kind, payload);
+  return tracked === result.state ? result : { state: tracked, secrets: result.secrets };
+}
+
+function trackSuggestion(before: GameState, after: GameState, kind: string, payload: unknown): GameState {
+  const q = after.question;
+  if (!q || !q.askerId) {
+    // A suggestion that nobody could answer can end the turn in the very same step, so no question
+    // ever reaches the screen. Record it straight from what was asked.
+    if (kind === "ask" && after !== before && !before.question) {
+      const pick = (payload ?? {}) as Record<string, unknown>;
+      const cardIds = [pick.suspectId, pick.roomId, pick.weaponId, pick.timeId].filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      );
+      const askerId = before.turnOrder[before.turnIndex % Math.max(1, before.turnOrder.length)];
+      if (askerId && cardIds.length) {
+        return {
+          ...after,
+          lastSuggestion: {
+            id: `${after.startedAt ?? 0}-${before.turnIndex}-${Date.now().toString(36)}`,
+            askerId,
+            cardIds,
+            showerId: null,
+            ...(before.settings?.speakMode ? { spoken: true } : {}),
+          },
+        };
+      }
+    }
+    // Otherwise whatever was recorded last stays put until the next suggestion.
+    return after;
+  }
+  const prev = after.lastSuggestion ?? before.lastSuggestion ?? null;
+  const continuing = Boolean(before.question && prev && prev.askerId === q.askerId);
+  const shown = Boolean(q.shownCardId || q.cardShown);
+  const next: LastSuggestion = {
+    id: continuing && prev ? prev.id : `${after.startedAt ?? 0}-${after.turnIndex}-${Date.now().toString(36)}`,
+    askerId: q.askerId,
+    cardIds: [q.suspectId, q.roomId, q.weaponId, q.timeId].filter((id): id is string => Boolean(id)),
+    showerId: shown ? (q.showerId ?? null) : null,
+    ...(q.spoken ? { spoken: true } : {}),
+  };
+  if (
+    prev &&
+    prev.id === next.id &&
+    prev.showerId === next.showerId &&
+    prev.cardIds.join("|") === next.cardIds.join("|") &&
+    after.lastSuggestion === prev
+  ) {
+    return after;
+  }
+  return { ...after, lastSuggestion: next };
+}
+
+function applyPlayCore(
   state: GameState,
   secrets: Secrets,
   from: string,

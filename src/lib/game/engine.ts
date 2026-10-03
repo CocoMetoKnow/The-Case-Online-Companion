@@ -253,14 +253,17 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		spy: null,
 		hush: null,
 		sync: null,
+		speedBoost: null,
 		shortDieId: null,
 		pace: null,
 		singleDie: false,
 		extraDie: null,
 		gambler: null,
+		bonusRoom: null,
 		notice: null,
 		noticeSelf: null,
 		noticeFor: null,
+		lastSuggestion: null,
 		privateShow: null
 	};
 	const split = splitEven(started, { solution: {}, hands: {} });
@@ -347,6 +350,14 @@ export function movementTotal(dice: [number, number] | null | undefined): number
 	if (!dice) return null;
 	return (dice[0] === 3 ? 0 : dice[0]) + dice[1];
 }
+/** Speed Boost triples every roll the player makes for as long as it lasts. */
+export const SPEED_BOOST_MULTIPLIER = 3;
+/** Turns a Speed Boost lasts, counting the turn it was played in. */
+export const SPEED_BOOST_TURNS = 2;
+function boostFor(state: GameState, playerId: string | undefined): number {
+	const boost = state.speedBoost;
+	return boost && playerId && boost.playerId === playerId && boost.turns > 0 ? SPEED_BOOST_MULTIPLIER : 1;
+}
 export function rollDice(state: GameState, playerId: string): { state: GameState; snakeEyes: boolean } {
 	if (state.phase !== "roll" && !(state.phase === "event" && state.event?.kind === "extra-roll")) return {
 		state,
@@ -361,30 +372,33 @@ export function rollDice(state: GameState, playerId: string): { state: GameState
 		const d = 1 + Math.floor(Math.random() * 6);
 		const again = state.event?.kind === "extra-roll";
 		const board = state.settings?.table === "board";
+		const moveOne = d * boostFor(state, actor.id);
 		const next = log({
 			...state,
 			dice: [d, d],
 			singleDie: true,
 			shortDieId: null,
-			pace: d,
-			moveBudget: d,
+			pace: moveOne,
+			moveBudget: moveOne,
 			naming: null,
 			phase: board ? "move" : "action",
 			actionsLeft: 1,
 			event: again ? null : state.event
-		}, `${actor.name} rolls. Move ${d}.`);
+		}, `${actor.name} rolls. Move ${moveOne}.`);
 		return { state: next, snakeEyes: false };
 	}
 	const d1 = 1 + Math.floor(Math.random() * 6);
 	const d2 = 1 + Math.floor(Math.random() * 6);
 	const glass = d1 === 3;
 	const snakeEyes = d1 === 1 && d2 === 1;
-	const total = (glass ? 0 : d1) + d2;
+	const boost = boostFor(state, actor?.id);
+	const total = ((glass ? 0 : d1) + d2) * boost;
 	let next = {
 		...state,
 		dice: [d1, d2],
 		singleDie: false,
 		moveBudget: snakeEyes ? 0 : total,
+		...(boost > 1 && !snakeEyes ? { pace: total } : {}),
 		naming: null
 	};
 	const again = state.event?.kind === "extra-roll";
@@ -720,12 +734,19 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 			silencedId
 		}
 	};
-	const asked = formatQuestion(next, pick);
+	// Gambler bonus suggestion: any room may be named, and the asker's piece moves into it too.
+	const bonus = state.bonusRoom?.playerId === subject;
+	let nextState = bonus ? { ...next, bonusRoom: null } : next;
+	if (bonus && announced && roomsInPlay(state).includes(String(announced))) {
+		nextState = placePlayer(nextState, subject, { kind: "room", roomId: String(announced) });
+	}
+	const asked = formatQuestion(nextState, pick);
 	const roomName = announced ? roomById(announced)?.name : "the hall";
 	const silencedName = silencedId ? state.cards.find((c) => c.id === silencedId)?.name : "";
 	const hushLine = silencedName ? ` The hush lifts: ${silencedName} is silenced, so no one shows it.` : "";
 	const betLine = bet.line ? ` ${bet.line}` : "";
-	return advanceQuestion(log(next, `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}${betLine}`), secrets);
+	const moveLine = bonus ? ` ${asker.name} moves into the ${roomName}.` : "";
+	return advanceQuestion(log(nextState, `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}${betLine}${moveLine}`), secrets);
 }
 
 function spokenOrder(state, subject) {
@@ -771,6 +792,7 @@ export function beginSpokenQuestion(state: GameState, playerId: string, pick?, s
 		noticeSelf: null,
 		noticeFor: null,
 		gambler: state.gambler && state.gambler.playerId === subject ? null : state.gambler ?? null,
+		bonusRoom: state.bonusRoom?.playerId === subject ? null : state.bonusRoom ?? null,
 		question: {
 			askerId: subject,
 			gamble: bet.gamble,
@@ -1209,9 +1231,12 @@ export function ackShownCard(state: GameState, playerId: string): GameState {
 	const gamblerName = state.players.find((p) => p.id === q.askerId)?.name ?? "The asker";
 	if (q.gambleResult === "won") {
 		// Right call: the same player makes another suggestion.
-		const line = `${gamblerName} won the gamble and gets another suggestion.`;
+		// The whole table is told: the bonus suggestion can name any room, but the piece goes there too.
+		const line = `${gamblerName} won the gamble and gets a bonus suggestion. It can name any room, but ${gamblerName}'s character must move into that room too.`;
 		return log({
 			...state,
+			bonusRoom: { playerId: q.askerId },
+			freeQuestion: true,
 			phase: "action",
 			actionsLeft: 1,
 			question: null,
@@ -1396,6 +1421,10 @@ export function endTurn(state: GameState, playerId: string): GameState {
 	const finished = currentPlayer(state);
 	const notesLock = { ...state.notesLock ?? {} };
 	if (finished && (notesLock[finished.id] ?? 0) > 0) notesLock[finished.id] -= 1;
+	let speedBoost = state.speedBoost ?? null;
+	if (speedBoost && finished && speedBoost.playerId === finished.id) {
+		speedBoost = speedBoost.turns > 1 ? { ...speedBoost, turns: speedBoost.turns - 1 } : null;
+	}
 	let influences = (state.influences ?? []).filter((i) => i.victimId !== finished?.id);
 	let skipIds = [...state.skipIds ?? []];
 	const order = state.turnOrder.filter((id) => state.players.some((p) => p.id === id && !p.eliminated));
@@ -1422,6 +1451,7 @@ export function endTurn(state: GameState, playerId: string): GameState {
 			...state,
 			spy,
 			notesLock,
+			speedBoost,
 			influences,
 			skipIds,
 			turnIndex: idx < 0 ? 0 : idx,
@@ -1431,6 +1461,7 @@ export function endTurn(state: GameState, playerId: string): GameState {
 			singleDie: false,
 			extraDie: null,
 			gambler: null,
+			bonusRoom: null,
 			moveBudget: 0,
 			actionsLeft: 0,
 			freeQuestion: true,
@@ -1465,7 +1496,7 @@ export function endTurn(state: GameState, playerId: string): GameState {
 		const next = handOff(other);
 		if (next) return next;
 	}
-	return { ...state, notesLock, influences, skipIds, phase: "roll", dice: null, actionsLeft: 0, question: null, event: null, notice: null, noticeSelf: null, noticeFor: null };
+	return { ...state, notesLock, speedBoost, influences, skipIds, phase: "roll", dice: null, actionsLeft: 0, question: null, event: null, notice: null, noticeSelf: null, noticeFor: null };
 }
 /** Everyone still in the game must agree. Then a stuck suggestion, power, or turn is cleared. */
 export function voteSync(state: GameState, playerId: string, choice: { agree?: boolean; cancel?: boolean }): GameState {
@@ -1589,8 +1620,14 @@ function splitEven(state, secrets) {
 		seats.push(NPC_ID);
 	}
 	const size = Math.floor(pool.length / seats.length);
-	const leftover = pool.slice(size * seats.length);
+	let leftover = pool.slice(size * seats.length);
 	for (let i = 0; i < size * seats.length; i++) hands[seats[i % seats.length]].push(pool[i]);
+	// Extra Difficulty: the NPC also takes the Table cards, even if that gives it more cards than anyone else.
+	// Nothing is left face up on the table.
+	if (npcOn(state) && leftover.length) {
+		hands[NPC_ID] = [...hands[NPC_ID], ...leftover];
+		leftover = [];
+	}
 	return { state: { ...state, leftover }, secrets: { ...secrets, solution, hands } };
 }
 function dealIsEven(state, secrets) {
@@ -1611,7 +1648,13 @@ function dealIsEven(state, secrets) {
 	if (npcOn(state)) seats.push(NPC_ID);
 	const pool = deck.filter((card) => !answers.has(card.id)).length;
 	const size = Math.floor(pool / seats.length);
-	if ((state.leftover ?? []).length !== pool % seats.length) return false;
+	const extra = pool % seats.length;
+	if (npcOn(state)) {
+		// The NPC holds the Table cards too, so the table itself is empty and the NPC has the extras.
+		if ((state.leftover ?? []).length !== 0) return false;
+		return seats.every((id) => (secrets.hands?.[id] ?? []).length === (id === NPC_ID ? size + extra : size));
+	}
+	if ((state.leftover ?? []).length !== extra) return false;
 	return seats.every((id) => (secrets.hands?.[id] ?? []).length === size);
 }
 export function ensureObjective(state, secrets) {
@@ -1771,6 +1814,7 @@ export function dropPlayer(state, secrets, playerId) {
 			singleDie: false,
 			extraDie: null,
 			gambler: null,
+			bonusRoom: null,
 			moveBudget: 0,
 			actionsLeft: 0,
 			freeQuestion: true,

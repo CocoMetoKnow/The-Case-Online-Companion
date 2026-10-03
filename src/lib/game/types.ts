@@ -203,6 +203,8 @@ export interface GameState {
   /** After a roll, one action remains unless a snake-eyes card grants another. */
   actionsLeft?: number;
   freeQuestion: boolean;
+  /** Gambler: a won bet gives this player a bonus suggestion that can name any room, and their piece moves into it. */
+  bonusRoom?: { playerId: string } | null;
   whisperMode: boolean;
   question: QuestionState | null;
   event: EventState | null;
@@ -229,6 +231,8 @@ export interface GameState {
   passages: Passage[];
   skipIds: string[];
   notesLock: Record<string, number>;
+  /** Speed Boost: this player's rolls are tripled. `turns` counts the turns left, this one included. */
+  speedBoost?: { playerId: string; turns: number } | null;
   influences: Influence[];
   /** A card kept quiet until someone else asks for it. */
   hush?: { cardId: string; byId: string } | null;
@@ -250,8 +254,25 @@ export interface GameState {
   wait?: { ids: string[]; since: number } | null;
   /** Cards chosen so far while this player is making their Solve the Case attempt. */
   naming?: NamingState | null;
+  /** The most recent suggestion and who showed a card for it. Stays until each player closes it. */
+  lastSuggestion?: LastSuggestion | null;
   /** A card just shown in speak mode. Blank card id means this phone must not see it. */
   privateShow?: { fromId: string; toId: string; cardId: string; at: number } | null;
+}
+
+/**
+ * The last suggestion that was made, kept after the question screen is gone so every player can
+ * read what was asked and who (if anyone) showed a card. Each phone closes it on its own.
+ */
+export interface LastSuggestion {
+  /** Unique per suggestion, so a closed recap stays closed. */
+  id: string;
+  askerId: string;
+  /** The cards that were named. Empty on other phones in speak mode, because it was said out loud. */
+  cardIds: string[];
+  /** The player who showed a card, or null when no one did. Never the card itself. */
+  showerId: string | null;
+  spoken?: boolean;
 }
 
 export interface NamingState {

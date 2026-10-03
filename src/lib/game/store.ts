@@ -124,6 +124,9 @@ interface GameStore {
   setAvatar: (playerId: string, cardId: string) => void;
   /** The "clue" easter egg: show the original Clue names to everyone at the table. */
   setClassicNames: (on: boolean) => void;
+  /** Cards just handed to this phone because a player left the table. Shown once, until the player taps "Got it". */
+  cardsReceived: { fromNames: string[]; cardIds: string[]; at: number } | null;
+  dismissReceived: () => void;
   hydrate: () => void;
   syncSheet: () => void;
   applyRemote: (state: GameState, hand?: string[], solution?: Secrets["solution"], reveals?: Secrets["reveals"], hits?: Record<string, boolean> | null) => void;
@@ -551,6 +554,25 @@ function actorId(state: GameState, localId: string, viewingId: string) {
   return state.settings.playMode === "online" ? localId : viewingId;
 }
 
+/**
+ * Someone left and their hand was dealt out: which of the cards now in this player's hand came from that?
+ * Only counts when a player actually left the table in the same update, so a power-up that moves a card never triggers it.
+ */
+function receivedFromLeaver(
+  prev: GameState | null | undefined,
+  next: GameState,
+  before: string[],
+  after: string[],
+): { fromNames: string[]; cardIds: string[]; at: number } | null {
+  if (!prev?.startedAt || !next.startedAt || next.phase === "lobby") return null;
+  const gone = prev.players.filter((player) => !next.players.some((other) => other.id === player.id));
+  if (!gone.length) return null;
+  const had = new Set(before);
+  const gained = after.filter((id) => !had.has(id));
+  if (!gained.length) return null;
+  return { fromNames: gone.map((player) => player.name), cardIds: gained, at: Date.now() };
+}
+
 function commitLocal(
   get: () => GameStore,
   set: (partial: Partial<GameStore>) => void,
@@ -571,6 +593,11 @@ function commitLocal(
     notes = forgetShownCard(notes, state, prev.question.askerId);
   }
   if (notes !== get().notes) persistNotes(notes);
+  // One shared phone would show every seat's new cards to the whole table, so only phones with their own hand get this.
+  const received =
+    state.settings.playMode === "hotseat"
+      ? null
+      : receivedFromLeaver(prev, state, get().secrets.hands[localPlayerId] ?? [], secrets.hands[localPlayerId] ?? []);
   set({
     state,
     secrets,
@@ -578,6 +605,7 @@ function commitLocal(
     viewingPlayerId: pass.viewing,
     passGate: pass.gate,
     ...opened,
+    ...(received ? { cardsReceived: received } : {}),
   });
   persist(get);
 }
@@ -628,6 +656,8 @@ export const useGame = create<GameStore>((set, get) => ({
   onlinePending: false,
   booted: false,
   panel: "table",
+  cardsReceived: null,
+  dismissReceived: () => set({ cardsReceived: null }),
 
   setView: (view) => set({ view }),
   setSetup: (patch) => set({ setup: { ...get().setup, ...patch } }),
@@ -983,6 +1013,7 @@ export const useGame = create<GameStore>((set, get) => ({
       verdict: null,
       verdictSeen: "",
       verdictHold: null,
+      cardsReceived: null,
     });
   },
   hydrate: () => {
@@ -1090,6 +1121,7 @@ export const useGame = create<GameStore>((set, get) => ({
       if (sheet?.shown?.length) notesNext = { ...notesNext, [key]: { ...sheet, shown: [] } };
     }
     secretsNext.reveals = [];
+    const received = receivedFromLeaver(prev, state, previous, hands[localPlayerId] ?? []);
     if (notesNext !== notes) persistNotes(notesNext);
     const opened = newMatch
       ? { verdict: null, verdictSeen: "", verdictHold: null }
@@ -1102,6 +1134,7 @@ export const useGame = create<GameStore>((set, get) => ({
       notes: notesNext,
       secrets: secretsNext,
       ...opened,
+      ...(received ? { cardsReceived: received } : {}),
       setup: deckSame && setup.settings === settings ? setup : {
         ...setup,
         deck: deckSame ? setup.deck : state.cards.map(({ imageDataUrl: _image, ...card }) => card),
