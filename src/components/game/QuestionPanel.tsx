@@ -403,7 +403,7 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   } else if (q.shownCardId) {
     body = (
       <p className="mt-2 text-sm text-paper">
-        {shower?.name ?? "A player"} showed a card privately to {asker?.name ?? "the asker"}.
+        {q.stealth ? "A player" : (shower?.name ?? "A player")} showed a card privately to {asker?.name ?? "the asker"}.
       </p>
     );
   } else if (q.showerId && actor === q.showerId) {
@@ -543,6 +543,11 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
         <p className="text-xs uppercase tracking-[0.16em] text-brass">Suggestion</p>
         <h3 className="mt-1 font-display text-3xl leading-none text-paper">{asker?.name ?? "Someone"} spoke</h3>
         <GambleLine q={q} askerName={asker?.name ?? "The asker"} mine={actor === q.askerId} />
+        {q.silencedId ? (
+          <p className="mt-2 text-sm text-paper">
+            {state.cards.find((c) => c.id === q.silencedId)?.name ?? "That card"} is silenced. No one shows it this time.
+          </p>
+        ) : null}
         {actor === q.askerId && said.length ? (
           sayOpen ? (
             <div className="mt-3 rounded-[16px] border-2 border-brass bg-[#2a1410] px-3 py-3">

@@ -17,6 +17,10 @@ export function sanitizeState(state: GameState, viewerId: string): GameState {
     if (q.npcShown && viewerId !== q.askerId) {
       question = { ...question, showerId: null, npcShown: false, cardShown: false };
     }
+    // Stealth Auto-Reveal: only the player who sent the card knows it was them.
+    if (q.stealth && viewerId !== q.showerId) {
+      question = { ...question, showerId: null };
+    }
     // Speak mode: the cards were said out loud. The game keeps them for the asker's reminder (and the NPC), nobody else's screen.
     if (q.spoken && viewerId !== q.askerId) {
       question = { ...question, suspectId: "", roomId: "", weaponId: "", timeId: undefined };
@@ -80,5 +84,9 @@ export function sanitizeState(state: GameState, viewerId: string): GameState {
     // Speak mode: the cards were said out loud, so other screens never carry them.
     if (lastSuggestion.spoken) lastSuggestion = { ...lastSuggestion, cardIds: [] };
   }
-  return { ...state, question, event, hush, spy, privateShow, gambler, lastSuggestion };
+  // Rooms that started before the weapon was renamed still carry "Poison Bottle" on their cards.
+  const cards = state.cards?.some((card) => card.id === "poison-bottle" && /^poison bottle$/i.test(card.name))
+    ? state.cards.map((card) => (card.id === "poison-bottle" && /^poison bottle$/i.test(card.name) ? { ...card, name: "Poison" } : card))
+    : state.cards;
+  return { ...state, cards, question, event, hush, spy, privateShow, gambler, lastSuggestion };
 }

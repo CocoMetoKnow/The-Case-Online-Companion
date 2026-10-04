@@ -106,3 +106,69 @@ test("closing the picker clears the live suggestion", () => {
   cur = applyPlay(cur.state, secrets(), "ada", "suggesting", { clear: true });
   assert.equal(cur.state.suggesting ?? null, null);
 });
+
+test("rooms and saved decks that still say Poison Bottle show Poison", async () => {
+  const { retireBorrowedNames } = await import("./cards.ts");
+  const old = [{ id: "poison-bottle", category: "weapon", name: "Poison Bottle", blurb: "x", icon: "Sword" }] as never;
+  assert.equal(retireBorrowedNames(old)[0].name, "Poison");
+  const live = { ...base(), cards: old } as never;
+  assert.equal(sanitizeState(live, "ada").cards[0].name, "Poison");
+});
+
+// ---- Power-ups that change a suggestion, in speak mode ----
+
+function third(state: GameState, sec: Secrets) {
+  const s = { ...state, players: [...state.players, { id: "cy", name: "Cy", color: "#0f0", seat: 2, eliminated: false, isHost: false, position: { kind: "hall", x: 2, y: 0 } }], turnOrder: ["ada", "bea", "cy"] } as GameState;
+  return { state: s, secrets: { ...sec, hands: { ...sec.hands, cy: ["chef"] } } as Secrets };
+}
+const ASK = { suspectId: "chef", roomId: "hall", weaponId: "rope" };
+
+test("speak mode with no power-up still asks the table out loud", () => {
+  const out = applyPlay(base(), secrets(), "ada", "ask", ASK);
+  assert.equal(out.state.question?.askingId, "bea");
+  assert.equal(out.state.question?.shownCardId, null);
+});
+
+test("Stealth Auto-Reveal in speak mode sends a card secretly, without asking anyone", () => {
+  const out = applyPlay({ ...base(), autoShowTurn: true }, secrets(), "ada", "ask", ASK);
+  const q = out.state.question!;
+  assert.equal(q.askingId, null, "nobody is asked out loud");
+  assert.ok(["rope", "hall"].includes(String(q.shownCardId)), "a card Bea holds was sent");
+  assert.equal(q.stealth, true);
+  assert.equal(out.state.autoShowTurn, false, "the power is used up");
+  assert.equal(sanitizeState(out.state, "ada").question?.showerId, null, "the asker is not told who sent it");
+  assert.equal(sanitizeState(out.state, "bea").question?.showerId, "bea", "the sender knows it was them");
+});
+
+test("Stealth Auto-Reveal skips players with nothing and finds the first holder", () => {
+  const { state, secrets: sec } = third(base(), { solution: { suspect: "lord", room: "study", weapon: "knife" }, hands: { ada: [], bea: [] } });
+  const out = applyPlay({ ...state, autoShowTurn: true }, sec, "ada", "ask", { suspectId: "chef", roomId: "hall", weaponId: "knife" });
+  assert.equal(out.state.question?.showerId, "cy");
+  assert.equal(out.state.question?.shownCardId, "chef");
+});
+
+test("Stealth Auto-Reveal with nobody holding a card is used up and the turn ends as usual", () => {
+  const out = applyPlay({ ...base(), autoShowTurn: true }, { solution: { suspect: "lord", room: "study", weapon: "knife" }, hands: { ada: [], bea: [] } }, "ada", "ask", ASK);
+  assert.equal(out.state.question ?? null, null);
+  assert.equal(out.state.autoShowTurn, false);
+});
+
+test("Hush in speak mode silences the named card and nobody can show it", () => {
+  const hushed = { ...base(), hush: { cardId: "rope", byId: "bea" } } as GameState;
+  const own = applyPlay({ ...hushed, hush: { cardId: "rope", byId: "ada" } }, secrets(), "ada", "ask", ASK);
+  assert.equal(own.state.question?.silencedId ?? null, null, "the one who hushed a card is not silenced by it");
+  const out = applyPlay(hushed, secrets(), "ada", "ask", ASK);
+  assert.equal(out.state.question?.silencedId, "rope");
+  assert.equal(out.state.hush ?? null, null, "the hush lifts");
+  const asked = applyPlay(out.state, secrets(), "bea", "reply", { has: true });
+  const shown = applyPlay(asked.state, secrets(), "bea", "show", { cardId: "rope" });
+  assert.equal(shown.state.question?.shownCardId ?? null, null, "the silenced card cannot be shown");
+});
+
+test("Whisper in speak mode still limits a suggestion to three cards", () => {
+  const withTime = { ...base(), whisperMode: true, cards: [...base().cards, { id: "t1", category: "time", name: "Dusk", blurb: "", icon: "Clock" }], settings: { ...base().settings, timeOfDayEnabled: true } } as GameState;
+  const four = applyPlay(withTime, secrets(), "ada", "ask", { ...ASK, timeId: "t1" });
+  assert.equal(four.state.question ?? null, null, "four cards are refused");
+  const three = applyPlay(withTime, secrets(), "ada", "ask", ASK);
+  assert.ok(three.state.question, "three cards go through");
+});

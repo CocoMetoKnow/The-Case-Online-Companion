@@ -71,6 +71,8 @@ export interface QuestionState {
   heldByAsker?: boolean;
   /** This asked card is ignored for showing. Everyone already heard its name. */
   silencedId?: string | null;
+  /** Stealth Auto-Reveal in speak mode: the card was sent without anyone being asked, and nobody but the sender knows who sent it. */
+  stealth?: boolean;
   /** Speak mode. The cards were said out loud, so the game only asks each player in order. */
   spoken?: boolean;
   /** Speak mode. The player who is being asked "do you have a card?" right now. */

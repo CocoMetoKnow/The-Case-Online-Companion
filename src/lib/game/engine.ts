@@ -785,9 +785,23 @@ export function beginSpokenQuestion(state: GameState, playerId: string, pick?, s
 		weaponId: known(pick?.weaponId),
 		timeId: known(pick?.timeId) || undefined
 	};
-	const bet = settleBet(state, subject, [picked.suspectId, picked.roomId, picked.weaponId, picked.timeId].filter(Boolean), secrets);
+	const namedIds = [picked.suspectId, picked.roomId, picked.weaponId, picked.timeId].filter(Boolean);
+	// Whisper: a power-up that limits this suggestion to three cards, in speak mode too.
+	if (state.whisperMode && namedIds.length > 3) return state;
+	const bet = settleBet(state, subject, namedIds, secrets);
+	// Hush: if the asker names the hushed card (and did not hush it themselves) the hush lifts and nobody shows that card.
+	const hush = state.hush;
+	const hushHit = Boolean(hush && hush.byId !== subject && namedIds.map(String).includes(hush.cardId));
+	const silencedId = hushHit ? hush?.cardId ?? null : null;
+	const silencedName = silencedId ? state.cards.find((c) => c.id === silencedId)?.name : "";
+	const hushLine = silencedName ? ` The hush lifts: ${silencedName} is silenced, so no one shows it.` : "";
+	// Gambler bonus: any room may be named, and the asker's piece goes into it on the real board.
+	const bonus = state.bonusRoom?.playerId === subject;
+	const bonusRoomName = bonus && picked.roomId ? state.cards.find((c) => c.id === picked.roomId)?.name : "";
+	const bonusLine = bonusRoomName ? ` ${asker.name} moves into the ${bonusRoomName} on the board.` : "";
 	const next = {
 		...state,
+		hush: hushHit ? null : hush ?? null,
 		phase: "question",
 		actionsLeft: 0,
 		freeQuestion: false,
@@ -818,21 +832,41 @@ export function beginSpokenQuestion(state: GameState, playerId: string, pick?, s
 			shownToAsker: false,
 			resolved: false,
 			nobodyHad: false,
-			spoken: true
+			spoken: true,
+			silencedId
 		}
 	};
-	return advanceSpoken(log(next, `${asker.name} is in a room and makes a suggestion out loud.${bet.line ? ` ${bet.line}` : ""}`), secrets);
+	return advanceSpoken(log(next, `${asker.name} is in a room and makes a suggestion out loud.${bet.line ? ` ${bet.line}` : ""}${hushLine}${bonusLine}`), secrets);
 }
 function advanceSpoken(state, secrets?) {
 	const q = state?.question;
 	if (!q || !q.spoken || q.resolved) return state;
 	let cursor = q.cursor ?? 0;
+	const skips = [...q.skips];
+	// Stealth Auto-Reveal: nobody is asked out loud. The first player holding a named card sends one, secretly.
+	const stealth = Boolean(state.autoShowTurn && secrets && askedIds(q).length);
 	while (cursor < q.responderIds.length) {
 		const pid = q.responderIds[cursor];
 		const responder = state.players.find((p) => p.id === pid);
 		if (!responder || responder.eliminated || q.skips.includes(pid)) {
 			cursor += 1;
 			continue;
+		}
+		if (stealth) {
+			const want = new Set(askedIds(q));
+			const matches = cardsHeldBy(secrets, pid).filter((id) => want.has(id));
+			if (!matches.length) {
+				skips.push(pid);
+				cursor += 1;
+				continue;
+			}
+			const cardId = matches[Math.floor(Math.random() * matches.length)];
+			const askerName = state.players.find((p) => p.id === q.askerId)?.name ?? "the asker";
+			return log({
+				...state,
+				autoShowTurn: false,
+				question: markShown({ ...q, cursor, skips, askingId: null, showerId: pid, matchingCardIds: matches, stealth: true }, state, cardId)
+			}, `A card was sent secretly to ${askerName}.`);
 		}
 		return {
 			...state,
@@ -864,6 +898,7 @@ function advanceSpoken(state, secrets?) {
 	const line = "No one had a card to show.";
 	const closed = log({
 		...state,
+		autoShowTurn: stealth ? false : state.autoShowTurn,
 		phase: "action",
 		actionsLeft: 0,
 		question: null,
@@ -927,6 +962,7 @@ export function chooseSpokenCard(state: GameState, secrets: Secrets, playerId: s
 	const hand = (secrets?.hands?.[playerId] ?? []).map(String);
 	if (!hand.includes(String(cardId))) return state;
 	if (!state.cards.some((card) => card.id === cardId)) return state;
+	if (q.silencedId && String(cardId) === String(q.silencedId)) return state;
 	const shower = state.players.find((p) => p.id === playerId);
 	const asker = state.players.find((p) => p.id === q.askerId);
 	return log({
