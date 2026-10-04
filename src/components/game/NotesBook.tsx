@@ -356,12 +356,12 @@ function anchorOf(el: HTMLElement): Anchor {
 
 /**
  * A check on one player makes that player the only holder: every other player (including a player who was checked
- * before) is marked with an X, and the envelope (the main column, not attached to a player) is marked with an X too,
+ * before) is marked with an X, and the envelope (the main column, not attached to a player) gets a check mark, not an X,
  * because the card is in someone's hand. An X marks only that player.
  */
 function holderMarks(players: Seat[], pick: Seat, kind: "check" | "x"): Record<string, SheetMark> {
   if (kind === "x") return { [pick.id]: "x" };
-  const out: Record<string, SheetMark> = { [pick.id]: "check", envelope: "x" };
+  const out: Record<string, SheetMark> = { [pick.id]: "check", envelope: "check" };
   for (const p of players) if (p.id !== pick.id) out[p.id] = "x";
   return out;
 }
@@ -582,7 +582,7 @@ function Mark({
                       haptic("mark");
                       const columnPlayer = players.find((p) => p.id === column);
                       if (columnPlayer && choice.id === "check" && mark !== "check") {
-                        // Checking a player: they become the only holder, the earlier holder and the envelope are marked X.
+                        // Checking a player: they become the only holder, the earlier holder is marked X and the envelope gets a check.
                         onMarks(card.id, holderMarks(players, columnPlayer, "check"));
                       } else {
                         onMark(card.id, column, mark === choice.id ? "blank" : choice.id);
