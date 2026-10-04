@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { setExtraVisuals, useExtraVisuals } from "@/lib/game/extra-visuals";
+import { setSimpleJournal, useSimpleJournal } from "@/lib/game/simple-journal";
 import { musicVolume, setMusicVolume, setSfxVolume, sfxTap, sfxVolume, unlockAudio } from "@/lib/game/sfx";
 import {
   ACCENT_COLORS,
@@ -134,6 +135,7 @@ export function SettingsGear() {
   const [music, setMusicLevel] = useState(() => Math.round(musicVolume() * 100));
   const [sounds, setSoundsLevel] = useState(() => Math.round(sfxVolume() * 100));
   const extraVisuals = useExtraVisuals();
+  const simpleJournal = useSimpleJournal();
   const [ui, setUi] = useState(getUiColor);
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
@@ -250,6 +252,22 @@ export function SettingsGear() {
                       </div>
                       <p className="mt-1 text-xs text-muted">
                         During a suggestion the background becomes the room, with the suspect, the weapon and the time of day behind it. Works in speak mode too. Solve the Case always plays its scene.
+                      </p>
+                    </div>
+                    <div className="py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span id="simple-journal-label">Simple journaling</span>
+                        <Switch
+                          aria-labelledby="simple-journal-label"
+                          checked={simpleJournal}
+                          onCheckedChange={(on) => {
+                            setSimpleJournal(on);
+                            sfxTap();
+                          }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        Your journal gets one square per card. Tap it and pick the player who showed you the card; their logo goes in the square. Only on this phone.
                       </p>
                     </div>
                     <button

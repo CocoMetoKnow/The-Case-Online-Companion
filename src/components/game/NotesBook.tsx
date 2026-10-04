@@ -3,17 +3,13 @@ import { cardsByCategory } from "@/lib/game/cards";
 import { characterColor } from "@/lib/game/character-colors";
 import { haptic } from "@/lib/game/haptics";
 import { sfxPaper } from "@/lib/game/sfx";
+import { useSimpleJournal } from "@/lib/game/simple-journal";
 import { useGame, useMyHand, useMyNotes } from "@/lib/game/store";
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { CATEGORY_LABEL } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { Fragment, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileBadge } from "./PlayerBadge";
-
-const CYCLE: Record<"card" | "guest", SheetMark[]> = {
-  card: ["blank", "check", "x", "maybe", "answer"],
-  guest: ["blank", "check", "x", "maybe"],
-};
 
 function asMark(mark: string | undefined): SheetMark {
   if (mark === "check" || mark === "x" || mark === "maybe" || mark === "answer") return mark;
@@ -107,6 +103,7 @@ function Sheet({
   frozen?: boolean;
 }) {
   const players = state.players.filter((player) => player.id !== ownerId);
+  const simple = useSimpleJournal();
   const myHandIds = new Set(useMyHand().map((c) => c.id));
   const cats: CategoryId[] = state.settings.timeOfDayEnabled
     ? ["suspect", "weapon", "room", "time"]
@@ -130,7 +127,9 @@ function Sheet({
           </div>
         ) : null}
         <p className="mt-1 text-sm text-[#5c4a38]">
-          A green check or a red X means that card is out. One O in each group is the one you think it is. ? is not sure. If every other card in a group is out, the last one is circled for you.
+          {simple
+            ? "Tap a square and pick the player who showed you that card. Their logo stays in the square."
+            : "Tap a square to pick a mark, or tap a player's logo to say they have the card. A green check or a red X means that card is out. One O in each group is the one you think it is. ? is not sure. If every other card in a group is out, the last one is circled for you."}
         </p>
       </header>
       <div className="overflow-x-auto pb-2">
@@ -138,8 +137,9 @@ function Sheet({
           <thead>
             <tr>
               <th className="sticky left-0 bg-[#f6f1e6] py-1 pr-2 text-left font-display text-base font-normal">Card</th>
-              <th className="px-1 py-1 text-center font-display text-sm font-normal">Env</th>
-              {players.map((p) => (
+              {simple ? <th className="px-1 py-1 text-center font-display text-sm font-normal">Shown by</th> : null}
+              {simple ? null : <th className="px-1 py-1 text-center font-display text-sm font-normal">Env</th>}
+              {(simple ? [] : players).map((p) => (
                 <th
                   key={p.id}
                   className="px-1 py-1 text-center"
@@ -157,12 +157,12 @@ function Sheet({
                 {/* A clear break between groups: a gap, a heavy double rule, and a shaded heading band. */}
                 {catIndex > 0 ? (
                   <tr aria-hidden="true">
-                    <td colSpan={players.length + 2} className="h-4 p-0" />
+                    <td colSpan={simple ? 2 : players.length + 2} className="h-4 p-0" />
                   </tr>
                 ) : null}
                 <tr>
                   <td
-                    colSpan={players.length + 2}
+                    colSpan={simple ? 2 : players.length + 2}
                     className="border-y-[3px] border-double border-[#1c2430]/70 bg-[#e6d9bb] px-2 py-1.5 font-display text-xl text-[#1c2430]"
                   >
                     {state.settings.heist
@@ -190,7 +190,7 @@ function Sheet({
                           })()}
                           {card.name}
                         </td>
-                        <td colSpan={players.length + 1} className="px-1 py-1 text-center text-sm italic text-[#5c4a38]">
+                        <td colSpan={simple ? 1 : players.length + 1} className="px-1 py-1 text-center text-sm italic text-[#5c4a38]">
                           This Evidence belongs to You
                         </td>
                       </tr>
@@ -199,24 +199,43 @@ function Sheet({
                   return (
                   <tr key={card.id} className="border-b border-[#1c2430]/10">
                     <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
-                    <Mark
-                      card={card}
-                      column="envelope"
-                      mark={frozen ? "maybe" : asMark(notes.marks[card.id]?.envelope)}
-                      onMark={onMark}
-                      frozen={frozen}
-                    />
-                    {players.map((p) => (
-                      <Mark
-                        key={p.id}
-                        tint={characterColor(p.avatar)}
+                    {simple ? (
+                      <SimpleMark
                         card={card}
-                        column={p.id}
-                        mark={frozen ? "maybe" : asMark(notes.marks[card.id]?.[p.id])}
+                        players={players}
+                        row={notes.marks[card.id]}
+                        cards={state.cards}
                         onMark={onMark}
                         frozen={frozen}
                       />
-                    ))}
+                    ) : (
+                      <>
+                        <Mark
+                          card={card}
+                          column="envelope"
+                          mark={frozen ? "maybe" : asMark(notes.marks[card.id]?.envelope)}
+                          onMark={onMark}
+                          frozen={frozen}
+                          players={players}
+                          row={notes.marks[card.id]}
+                          cards={state.cards}
+                        />
+                        {players.map((p) => (
+                          <Mark
+                            key={p.id}
+                            tint={characterColor(p.avatar)}
+                            card={card}
+                            column={p.id}
+                            mark={frozen ? "maybe" : asMark(notes.marks[card.id]?.[p.id])}
+                            onMark={onMark}
+                            frozen={frozen}
+                            players={players}
+                            row={notes.marks[card.id]}
+                            cards={state.cards}
+                          />
+                        ))}
+                      </>
+                    )}
                   </tr>
                   );
                 })}
@@ -319,32 +338,88 @@ function columnStyle(color: string | undefined): CSSProperties | undefined {
   };
 }
 
+type Row = Record<string, SheetMark | "x"> | undefined;
+type OnMark = (cardId: string, column: string, mark: SheetMark) => void;
+type Anchor = { x: number; top: number; bottom: number };
+
+function anchorOf(el: HTMLElement): Anchor {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, top: r.top, bottom: r.bottom };
+}
+
+/** The little menu that opens beside a square. It stays on screen and closes when you tap anywhere else. */
+function MarkMenu({ anchor, onClose, children }: { anchor: Anchor; onClose: () => void; children: ReactNode }) {
+  const vw = typeof window !== "undefined" ? window.innerWidth : 360;
+  const width = Math.min(280, vw - 16);
+  const left = Math.min(Math.max(anchor.x - width / 2, 8), vw - width - 8);
+  const above = anchor.top > 170;
+  return (
+    <div className="fixed inset-0 z-50" onPointerDown={onClose}>
+      <div
+        className="absolute grid gap-2 rounded-2xl border border-[#c4b396] bg-[#f6f1e6] p-2 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
+        style={{
+          left,
+          width,
+          ...(above ? { top: anchor.top - 8, transform: "translateY(-100%)" } : { top: anchor.bottom + 8 }),
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** One player's logo as a button. Choosing it says that player has the card. */
+function LogoChoice({
+  player,
+  cards,
+  selected,
+  onPick,
+}: {
+  player: GameState["players"][number];
+  cards: CardDef[];
+  selected: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`${player.name} has it`}
+      aria-pressed={selected}
+      title={player.name}
+      className={cn("grid place-items-center rounded-full p-0.5", selected && "bg-[#178a45]/15 ring-2 ring-[#178a45]")}
+      onClick={onPick}
+    >
+      <ProfileBadge player={player} cards={cards} size="md" />
+    </button>
+  );
+}
+
 function Mark({
   card,
   column,
   mark,
   onMark,
   tint,
+  players,
+  row,
+  cards,
   frozen = false,
 }: {
   tint?: string;
   card: CardDef;
   column: string;
   mark: SheetMark;
-  onMark: (cardId: string, column: string, mark: SheetMark) => void;
+  onMark: OnMark;
+  players: GameState["players"];
+  row: Row;
+  cards: CardDef[];
   frozen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const timer = useRef<number | null>(null);
-  const start = useRef({ x: 0, y: 0 });
-  const held = useRef(false);
-  const ignoreUntil = useRef(0);
-
-  function clearTimer() {
-    if (timer.current != null) window.clearTimeout(timer.current);
-    timer.current = null;
-  }
+  const [anchor, setAnchor] = useState<Anchor>({ x: 0, top: 0, bottom: 0 });
+  const choices = column === "envelope" ? CHOICES : CHOICES.filter((choice) => choice.id !== "answer");
 
   return (
     <td className="px-1 py-1 text-center" style={columnStyle(tint)}>
@@ -353,32 +428,11 @@ function Mark({
         aria-label={`${card.name} mark`}
         style={tint ? { borderColor: tint, borderWidth: 2 } : undefined}
         onContextMenu={(e) => e.preventDefault()}
-        onPointerDown={(e) => {
+        onClick={(e) => {
           if (frozen) return;
-          held.current = false;
-          start.current = { x: e.clientX, y: e.clientY };
-          clearTimer();
-          const el = e.currentTarget;
-          timer.current = window.setTimeout(() => {
-            held.current = true;
-            const r = el.getBoundingClientRect();
-            setPos({ x: r.left + r.width / 2, y: r.top });
-            ignoreUntil.current = performance.now() + 400;
-            haptic("mark");
-            setOpen(true);
-          }, 420);
-        }}
-        onPointerMove={(e) => {
-          if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) clearTimer();
-        }}
-        onPointerUp={clearTimer}
-        onPointerCancel={clearTimer}
-        onClick={() => {
-          if (frozen || held.current) return;
           haptic("mark");
-          const order = CYCLE[column === "envelope" ? "card" : "guest"];
-          const at = Math.max(0, order.indexOf(mark));
-          onMark(card.id, column, order[(at + 1) % order.length]);
+          setAnchor(anchorOf(e.currentTarget));
+          setOpen(true);
         }}
         className={cn(
           "notebook-mark",
@@ -391,23 +445,9 @@ function Mark({
         {mark === "check" ? "✓" : mark === "x" ? "✕" : mark === "maybe" ? "?" : mark === "answer" ? "O" : ""}
       </button>
       {open ? (
-        <div
-          className="fixed inset-0 z-50"
-          onPointerDown={() => {
-            if (performance.now() < ignoreUntil.current) return;
-            setOpen(false);
-          }}
-        >
-          <div
-            className="absolute flex gap-1 rounded-full border border-[#c4b396] bg-[#f6f1e6] p-1 shadow-[0_10px_24px_rgba(0,0,0,0.28)]"
-            style={{
-              left: pos.x,
-              top: Math.max(8, pos.y - 52),
-              transform: "translateX(-50%)",
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            {(column === "envelope" ? CHOICES : CHOICES.filter((choice) => choice.id !== "answer")).map((choice) => (
+        <MarkMenu anchor={anchor} onClose={() => setOpen(false)}>
+          <div className="flex justify-center gap-1">
+            {choices.map((choice) => (
               <button
                 key={choice.id}
                 type="button"
@@ -430,7 +470,114 @@ function Mark({
               </button>
             ))}
           </div>
-        </div>
+          {players.length ? (
+            <div className="border-t border-[#1c2430]/15 pt-2">
+              <p className="mb-1 text-center text-[10px] uppercase tracking-[0.2em] text-[#8a7560]">Who has it</p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {players.map((p) => (
+                  <LogoChoice
+                    key={p.id}
+                    player={p}
+                    cards={cards}
+                    selected={row?.[p.id] === "check"}
+                    onPick={() => {
+                      haptic("mark");
+                      // A logo counts as a check mark in that player's column.
+                      onMark(card.id, p.id, row?.[p.id] === "check" ? "blank" : "check");
+                      setOpen(false);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </MarkMenu>
+      ) : null}
+    </td>
+  );
+}
+
+/** Simple journaling: one square for the card. The player you pick is the one who showed it to you. */
+function SimpleMark({
+  card,
+  players,
+  row,
+  cards,
+  onMark,
+  frozen = false,
+}: {
+  card: CardDef;
+  players: GameState["players"];
+  row: Row;
+  cards: CardDef[];
+  onMark: OnMark;
+  frozen?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<Anchor>({ x: 0, top: 0, bottom: 0 });
+  const holders = players.filter((p) => row?.[p.id] === "check");
+  const holder = holders[0];
+  return (
+    <td className="px-1 py-1 text-center">
+      <button
+        type="button"
+        aria-label={`${card.name}, shown by`}
+        className="notebook-mark !h-9 !w-9"
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={(e) => {
+          if (frozen) return;
+          haptic("mark");
+          setAnchor(anchorOf(e.currentTarget));
+          setOpen(true);
+        }}
+      >
+        {frozen ? (
+          <span className="text-[#8a6230]">?</span>
+        ) : holder ? (
+          <span className="relative inline-flex">
+            <ProfileBadge player={holder} cards={cards} size="sm" />
+            {holders.length > 1 ? (
+              <span className="absolute -right-2 -top-2 rounded-full bg-[#1c2430] px-1 text-[10px] leading-4 text-[#f6f1e6]">+{holders.length - 1}</span>
+            ) : null}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <MarkMenu anchor={anchor} onClose={() => setOpen(false)}>
+          <p className="text-center text-[10px] uppercase tracking-[0.2em] text-[#8a7560]">Who showed you {card.name}?</p>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {players.map((p) => (
+              <LogoChoice
+                key={p.id}
+                player={p}
+                cards={cards}
+                selected={row?.[p.id] === "check"}
+                onPick={() => {
+                  haptic("mark");
+                  // One card has one holder, so choosing someone new replaces the old pick. Choosing the same player again clears it.
+                  const same = holders.length === 1 && holders[0].id === p.id;
+                  holders.forEach((h) => {
+                    if (h.id !== p.id) onMark(card.id, h.id, "blank");
+                  });
+                  onMark(card.id, p.id, same ? "blank" : "check");
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>
+          {holders.length ? (
+            <button
+              type="button"
+              className="text-center text-sm text-[#8a3b3b] underline"
+              onClick={() => {
+                holders.forEach((h) => onMark(card.id, h.id, "blank"));
+                setOpen(false);
+              }}
+            >
+              Clear
+            </button>
+          ) : null}
+        </MarkMenu>
       ) : null}
     </td>
   );
