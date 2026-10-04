@@ -115,6 +115,8 @@ interface GameStore {
   syncTable: (choice: { agree?: boolean; cancel?: boolean }) => void;
   eventChoice: (choice: Record<string, unknown>) => void;
   markNote: (cardId: string, column: string, mark: PlayerNotes["marks"][string][string]) => void;
+  /** Several marks on one card in one go (one pencil sound, one save). */
+  markNotes: (cardId: string, marks: Record<string, PlayerNotes["marks"][string][string]>) => void;
   setFreeText: (text: string) => void;
   saveSet: (set: CardSet) => void;
   deleteSet: (id: string) => void;
@@ -971,6 +973,19 @@ export const useGame = create<GameStore>((set, get) => ({
     const next = {
       ...notes,
       [key]: { ...mine, marks: { ...mine.marks, [cardId]: { ...(mine.marks[cardId] ?? {}), [column]: mark as SheetMark } } },
+    };
+    sfxPencil();
+    persistNotes(next);
+    set({ notes: next });
+  },
+  markNotes: (cardId, marks) => {
+    const { notes, state, viewingPlayerId, localPlayerId } = get();
+    if (!state) return;
+    const key = notesKey(state.code, sheetOwner(state, localPlayerId, viewingPlayerId));
+    const mine = notes[key] ?? emptyNotes();
+    const next = {
+      ...notes,
+      [key]: { ...mine, marks: { ...mine.marks, [cardId]: { ...(mine.marks[cardId] ?? {}), ...(marks as Record<string, SheetMark>) } } },
     };
     sfxPencil();
     persistNotes(next);
