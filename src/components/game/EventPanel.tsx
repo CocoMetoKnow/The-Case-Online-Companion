@@ -1,4 +1,4 @@
-import { nearestRooms, roomById } from "@/lib/game/board";
+import { layoutFor, nearestRooms, roomLabel } from "@/lib/game/board";
 import { currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
 import { EVENT_DEFS, PHYSICAL_EVENTS, cardArt, cardsByCategory, eventsForPlayers } from "@/lib/game/cards";
 import type { CardDef, CategoryId } from "@/lib/game/types";
@@ -165,7 +165,7 @@ export function EventPanel() {
             if (ev.kind === "move-anywhere") {
               roomIds = enabledRoomIds;
             } else if (ev.kind === "fast-track") {
-              roomIds = cur ? nearestRooms(cur.position, enabledRoomIds, state.passages ?? []).filter((id) => enabledRoomIds.includes(id)) : [];
+              roomIds = cur ? nearestRooms(cur.position, enabledRoomIds, state.passages ?? [], 3, layoutFor(state.settings)).filter((id) => enabledRoomIds.includes(id)) : [];
             } else {
               const links = state.passages ?? [];
               const set = new Set<string>();
@@ -186,7 +186,7 @@ export function EventPanel() {
             }
             return roomIds.map((id) => (
               <Button key={id} variant="outline" onClick={() => eventChoice({ roomId: id })}>
-                {roomById(id)?.name ?? state.cards.find((c) => c.id === id)?.name ?? id}
+                {roomLabel(state, id, layoutFor(state.settings))}
               </Button>
             ));
           })()}

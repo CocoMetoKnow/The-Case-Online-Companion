@@ -1,4 +1,4 @@
-import { occupyingRoom, roomById } from "@/lib/game/board";
+import { layoutFor, occupyingRoom, roomLabel as boardRoomLabel } from "@/lib/game/board";
 import { currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
 import { movementTotal } from "@/lib/game/engine";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export function GameTable() {
   const me = state.players.find((p) => p.id === actor);
   const isMyTurn = turnActorId(state) === actor;
   const roomId = cur ? occupyingRoom(cur.position) : null;
-  const roomLabel = roomId ? roomById(roomId)?.name ?? roomId : "the hall";
+  const roomLabel = roomId ? boardRoomLabel(state, roomId, layoutFor(state.settings)) : "the hall";
   const leftover = state.leftover
     .map((id) => state.cards.find((c) => c.id === id))
     .filter((c): c is NonNullable<typeof c> => Boolean(c));

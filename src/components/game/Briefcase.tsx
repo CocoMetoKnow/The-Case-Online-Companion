@@ -12,6 +12,7 @@ import { sfxDice, sfxPaper } from "@/lib/game/sfx";
 import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
 import { TurnTracker } from "./TurnTracker";
+import { MansionBoard } from "./MansionBoard";
 import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
@@ -72,6 +73,8 @@ function BriefcaseTable() {
   const syncSheet = useGame((s) => s.syncSheet);
   const secrets = useGame((s) => s.secrets);
   const roll = useGame((s) => s.roll);
+  const moveTo = useGame((s) => s.moveTo);
+  const stay = useGame((s) => s.stay);
   const namePick = useGame((s) => s.namePick);
   const actor = useActorId();
   const localId = useGame((s) => s.localPlayerId);
@@ -241,6 +244,10 @@ function BriefcaseTable() {
   const leftover = state.leftover
     .map((id) => state.cards.find((c) => c.id === id))
     .filter(Boolean) as CardDef[];
+  // Digital board: the house is the main thing on screen, with the hand tucked under it.
+  const board = state.settings.table === "board";
+  const walker = cur?.id ?? actor;
+  const walking = myTurn && (state.phase === "move" || (state.phase === "event" && state.event?.kind === "move-anywhere"));
 
   if (verdict && state.phase !== "gameover") {
     return <VerdictScene state={state} verdict={verdict} onClose={dismissVerdict} />;
@@ -307,7 +314,7 @@ function BriefcaseTable() {
       : null;
   return (
     <main className="leather h-dvh overflow-hidden">
-      <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
+      <div className={`mx-auto flex h-full flex-col px-2 py-1 ${board ? "max-w-5xl" : "max-w-lg"}`}>
         <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
           <p className="min-w-0 truncate font-display text-lg leading-none">
             {me?.name ?? "Your case"}
@@ -389,8 +396,20 @@ function BriefcaseTable() {
             </p>
           ) : null}
 
-          {passages.length ? (
+          {passages.length && !board ? (
             <p className="shrink-0 truncate text-[11px] text-muted">Passages · {passages.join(" · ")}</p>
+          ) : null}
+
+          {board ? (
+            <div className="min-h-[250px] flex-[2_1_0%]">
+              <MansionBoard
+                state={state}
+                actorId={walker}
+                interactive={walking}
+                onMove={moveTo}
+                onStop={state.phase === "move" ? stay : undefined}
+              />
+            </div>
           ) : null}
 
           <CardHand

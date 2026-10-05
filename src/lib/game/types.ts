@@ -159,6 +159,13 @@ export interface GameSettings {
   playMode: PlayMode;
   /** "board" walks the digital house. Missing or "case" is the phone case, up to 15. */
   table?: "case" | "board";
+  /**
+   * Digital board: which room sits in each slot round the house, first slot first. An empty entry is left to the
+   * game. The host sets this when picking how many room cards are on.
+   */
+  boardRooms?: string[];
+  /** Digital board: the two secret passages the host set. An empty pair is left to the game (Study to Kitchen, Lounge to Conservatory). */
+  boardPassages?: Passage[];
   /** Deal each category round-robin so hands stay as even as they can. */
   evenDeal?: boolean;
   /** The case is a theft. Weapon cards are the valuables that were taken. */

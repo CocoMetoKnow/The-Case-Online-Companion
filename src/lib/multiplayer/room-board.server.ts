@@ -143,6 +143,8 @@ function settingsStamp(state: GameState): string {
     String(settings.maxPlayers),
     (settings.enabledEvents ?? []).join(","),
     (settings.enabledRoomIds ?? []).join(","),
+    (settings.boardRooms ?? []).join(","),
+    (settings.boardPassages ?? []).map((p) => `${p.a}:${p.b}`).join(","),
     (state.passages ?? []).map((p) => `${p.a}:${p.b}`).join(","),
   ]);
 }

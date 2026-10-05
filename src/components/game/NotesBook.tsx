@@ -1,4 +1,4 @@
-import { Castle, Diamond, Moon, Sword, UserRound } from "lucide-react";
+import { Castle, Diamond, Layers, Moon, Sword, UserRound } from "lucide-react";
 import { cardsByCategory } from "@/lib/game/cards";
 import { characterColor } from "@/lib/game/character-colors";
 import { haptic } from "@/lib/game/haptics";
@@ -108,6 +108,8 @@ function Sheet({
   const players = state.players.filter((player) => player.id !== ownerId);
   const simple = useSimpleJournal();
   const myHandIds = new Set(useMyHand().map((c) => c.id));
+  // Cards left face up on the table after the deal. Nobody holds them, so simple journaling shows them with their own symbol.
+  const tableIds = new Set((state.leftover ?? []).map(String));
   const cats: CategoryId[] = state.settings.timeOfDayEnabled
     ? ["suspect", "weapon", "room", "time"]
     : ["suspect", "weapon", "room"];
@@ -195,6 +197,23 @@ function Sheet({
                         </td>
                         <td colSpan={simple ? 1 : players.length + 1} className="px-1 py-1 text-center text-sm italic text-[#5c4a38]">
                           This Evidence belongs to You
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (simple && !frozen && tableIds.has(card.id)) {
+                    return (
+                      <tr key={card.id} className="border-b border-[#1c2430]/10">
+                        <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
+                        <td className="px-1 py-1 text-center">
+                          <span
+                            className="inline-flex items-center justify-center gap-1 text-xs italic text-[#5c4a38]"
+                            aria-label={`${card.name} is on the table`}
+                            title="On the table"
+                          >
+                            <Layers className="size-5 text-[#8a5a12]" aria-hidden />
+                            On the table
+                          </span>
                         </td>
                       </tr>
                     );

@@ -9,6 +9,7 @@ import { ClueCodeField } from "./ClueCodeField";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { buildLayout, orderRooms, resolvePassages } from "@/lib/game/board";
 import { useMemo, useState } from "react";
 
 const BASE_SUSPECTS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c.category === "suspect"));
@@ -17,6 +18,148 @@ const BASE_WEAPONS = unique([...CLASSIC_CARDS, ...DEFAULT_CARDS].filter((c) => c
 const TIME_CARDS = DEFAULT_CARDS.filter((c) => c.category === "time");
 
 const PRESET_NAMES: Record<string, string> = { classic: "Opening Night", default: "Harrington House", take: "The Take" };
+
+const SIDE_WORD = { n: "top", e: "right", s: "bottom", w: "left" } as const;
+const SELECT_CLASS = "h-11 w-full rounded-[12px] border border-line bg-raised px-2 text-sm text-paper";
+
+/**
+ * Digital board: a main game setting. When it is on, the house is built from the room cards that are on, no
+ * physical board is needed, and the host can choose where each room sits and which two rooms share secret
+ * passages. Anything left on Auto is filled in by the game when the lobby opens.
+ */
+function DigitalBoard() {
+  const settings = useGame((s) => s.setup.settings);
+  const deck = useGame((s) => s.setup.deck);
+  const patchSettings = useGame((s) => s.patchSettings);
+  const [open, setOpen] = useState(false);
+  const on = settings.table === "board";
+  const rooms = deck.filter((c) => c.category === "room");
+  const ids = rooms.map((c) => c.id);
+  const nameOf = (id: string) => rooms.find((c) => c.id === id)?.name ?? id;
+  const chosen = settings.boardRooms ?? [];
+  const slotRoom = (i: number) => (chosen[i] && ids.includes(chosen[i]) ? chosen[i] : "");
+  const layout = useMemo(() => buildLayout(orderRooms(ids, chosen)), [ids.join("|"), chosen.join("|")]);
+  const passages = settings.boardPassages ?? [];
+  const preview = resolvePassages(ids, passages, () => 0);
+
+  const setSlot = (i: number, id: string) => {
+    const next = ids.map((_, k) => slotRoom(k));
+    // A room can only sit in one slot, so picking it here frees it everywhere else.
+    for (let k = 0; k < next.length; k++) if (id && next[k] === id) next[k] = "";
+    next[i] = id;
+    patchSettings({ boardRooms: next });
+  };
+  const setPassage = (i: number, end: "a" | "b", id: string) => {
+    const next = [0, 1].map((k) => ({ a: passages[k]?.a ?? "", b: passages[k]?.b ?? "" }));
+    next[i] = { ...next[i], [end]: id };
+    patchSettings({ boardPassages: next });
+  };
+
+  return (
+    <div className="rounded-[16px] border border-line px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <span>
+          <span className="block font-display text-xl leading-tight">Digital board</span>
+          <span className="mt-0.5 block text-sm text-muted">
+            {on
+              ? `The house is built from your ${ids.length} rooms. No physical board needed.`
+              : "Play on a board in the app instead of a physical one."}
+          </span>
+        </span>
+        <Switch
+          aria-label="Digital board"
+          checked={on}
+          onCheckedChange={(value) => patchSettings({ table: value ? "board" : "case" })}
+        />
+      </div>
+      {on ? (
+        <>
+          <Button variant="outline" className="mt-3 w-full" onClick={() => setOpen(true)}>
+            Set up the house
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent title="Set up the house" className="max-h-[min(720px,calc(100%-24px))] overflow-y-auto">
+              <div className="mt-3 space-y-5">
+                <p className="text-sm text-muted">
+                  Every player starts in the middle. Leave anything on Auto and the game picks it for you when the lobby opens. Up to 10 players.
+                </p>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-subtle">Secret passages</p>
+                  <p className="mt-1 text-sm text-muted">Two shortcuts that cost one step. Auto uses Study to Kitchen and Lounge to Conservatory when those rooms are on.</p>
+                  {[0, 1].map((i) => (
+                    <div key={i} className="mt-2">
+                      <p className="mb-1 text-xs text-muted">
+                        Passage {i + 1}
+                        {!passages[i]?.a && !passages[i]?.b && preview[i] ? ` · Auto: ${nameOf(preview[i].a)} ↔ ${nameOf(preview[i].b)}` : ""}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["a", "b"] as const).map((end) => (
+                          <select
+                            key={end}
+                            className={SELECT_CLASS}
+                            aria-label={`Passage ${i + 1}, room ${end === "a" ? 1 : 2}`}
+                            value={passages[i]?.[end] && ids.includes(passages[i][end]) ? passages[i][end] : ""}
+                            onChange={(e) => setPassage(i, end, e.target.value)}
+                          >
+                            <option value="">Auto</option>
+                            {rooms.map((room) => (
+                              <option key={room.id} value={room.id}>
+                                {room.name}
+                              </option>
+                            ))}
+                          </select>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-subtle">Where each room goes</p>
+                  <p className="mt-1 text-sm text-muted">Positions run clockwise from the top. The more room cards you turn on, the bigger the house gets.</p>
+                  <div className="mt-2 space-y-2">
+                    {layout.rooms.map((spec, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="w-24 shrink-0 text-xs text-muted">
+                          {i + 1} · {SIDE_WORD[spec.side]}
+                        </span>
+                        <select
+                          className={SELECT_CLASS}
+                          aria-label={`Room in position ${i + 1}`}
+                          value={slotRoom(i)}
+                          onChange={(e) => setSlot(i, e.target.value)}
+                        >
+                          <option value="">Auto</option>
+                          {rooms.map((room) => (
+                            <option key={room.id} value={room.id}>
+                              {room.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="text-sm text-muted underline"
+                  onClick={() => patchSettings({ boardRooms: [], boardPassages: [] })}
+                >
+                  Let the game decide everything
+                </button>
+              </div>
+              <Button className="mt-5 w-full" onClick={() => setOpen(false)}>
+                Done
+              </Button>
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * One button on the setup screen that opens a popup with the three choices made before anyone joins:
@@ -341,6 +484,8 @@ export function SetupScreen() {
             loadPreset={loadPreset}
             patchSettings={patchSettings}
           />
+
+          <DigitalBoard />
 
           <CardGroup
             title={CATEGORY_LABEL.suspect}

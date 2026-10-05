@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, applyClassicNames, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
-import { START_HALL, isQuestionRoom, roomById } from "./board";
+import { blockedHallsFor, isQuestionRoom, layoutFor, posKey, reachable, reconstructPath, resolvePassages, roomLabel } from "./board";
 import { NPC_ID, PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
 
@@ -53,7 +53,7 @@ export function createLobby(hostName, settings, cards, code = makeCode()): { sta
 				isHost: true,
 				position: {
 					kind: "hall" as const,
-					...START_HALL[0]
+					...layoutFor(settings).starts[0]
 				}
 			}],
 			turnOrder: [hostId],
@@ -97,7 +97,7 @@ export function addPlayer(state: GameState, name: string, id = uid("p")): GameSt
 		isHost: false,
 		position: {
 			kind: "hall" as const,
-			...START_HALL[seat % START_HALL.length]
+			...layoutFor(state.settings).starts[seat % layoutFor(state.settings).starts.length]
 		}
 	};
 	return {
@@ -218,11 +218,12 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		eliminated: false,
 		position: {
 			kind: "hall" as const,
-			...START_HALL[i % START_HALL.length]
+			...layoutFor(state.settings).starts[i % layoutFor(state.settings).starts.length]
 		}
 	}));
 	const order = fisherYates(players.map((p) => p.id));
-	const passages = makePassages(state.settings.enabledRoomIds);
+	// The digital board opens with the two passages the host set (Study to Kitchen and Lounge to Conservatory by default).
+	const passages = state.settings?.table === "board" ? resolvePassages(state.settings.enabledRoomIds, state.settings.boardPassages) : makePassages(state.settings.enabledRoomIds);
 	const eventDeck = fisherYates(eventsForPlayers(players.length, state.settings));
 	const started = {
 		...state,
@@ -267,7 +268,7 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		privateShow: null
 	};
 	const split = splitEven(started, { solution: {}, hands: {} });
-	const nameOf = (id) => state.cards.find((c) => c.id === id)?.name ?? roomById(id)?.name ?? id;
+	const nameOf = (id) => roomLabel(state, id, layoutFor(state.settings));
 	const passageText = passages.map((p) => `${nameOf(p.a)} ↔ ${nameOf(p.b)}`).join("; ");
 	const speak = Boolean(state.settings?.speakMode);
 	const spokenNote = speak ? " Suggestions are spoken out loud." : "";
@@ -574,7 +575,7 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 		if (dest.kind !== "room") return state;
 		if (!roomsInPlay(state).includes(dest.roomId)) return state;
 		const moved = placePlayer(state, subject, dest);
-		const roomName = roomById(dest.roomId)?.name ?? dest.roomId;
+		const roomName = roomLabel(state, dest.roomId, layoutFor(state.settings));
 		const noted = log({
 			...moved,
 			moveBudget: 0,
@@ -583,7 +584,7 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 		return holdForBoard(noted, `On the physical board, move ${player.name}'s piece into the ${roomName}.`, "resume");
 	}
 	const blocked = blockedHallsFor(state.players, subject);
-	const { nodes } = reachable(player.position, state.moveBudget, state.settings.enabledRoomIds, state.passages ?? [], blocked);
+	const { nodes } = reachable(player.position, state.moveBudget, state.settings.enabledRoomIds, state.passages ?? [], blocked, layoutFor(state.settings));
 	const key = dest.kind === "hall" ? `h:${dest.x},${dest.y}` : `r:${dest.roomId}`;
 	const node = nodes.get(key);
 	if (!node || node.dist < 1) return state;
@@ -600,8 +601,8 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 		...moved,
 		moveBudget: left
 	};
-	const roomLabel = toRoom ? roomById(toRoom)?.name ?? toRoom : "";
-	const text = fromRoom && toRoom && fromRoom !== toRoom ? `${player.name} takes the passage into the ${roomLabel}.` : entered ? `${player.name} steps into the ${roomLabel}.` : `${player.name} stops in the corridor.`;
+	const toRoomLabel = toRoom ? roomLabel(state, toRoom, layoutFor(state.settings)) : "";
+	const text = fromRoom && toRoom && fromRoom !== toRoom ? `${player.name} takes the passage into the ${toRoomLabel}.` : entered ? `${player.name} steps into the ${toRoomLabel}.` : `${player.name} stops in the corridor.`;
 	return log({
 		...moved,
 		phase: "action",
@@ -638,10 +639,10 @@ export function canAsk(state: GameState, playerId: string): boolean {
 	if (state.settings?.speakMode) return true;
 	if (state.settings?.table === "board") {
 		if (state.freeQuestion) return true;
-		return isQuestionRoom(p.position, state.settings.enabledRoomIds);
+		return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 	}
 	if (state.settings.playMode === "online" || state.freeQuestion) return true;
-	return isQuestionRoom(p.position, state.settings.enabledRoomIds);
+	return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 }
 /** Extra Difficulty is on: the NPC holds cards. */
 function npcOn(state) {
@@ -746,7 +747,7 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 		nextState = placePlayer(nextState, subject, { kind: "room", roomId: String(announced) });
 	}
 	const asked = formatQuestion(nextState, pick);
-	const roomName = announced ? roomById(announced)?.name : "the hall";
+	const roomName = announced ? roomLabel(state, String(announced), layoutFor(state.settings)) : "the hall";
 	const silencedName = silencedId ? state.cards.find((c) => c.id === silencedId)?.name : "";
 	const hushLine = silencedName ? ` The hush lifts: ${silencedName} is silenced, so no one shows it.` : "";
 	const betLine = bet.line ? ` ${bet.line}` : "";

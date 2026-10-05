@@ -33,7 +33,7 @@ import {
 } from "@/lib/game/storage";
 import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
 import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
-import { isLegalPos, START_HALL, BOARD_ROOM_IDS } from "@/lib/game/board";
+import { autoBoardRooms, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
 export { canAsk, currentPlayer, turnActorId };
@@ -188,12 +188,18 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
   return true;
 }
 
+/** The digital board is built from whatever room cards are on, so no room is dropped from the deck. */
 function boardDeck(cards: CardDef[]): CardDef[] {
-  const on = new Set(cards.filter((card) => card.category === "room").map((card) => card.id));
-  const rooms = CLASSIC_CARDS.filter((card) => card.category === "room" && BOARD_ROOM_IDS.includes(card.id) && on.has(card.id)).map((card) => ({
-    ...card,
-  }));
-  return [...cards.filter((card) => card.category !== "room"), ...rooms];
+  return cards;
+}
+
+/** Fill in whatever the host left to the game: empty room slots and empty passages. */
+function boardSetup(settings: GameSettings, rooms: string[]): Partial<GameSettings> {
+  if (settings.table !== "board") return {};
+  return {
+    boardRooms: autoBoardRooms(rooms, settings.boardRooms),
+    boardPassages: resolvePassages(rooms, settings.boardPassages),
+  };
 }
 
 const defaultSettings = (): GameSettings => ({
@@ -838,6 +844,7 @@ export const useGame = create<GameStore>((set, get) => ({
       maxPlayers: cap,
       table: board ? "board" : "case",
     };
+    Object.assign(settings, boardSetup(settings, rooms));
     const { state, secrets } = createLobby(name, settings, cards);
     set({
       state,
@@ -871,6 +878,7 @@ export const useGame = create<GameStore>((set, get) => ({
       maxPlayers: Math.min(seats, 3),
       table: board ? "board" : "case",
     };
+    Object.assign(settings, boardSetup(settings, rooms));
     let { state, secrets } = createLobby(name, settings, cards);
     state = addPlayer(state, "Lady Violet");
     state = addPlayer(state, "Dr. Bunny");
@@ -1093,7 +1101,8 @@ export const useGame = create<GameStore>((set, get) => ({
                 return base ? { ...card, name: base.name, clock: base.clock, blurb: base.blurb } : card;
               })), Boolean(saved.state.settings?.classicNames))),
               players: saved.state.players.map((p, i) => {
-                const seated = isLegalPos(p.position) ? p : { ...p, position: { kind: "hall" as const, ...START_HALL[i % START_HALL.length] } };
+                const house = layoutFor(saved.state.settings);
+                const seated = isLegalPos(p.position, house) ? p : { ...p, position: { kind: "hall" as const, ...house.starts[i % house.starts.length] } };
                 if (seated.id === saved.localPlayerId && /^detective$/i.test(seated.name.trim())) return { ...seated, name: "Host" };
                 return seated;
               }),

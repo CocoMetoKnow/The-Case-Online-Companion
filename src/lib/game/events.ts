@@ -1,5 +1,5 @@
 import { PHYSICAL_EVENTS, eventsForPlayers } from "./cards";
-import { nearestRooms, roomById, START_HALL } from "./board";
+import { layoutFor, nearestRooms, roomLabel } from "./board";
 import { SPEED_BOOST_MULTIPLIER, SPEED_BOOST_TURNS, currentName, currentPlayer, holdForBoard, placePlayer, roomsInPlay, turnActorId } from "./engine";
 import type { CategoryId, EventKind, GameState, PiecePos, Secrets } from "./types";
 import { uid } from "../utils";
@@ -223,7 +223,7 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
       const target = pool[Math.floor(Math.random() * pool.length)];
       const roomId = rooms[Math.floor(Math.random() * rooms.length)];
       const moved = placePlayer(state, target.id, { kind: "room", roomId });
-      const roomName = roomById(roomId)?.name ?? state.cards.find((c) => c.id === roomId)?.name ?? roomId;
+      const roomName = roomLabel(state, roomId, layoutFor(state.settings));
       const note = `On the physical board, move ${target.name}'s piece into the ${roomName}.`;
       return {
         state: holdForBoard(
@@ -243,7 +243,8 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
       const names: string[] = [];
       for (const player of state.players) {
         if (player.id === who.id || player.eliminated) continue;
-        const spot = START_HALL[player.seat % START_HALL.length];
+        const starts = layoutFor(state.settings).starts;
+        const spot = starts[player.seat % starts.length];
         next = placePlayer(next, player.id, { kind: "hall", x: spot.x, y: spot.y });
         names.push(player.name);
       }
@@ -761,7 +762,7 @@ export function resolveEventChoice(
       secrets,
     };
   }
-  const label = (id: string) => roomById(id)?.name ?? state.cards.find((c) => c.id === id)?.name ?? id;
+  const label = (id: string) => roomLabel(state, id, layoutFor(state.settings));
 
   if (ev.kind === "new-passage") {
     const roomA = String(choice.roomA ?? "");
@@ -792,7 +793,7 @@ export function resolveEventChoice(
       valid = enabledRoomIds.includes(roomId);
     } else if (ev.kind === "fast-track") {
       // The few rooms closest to where the piece stands.
-      valid = nearestRooms(cur.position, enabledRoomIds, state.passages ?? []).includes(roomId);
+      valid = nearestRooms(cur.position, enabledRoomIds, state.passages ?? [], 3, layoutFor(state.settings)).includes(roomId);
     } else {
       // Shortcut: either end of any secret passage already marked on the board.
       valid = enabledRoomIds.includes(roomId) && (state.passages ?? []).some((link) => link.a === roomId || link.b === roomId);
