@@ -19,7 +19,6 @@ const TIME_CARDS = DEFAULT_CARDS.filter((c) => c.category === "time");
 
 const PRESET_NAMES: Record<string, string> = { classic: "Opening Night", default: "Harrington House", take: "The Take" };
 
-const SIDE_WORD = { n: "top", e: "right", s: "bottom", w: "left" } as const;
 const SELECT_CLASS = "h-11 w-full rounded-[12px] border border-line bg-raised px-2 text-sm text-paper";
 
 /**
@@ -117,12 +116,12 @@ function DigitalBoard() {
 
                 <div>
                   <p className="text-xs uppercase tracking-[0.16em] text-subtle">Where each room goes</p>
-                  <p className="mt-1 text-sm text-muted">Positions run clockwise from the top. The more room cards you turn on, the bigger the house gets.</p>
+                  <p className="mt-1 text-sm text-muted">Positions run clockwise from the top left corner. Corner rooms are the biggest. The more room cards you turn on, the bigger the house gets (4 to 15 rooms).</p>
                   <div className="mt-2 space-y-2">
                     {layout.rooms.map((spec, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="w-24 shrink-0 text-xs text-muted">
-                          {i + 1} · {SIDE_WORD[spec.side]}
+                        <span className="w-28 shrink-0 text-xs text-muted">
+                          {i + 1} · {spec.place}
                         </span>
                         <select
                           className={SELECT_CLASS}

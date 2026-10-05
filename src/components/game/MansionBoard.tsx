@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import {
   blockedHallsFor,
+  cellRuns,
   hallCells,
   layoutFor,
   posKey,
   reachable,
   reconstructPath,
+  roomCenter,
   roomLabel,
+  roomOutline,
   type BoardLayout,
   type RoomSpec,
 } from "@/lib/game/board";
@@ -19,8 +22,9 @@ import { charCutout, roomBackdrop } from "@/lib/game/scene-art";
 /**
  * The digital board, drawn flat and top-down like the printed one.
  *
- * Rooms are big painted panels with thick black outlines, the corridor is pale marble tile with a grid, and the
- * walls between rooms are left dark so there is breathing room. Only the guests stand up: each one is a small
+ * Rooms are big painted panels with thick black outlines and their own footprints (L shapes, bays, wings), and the
+ * corridor is one continuous pale marble floor that runs between and around them, with a red carpet frame round the
+ * staircase in the middle. Only the guests stand up: each one is a small
  * round base with a cut-out figure on it, a little shadow and a slight lean so they read as 3D.
  *
  * The whole house is always scaled to fit the space it is given. There is no zoom: nothing to pinch, nothing to
@@ -47,35 +51,36 @@ const BOARD_CSS = `
 .dgb-house{position:absolute;border-radius:8px;background:
   repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 5px,transparent 5px 10px),#1d1b22;
  box-shadow:0 0 0 5px #000,0 0 0 7px #b8923e,inset 0 0 40px rgba(0,0,0,.7)}
-.dgb-hu{position:absolute;background:#000;border-radius:3px}
-.dgb-hc{position:absolute;background:#efe8d6;box-shadow:inset 0 0 0 1px rgba(120,102,70,.32);z-index:1}
-.dgb-hc.b{background:#e6dcc4}
-.dgb-hc.plaza{background:#7d2a3a;box-shadow:inset 0 0 0 1px rgba(214,178,92,.5)}
-.dgb-hc.plaza.b{background:#702333}
-.dgb-hc.mid::after{content:"✦";position:absolute;inset:0;display:grid;place-items:center;color:rgba(240,210,130,.9);font-size:${CELL * 0.5}px}
-.dgb-hc.door{background:#d8bb74;box-shadow:inset 0 0 0 1px #8a6d2c;z-index:3}
-.dgb-hc.door::after{content:"";position:absolute;background:#d8bb74;box-shadow:0 0 0 1px #8a6d2c}
-.dgb-hc.door-n::after{left:18%;right:18%;top:-7px;height:9px}
-.dgb-hc.door-s::after{left:18%;right:18%;bottom:-7px;height:9px}
-.dgb-hc.door-e::after{top:18%;bottom:18%;right:-7px;width:9px}
-.dgb-hc.door-w::after{top:18%;bottom:18%;left:-7px;width:9px}
+.dgb-floor{position:absolute;left:0;top:0;z-index:1;pointer-events:none}
+.dgb-atrium{position:absolute;z-index:1;border-radius:4px;display:grid;place-items:center;color:rgba(240,210,130,.9);font-size:${CELL * 0.6}px;
+ box-shadow:0 0 0 3px #000,0 0 0 5px #b8923e,inset 0 0 34px rgba(0,0,0,.65);
+ background:repeating-linear-gradient(180deg,#8a6038 0 7px,#2e1d10 7px 9px),linear-gradient(135deg,#6e4c2d,#4a3120)}
+.dgb-door{position:absolute;z-index:3;background:#d8bb74;box-shadow:inset 0 0 0 1px #8a6d2c}
+.dgb-door::after{content:"";position:absolute;background:#d8bb74;box-shadow:0 0 0 1px #8a6d2c}
+.dgb-door.door-n::after{left:18%;right:18%;top:-7px;height:9px}
+.dgb-door.door-s::after{left:18%;right:18%;bottom:-7px;height:9px}
+.dgb-door.door-e::after{top:18%;bottom:18%;right:-7px;width:9px}
+.dgb-door.door-w::after{top:18%;bottom:18%;left:-7px;width:9px}
 .dgb-reach{position:absolute;z-index:4;pointer-events:none;border-radius:3px;background:rgba(120,245,160,.46);box-shadow:inset 0 0 0 2px #2fb463,0 0 10px rgba(47,180,99,.75);animation:dgb-pulse 1.2s ease-in-out infinite}
 .dgb-reach.edge{background:rgba(240,200,100,.45);box-shadow:inset 0 0 0 2px #f0cf7a,0 0 10px rgba(240,207,122,.75)}
 .dgb-reach.pick{background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 3px #fff,0 0 16px #fff}
-.dgb-room{position:absolute;z-index:2;overflow:hidden;border-radius:6px;background-size:cover;background-position:center;
- box-shadow:0 0 0 4px #000,inset 0 0 0 3px var(--tint,#6a3030),inset 0 -26px 28px -10px rgba(0,0,0,.55),inset 0 20px 24px -12px rgba(0,0,0,.4)}
-.dgb-room::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(255,200,115,.22),transparent 66%);mix-blend-mode:screen;pointer-events:none}
-.dgb-room.reach{z-index:5;animation:dgb-pulse 1.2s ease-in-out infinite;box-shadow:0 0 0 4px #000,0 0 0 7px #2fb463,0 0 22px 6px rgba(47,180,99,.9),inset 0 0 0 3px var(--tint,#6a3030)}
-.dgb-room.reach.edge{box-shadow:0 0 0 4px #000,0 0 0 7px #f0cf7a,0 0 22px 6px rgba(240,207,122,.85),inset 0 0 0 3px var(--tint,#6a3030)}
-.dgb-room.pick{box-shadow:0 0 0 4px #000,0 0 0 8px #fff,0 0 26px 8px rgba(255,255,255,.85),inset 0 0 0 3px var(--tint,#6a3030)}
+.dgb-room{position:absolute;z-index:2;pointer-events:none}
+.dgb-room-art{position:absolute;inset:0;background-size:cover;background-position:center}
+.dgb-room-art::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(255,200,115,.22),transparent 66%),linear-gradient(180deg,rgba(0,0,0,.25),transparent 30%,rgba(0,0,0,.4));mix-blend-mode:normal;pointer-events:none}
+.dgb-room-edge{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.dgb-hl{stroke:none}
+.dgb-label{position:absolute;pointer-events:none;z-index:3}
+.dgb-room.reach{z-index:5;filter:drop-shadow(0 0 4px #2fb463) drop-shadow(0 0 10px rgba(47,180,99,.85))}
+.dgb-room.reach .dgb-hl{stroke:#2fb463;animation:dgb-hlpulse 1.2s ease-in-out infinite}
+.dgb-room.reach.edge{filter:drop-shadow(0 0 4px #f0cf7a) drop-shadow(0 0 10px rgba(240,207,122,.8))}
+.dgb-room.reach.edge .dgb-hl{stroke:#f0cf7a}
+.dgb-room.pick{filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 14px rgba(255,255,255,.85))}
+.dgb-room.pick .dgb-hl{stroke:#fff;animation:none}
 .dgb-plaque{position:absolute;left:50%;top:6%;transform:translateX(-50%);max-width:94%;padding:.18em .55em;border-radius:3px;background:#000;color:#fff;text-align:center;font-weight:800;letter-spacing:.07em;text-transform:uppercase;line-height:1.1;box-shadow:0 2px 6px rgba(0,0,0,.6);z-index:3}
 .dgb-plaque.v-s{top:auto;bottom:6%}
 .dgb-plaque.v-e,.dgb-plaque.v-w{top:50%;max-width:none;max-height:94%;writing-mode:vertical-rl;padding:.5em .2em;letter-spacing:.02em;font-size:.84em}
 .dgb-plaque.v-e{left:auto;right:5%;transform:translateY(-50%)}
 .dgb-plaque.v-w{left:5%;transform:translateY(-50%) rotate(180deg)}
-.dgb-court{position:absolute;border-radius:4px;box-shadow:0 0 0 3px #000,inset 0 0 34px rgba(0,0,0,.6);background:
-  repeating-linear-gradient(90deg,rgba(0,0,0,.2) 0 2px,transparent 2px 20px),
-  repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 2px,transparent 2px 20px),linear-gradient(135deg,#6e4c2d,#4a3120)}
 .dgb-note{position:absolute;right:3%;bottom:4%;max-width:60%;padding:.15em .4em;background:#f6f1e6;color:#1c2430;font-weight:700;line-height:1.1;transform:rotate(-5deg);box-shadow:0 2px 5px rgba(0,0,0,.55);z-index:3}
 .dgb-plaque.v-s~.dgb-note{bottom:auto;top:4%}
 .dgb-plaque.v-e~.dgb-note,.dgb-plaque.v-w~.dgb-note{right:auto;left:4%;bottom:3%;max-width:92%}
@@ -96,10 +101,11 @@ const BOARD_CSS = `
 .dgb-chip b{font-family:var(--font-display,serif);font-size:20px;font-weight:700;line-height:1}
 .dgb-stop{pointer-events:auto;padding:9px 18px;border-radius:999px;background:#f6f1e6;color:#1c2430;font-weight:700;font-size:13px;border:1px solid #1a2b50;box-shadow:0 4px 10px rgba(0,0,0,.5)}
 .dgb-stop:active{transform:scale(.96)}
+@keyframes dgb-hlpulse{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes dgb-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.28)}}
 @keyframes dgb-ring{0%,100%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #ffe9a0,0 0 14px 5px rgba(255,226,140,.8),0 calc(var(--bh) * .34) 0 1px #120d0a}50%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #fff3c4,0 0 22px 9px rgba(255,226,140,.95),0 calc(var(--bh) * .34) 0 1px #120d0a}}
 @keyframes dgb-bob{0%,100%{transform:perspective(220px) rotateX(-7deg) translateY(0)}50%{transform:perspective(220px) rotateX(-7deg) translateY(-4%)}}
-@media (prefers-reduced-motion:reduce){.dgb-reach,.dgb-room.reach,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
+@media (prefers-reduced-motion:reduce){.dgb-reach,.dgb-room.reach .dgb-hl,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
 `;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
@@ -208,7 +214,35 @@ export function MansionBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [walking, actor?.id, actor && posKey(actor.position), state.moveBudget, state.players, layout, enabled, state.passages],
   );
-  const hall = useMemo(() => hallCells(layout), [layout]);
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const floor = useMemo(() => {
+    const path = (cells: Iterable<{ x: number; y: number }>) =>
+      cellRuns(cells)
+        .map((r) => `M${r.x * CELL} ${r.y * CELL}h${r.w * CELL}v${CELL}h${-r.w * CELL}z`)
+        .join("");
+    return {
+      hall: path(hallCells(layout)),
+      carpet: path([...layout.carpet].map((k) => ({ x: Number(k.split(",")[0]), y: Number(k.split(",")[1]) }))),
+    };
+  }, [layout]);
+  /** Each room's exact footprint: an outline to clip the painting to, and runs of squares to tap. */
+  const shapes = useMemo(
+    () =>
+      new Map(
+        layout.rooms.map((room) => [
+          room.id,
+          {
+            path: roomOutline(room)
+              .map((loop) => `M${loop.map(([x, y]) => `${(x - room.x) * CELL} ${(y - room.y) * CELL}`).join("L")}Z`)
+              .join(""),
+            // A room's footprint is a single loop of straight edges, so a polygon clips it exactly (and Safari reads it everywhere).
+            poly: `polygon(${(roomOutline(room)[0] ?? []).map(([x, y]) => `${(x - room.x) * CELL}px ${(y - room.y) * CELL}px`).join(",")})`,
+            runs: cellRuns(room.cells).map((r) => [r.x * CELL, r.y * CELL, (r.x + r.w) * CELL, (r.y + 1) * CELL] as [number, number, number, number]),
+          },
+        ]),
+      ),
+    [layout],
+  );
   const who = useMemo(() => figures(state.players), [state.players]);
   const shown = useWalkers(state.players, layout, enabled, passages);
 
@@ -247,26 +281,29 @@ export function MansionBoard({
 
   // Every square a tap could land on, with how far it is. Rooms are one destination each.
   const targets = useMemo(() => {
-    const out: Array<{ key: string; pos: PiecePos; l: number; t: number; r: number; b: number; dist: number }> = [];
+    type Box = [number, number, number, number];
+    const out: Array<{ key: string; pos: PiecePos; l: number; t: number; r: number; b: number; boxes: Box[]; dist: number }> = [];
+    const roomTarget = (roomId: string, dist: number) => {
+      const boxes = shapes.get(roomId)?.runs;
+      if (!boxes?.length) return;
+      out.push({ key: `r:${roomId}`, pos: { kind: "room", roomId }, l: 0, t: 0, r: 0, b: 0, boxes, dist });
+    };
     if (anywhere) {
-      for (const room of layout.rooms) {
-        if (!enabled.includes(room.id)) continue;
-        out.push({ key: `r:${room.id}`, pos: { kind: "room", roomId: room.id }, l: room.x * CELL, t: room.y * CELL, r: (room.x + room.w) * CELL, b: (room.y + room.h) * CELL, dist: 1 });
-      }
+      for (const room of layout.rooms) if (enabled.includes(room.id)) roomTarget(room.id, 1);
     } else if (reach) {
       for (const node of reach.nodes.values()) {
         if (node.dist < 1) continue;
         if (node.pos.kind === "hall") {
-          out.push({ key: posKey(node.pos), pos: node.pos, l: node.pos.x * CELL, t: node.pos.y * CELL, r: (node.pos.x + 1) * CELL, b: (node.pos.y + 1) * CELL, dist: node.dist });
+          const l = node.pos.x * CELL;
+          const t = node.pos.y * CELL;
+          out.push({ key: posKey(node.pos), pos: node.pos, l, t, r: l + CELL, b: t + CELL, boxes: [[l, t, l + CELL, t + CELL]], dist: node.dist });
         } else {
-          const room = layout.rooms.find((r) => r.id === (node.pos as { roomId: string }).roomId);
-          if (!room) continue;
-          out.push({ key: posKey(node.pos), pos: node.pos, l: room.x * CELL, t: room.y * CELL, r: (room.x + room.w) * CELL, b: (room.y + room.h) * CELL, dist: node.dist });
+          roomTarget(node.pos.roomId, node.dist);
         }
       }
     }
     return out;
-  }, [anywhere, reach, layout, enabled]);
+  }, [anywhere, reach, layout, enabled, shapes]);
   const targetByKey = useMemo(() => new Map(targets.map((t) => [t.key, t])), [targets]);
 
   /** The lit square a screen point means: the one under it, or the nearest within a thumb's width. */
@@ -279,7 +316,11 @@ export function MansionBoard({
     let best: (typeof targets)[number] | null = null;
     let bestD = Infinity;
     for (const t of targets) {
-      const d = rectDist(bx, by, t.l, t.t, t.r, t.b);
+      let d = Infinity;
+      for (const [l, tp, r, b] of t.boxes) {
+        d = Math.min(d, rectDist(bx, by, l, tp, r, b));
+        if (d === 0) break;
+      }
       // A room is a big target: prefer a corridor square the finger is really on over a room it only grazes.
       const score = d === 0 ? (t.pos.kind === "room" ? 0.01 : 0) : d;
       if (score < bestD) {
@@ -353,31 +394,44 @@ export function MansionBoard({
           <div className="dgb-ground" />
           <div style={{ position: "absolute", left: PAD, top: PAD, width: boardW, height: boardH }}>
             <div className="dgb-house" style={{ left: 0, top: 0, width: boardW, height: boardH }} />
+            <svg className="dgb-floor" width={boardW} height={boardH} aria-hidden="true">
+              <defs>
+                <pattern id={`${uid}-chk`} width={CELL * 2} height={CELL * 2} patternUnits="userSpaceOnUse">
+                  <rect x={CELL} y={0} width={CELL} height={CELL} fill="#e6dcc4" />
+                  <rect x={0} y={CELL} width={CELL} height={CELL} fill="#e6dcc4" />
+                </pattern>
+                <pattern id={`${uid}-rug`} width={CELL * 2} height={CELL * 2} patternUnits="userSpaceOnUse">
+                  <rect x={CELL} y={0} width={CELL} height={CELL} fill="#702333" />
+                  <rect x={0} y={CELL} width={CELL} height={CELL} fill="#702333" />
+                </pattern>
+                <pattern id={`${uid}-grid`} width={CELL} height={CELL} patternUnits="userSpaceOnUse">
+                  <path d={`M0 0H${CELL}M0 0V${CELL}`} fill="none" stroke="rgba(120,102,70,.32)" strokeWidth={1} />
+                </pattern>
+                <pattern id={`${uid}-gold`} width={CELL} height={CELL} patternUnits="userSpaceOnUse">
+                  <path d={`M0 0H${CELL}M0 0V${CELL}`} fill="none" stroke="rgba(214,178,92,.5)" strokeWidth={1} />
+                </pattern>
+              </defs>
+              <path d={floor.hall} fill="#000" stroke="#000" strokeWidth={6} strokeLinejoin="round" />
+              <path d={floor.hall} fill="#efe8d6" />
+              <path d={floor.hall} fill={`url(#${uid}-chk)`} />
+              <path d={floor.hall} fill={`url(#${uid}-grid)`} />
+              <path d={floor.carpet} fill="#7d2a3a" />
+              <path d={floor.carpet} fill={`url(#${uid}-rug)`} />
+              <path d={floor.carpet} fill={`url(#${uid}-gold)`} />
+            </svg>
             <div
-              className="dgb-court"
-              style={{
-                left: (layout.margin + 1) * CELL,
-                top: (layout.margin + 1) * CELL,
-                width: (layout.ring - 1) * CELL,
-                height: (layout.ring - 1) * CELL,
-              }}
-            />
+              className="dgb-atrium"
+              style={{ left: layout.center.x * CELL, top: layout.center.y * CELL, width: layout.center.w * CELL, height: layout.center.h * CELL }}
+              aria-hidden="true"
+            >
+              ✦
+            </div>
 
-            {hall.map((c) => (
-              <div key={`u-${c.x}-${c.y}`} className="dgb-hu" style={{ left: c.x * CELL - 3, top: c.y * CELL - 3, width: CELL + 6, height: CELL + 6 }} />
-            ))}
-            {hall.map((c) => {
-              const inPlaza = c.x >= layout.plaza.x && c.x < layout.plaza.x + layout.plaza.w && c.y >= layout.plaza.y && c.y < layout.plaza.y + layout.plaza.h;
-              const middle = c.x === layout.plaza.x + 2 && c.y === layout.plaza.y + 2;
-              const doorRoom = layout.rooms.find((r) => (layout.doors[r.id] ?? []).some((d) => d.x === c.x && d.y === c.y));
-              return (
-                <div
-                  key={`h-${c.x}-${c.y}`}
-                  className={cn("dgb-hc", (c.x + c.y) % 2 === 1 && "b", inPlaza && "plaza", middle && "mid", doorRoom && "door", doorRoom && `door-${doorRoom.side}`)}
-                  style={{ left: c.x * CELL, top: c.y * CELL, width: CELL, height: CELL }}
-                />
-              );
-            })}
+            {layout.rooms.flatMap((room) =>
+              (layout.doors[room.id] ?? []).map((d, i) => (
+                <div key={`d-${room.id}-${i}`} className={cn("dgb-door", `door-${d.dir}`)} style={{ left: d.x * CELL, top: d.y * CELL, width: CELL, height: CELL }} />
+              )),
+            )}
 
             {targets
               .filter((t) => t.pos.kind === "hall")
@@ -396,7 +450,9 @@ export function MansionBoard({
                     .map((p) => {
                       if (p.kind === "hall") return `${(p.x + 0.5) * CELL},${(p.y + 0.5) * CELL}`;
                       const r = layout.rooms.find((x) => x.id === p.roomId);
-                      return r ? `${(r.x + r.w / 2) * CELL},${(r.y + r.h / 2) * CELL}` : "";
+                      if (!r) return "";
+                      const c = roomCenter(r);
+                      return `${c.x * CELL},${c.y * CELL}`;
                     })
                     .filter(Boolean)
                     .join(" ")}
@@ -410,7 +466,7 @@ export function MansionBoard({
               </svg>
             ) : null}
 
-            {layout.rooms.map((room) => {
+            {layout.rooms.map((room, index) => {
               const t = targetByKey.get(`r:${room.id}`);
               const links = passages
                 .filter((p) => p.a === room.id || p.b === room.id)
@@ -418,9 +474,12 @@ export function MansionBoard({
                 .filter(Boolean);
               const art = roomArt(state, room);
               const name = roomLabel(state, room.id, layout);
+              const shape = shapes.get(room.id);
+              const clipId = `${uid}-c${index}`;
+              const body = room.body;
               // Shrink the name plate until the longest word fits along the wall it sits on.
               const longest = Math.max(4, ...name.split(/\s+/).map((w) => w.length));
-              const along = (room.side === "e" || room.side === "w" ? room.h : room.w) * CELL * 0.88;
+              const along = (room.side === "e" || room.side === "w" ? body.h : body.w) * CELL * 0.88;
               const plateFont = Math.max(6 * inv, Math.min(labelPx, along / (longest * 0.8)));
               return (
                 <div
@@ -430,24 +489,46 @@ export function MansionBoard({
                   aria-label={`${name}${links.length ? `, secret passage to ${links.join(", ")}` : ""}`}
                   style={
                     {
-                      left: room.x * CELL + 2,
-                      top: room.y * CELL + 2,
-                      width: room.w * CELL - 4,
-                      height: room.h * CELL - 4,
-                      backgroundColor: room.tint,
-                      backgroundImage: art ? `url(${art})` : undefined,
+                      left: room.x * CELL,
+                      top: room.y * CELL,
+                      width: room.w * CELL,
+                      height: room.h * CELL,
                       ["--tint" as string]: room.tint,
                     } as CSSProperties
                   }
                 >
-                  <span className={cn("dgb-plaque", `v-${room.side}`)} style={{ fontSize: plateFont }}>
-                    {name}
-                  </span>
-                  {links.length ? (
-                    <span className="dgb-note" style={{ fontSize: Math.min(labelPx * 0.78, plateFont * 0.85) }}>
-                      ⇄ {links.join(", ")}
+                  <div
+                    className="dgb-room-art"
+                    style={{
+                      backgroundColor: room.tint,
+                      backgroundImage: art ? `url(${art})` : undefined,
+                      clipPath: shape?.poly,
+                      WebkitClipPath: shape?.poly,
+                    }}
+                  />
+                  <svg className="dgb-room-edge" width={room.w * CELL} height={room.h * CELL} aria-hidden="true">
+                    <defs>
+                      <clipPath id={clipId}>
+                        <path d={shape?.path} />
+                      </clipPath>
+                    </defs>
+                    <path className="dgb-hl" d={shape?.path} fill="none" strokeWidth={13} strokeLinejoin="round" />
+                    <path d={shape?.path} fill="none" stroke={room.tint} strokeWidth={11} clipPath={`url(#${clipId})`} />
+                    <path d={shape?.path} fill="none" stroke="#000" strokeWidth={6} strokeLinejoin="miter" />
+                  </svg>
+                  <div
+                    className="dgb-label"
+                    style={{ left: (body.x - room.x) * CELL, top: (body.y - room.y) * CELL, width: body.w * CELL, height: body.h * CELL }}
+                  >
+                    <span className={cn("dgb-plaque", `v-${room.side}`)} style={{ fontSize: plateFont }}>
+                      {name}
                     </span>
-                  ) : null}
+                    {links.length ? (
+                      <span className="dgb-note" style={{ fontSize: Math.min(labelPx * 0.78, plateFont * 0.85) }}>
+                        ⇄ {links.join(", ")}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}
@@ -524,13 +605,17 @@ function anchor(pos: PiecePos, layout: BoardLayout, baseH: number) {
   if (pos.kind === "hall") return { x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL * 0.62 };
   const room = layout.rooms.find((r) => r.id === pos.roomId);
   if (!room) return { x: CELL / 2, y: CELL / 2 };
-  // Guests stand on the half of the room nearest the door; the name plate takes the far wall.
-  const cx = (room.x + room.w / 2) * CELL;
-  const cy = (room.y + room.h / 2) * CELL;
-  if (room.side === "n") return { x: cx, y: (room.y + room.h) * CELL - CELL * 0.55 - baseH * 0.2 };
-  if (room.side === "s") return { x: cx, y: room.y * CELL + CELL * 1.75 };
-  if (room.side === "e") return { x: room.x * CELL + CELL * 1.0, y: cy + CELL * 0.7 };
-  return { x: (room.x + room.w) * CELL - CELL * 1.0, y: cy + CELL * 0.7 };
+  // Guests stand in the main body of the room, on the half nearest the door; the name plate takes the far wall.
+  const b = room.body;
+  const cx = (b.x + b.w / 2) * CELL;
+  const cy = (b.y + b.h / 2) * CELL;
+  const top = b.y * CELL;
+  const bottom = (b.y + b.h) * CELL;
+  if (room.side === "n") return { x: cx, y: bottom - CELL * 0.55 - baseH * 0.2 };
+  if (room.side === "s") return { x: cx, y: Math.min(top + CELL * 1.75, bottom - CELL * 0.5) };
+  const y = Math.min(cy + CELL * 0.7, bottom - CELL * 0.5);
+  if (room.side === "e") return { x: b.x * CELL + Math.min(CELL, b.w * CELL * 0.4), y };
+  return { x: (b.x + b.w) * CELL - Math.min(CELL, b.w * CELL * 0.4), y };
 }
 
 function Piece({

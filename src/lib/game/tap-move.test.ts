@@ -6,6 +6,13 @@ import type { GameState, PiecePos } from "./types.ts";
 
 const ROOMS = ["lounge", "dining-room", "kitchen", "grand-hall", "ballroom", "study", "library", "billiard-room", "conservatory"];
 
+// Bea stands three steps from the start square, on the carpet.
+const BEA = (() => {
+  const { nodes } = reachable({ kind: "hall", ...DEFAULT_LAYOUT.starts[0] }, 3, ROOMS, [], new Set(), DEFAULT_LAYOUT);
+  const near = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 3);
+  return near && near.pos.kind === "hall" ? { x: near.pos.x, y: near.pos.y } : { x: 0, y: 0 };
+})();
+
 function state(budget: number, from: PiecePos): GameState {
   return {
     version: 1,
@@ -16,7 +23,7 @@ function state(budget: number, from: PiecePos): GameState {
     leftover: [],
     players: [
       { id: "ada", name: "Ada", color: "#fff", seat: 0, eliminated: false, isHost: true, position: from },
-      { id: "bea", name: "Bea", color: "#000", seat: 1, eliminated: false, isHost: false, position: { kind: "hall", x: 9, y: 9 } },
+      { id: "bea", name: "Bea", color: "#000", seat: 1, eliminated: false, isHost: false, position: { kind: "hall", ...BEA } },
     ],
     turnOrder: ["ada", "bea"],
     turnIndex: 0,
@@ -28,11 +35,12 @@ function state(budget: number, from: PiecePos): GameState {
   } as unknown as GameState;
 }
 
-const start: PiecePos = { kind: "hall", x: 11, y: 8 };
+const start: PiecePos = { kind: "hall", ...DEFAULT_LAYOUT.starts[0] };
+
 
 test("one tap walks to any hall square the roll can reach, and the move ends there", () => {
   const s = state(10, start);
-  const { nodes } = reachable(start, 10, ROOMS, [], new Set(["h:9,9"].map((k) => k.slice(2))), DEFAULT_LAYOUT);
+  const { nodes } = reachable(start, 10, ROOMS, [], new Set([`${BEA.x},${BEA.y}`]), DEFAULT_LAYOUT);
   const far = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 6);
   assert.ok(far, "a square six steps away exists");
   const next = applyMove(s, "ada", far!.pos);
@@ -63,6 +71,6 @@ test("tapping a room in range enters it in one go", () => {
 
 test("another guest's square cannot be landed on", () => {
   const s = state(10, start);
-  const next = applyMove(s, "ada", { kind: "hall", x: 9, y: 9 });
+  const next = applyMove(s, "ada", { kind: "hall", ...BEA });
   assert.deepEqual(next.players[0].position, start);
 });
