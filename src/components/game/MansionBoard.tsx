@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { Box, Maximize2, Minus, Plus } from "lucide-react";
 import {
   blockedHallsFor,
   hallCells,
-  isDoor,
   layoutFor,
+  posKey,
   reachable,
+  reconstructPath,
   roomLabel,
   type BoardLayout,
   type RoomSpec,
@@ -17,84 +17,92 @@ import { defaultCardArt, portraitArt } from "@/lib/game/cards";
 import { charCutout, roomBackdrop } from "@/lib/game/scene-art";
 
 /**
- * The digital board, drawn as a tilted, top-down diorama.
+ * The digital board, drawn flat and top-down like the printed one.
  *
- * The house lies flat and is tipped back by --tilt. Rooms are open-fronted boxes: a floor, a back wall and
- * side walls painted from that room's card art. Guests are standing cut-out figures on round bases that always
- * face the camera. The frame, chips and buttons use the journal's navy cover and cream pages.
+ * Rooms are big painted panels with thick black outlines, the corridor is pale marble tile with a grid, and the
+ * walls between rooms are left dark so there is breathing room. Only the guests stand up: each one is a small
+ * round base with a cut-out figure on it, a little shadow and a slight lean so they read as 3D.
+ *
+ * The whole house is always scaled to fit the space it is given. There is no zoom: nothing to pinch, nothing to
+ * mis-tap, and iPhone pages are never zoomed by accident. To move, tap anywhere near a lit square. Any square
+ * the roll can reach is a destination, and a tap that lands close to one snaps to it.
  */
-const CELL = 36;
-const PAD = 14;
-const FIG_H = 92;
-const FIG_W = 34;
-const TILTS = [18, 32, 48];
-
+const CELL = 40;
+const PAD = 22;
 /** Seat order for guests who have not picked a character. */
 const DEFAULT_FIGURES = ["miss-scarlet", "lady-violet", "dr-finch", "chef-marco", "colonel-mustard", "professor-plum", "the-butler", "mrs-peacock", "mr-green", "mrs-white"];
 
 const BOARD_CSS = `
-.dgb-frame{position:relative;height:100%;min-height:260px;display:flex;flex-direction:column;border-radius:18px;overflow:hidden;
- background:linear-gradient(90deg,var(--j-spine,#1a2b50) 0 26px,var(--j-cover,#24396a) 26px);
- box-shadow:0 14px 34px rgba(0,0,0,.5),inset 0 0 0 1px var(--j-ring,#9db4e640);padding:6px 6px 6px 0}
-.dgb-spiral{position:absolute;left:0;top:0;bottom:0;width:26px;z-index:12;pointer-events:none;
- background:radial-gradient(circle at 13px 16px,#f4f7fb 0 4px,#9aa3ad 5px 7px,transparent 8px) 0 0/26px 32px repeat-y}
-.dgb-view{position:relative;flex:1;min-height:0;margin-left:28px;border-radius:12px;overflow:hidden;perspective:1050px;perspective-origin:50% 36%;touch-action:none;cursor:grab;
- background:radial-gradient(120% 90% at 50% 40%,#2d4636 0%,#1a2a20 60%,#0d1610 100%);box-shadow:inset 0 0 0 2px rgba(0,0,0,.55),inset 0 0 40px rgba(0,0,0,.6)}
-.dgb-view.drag{cursor:grabbing}
-.dgb-world{position:absolute;left:50%;top:50%;transform-origin:0 0;transform-style:preserve-3d;transition:transform .65s cubic-bezier(.2,.7,.2,1)}
-.dgb-view.drag .dgb-world{transition:none}
-.dgb-ground{position:absolute;border-radius:18px;background:
-  radial-gradient(circle at 50% 50%,rgba(255,255,255,.05),transparent 60%),
-  repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0 6px,transparent 6px 12px),
-  linear-gradient(#27402e,#1c3024);box-shadow:0 0 0 3px #0c140f,0 24px 40px rgba(0,0,0,.6)}
-.dgb-tile{position:absolute;padding:0;border:0;background:#efe3c6;box-shadow:inset 0 0 0 1px rgba(122,98,52,.6),inset 0 -3px 0 rgba(90,70,36,.28);transform:translateZ(1px)}
-.dgb-tile.b{background:#dccca4}
-.dgb-tile.plaza{background:#6e2635;box-shadow:inset 0 0 0 1px rgba(214,178,92,.6),inset 0 -3px 0 rgba(0,0,0,.25)}
-.dgb-tile.plaza.b{background:#7c2e3f}
-.dgb-tile.mid::after{content:"✦";position:absolute;inset:0;display:grid;place-items:center;color:rgba(240,210,130,.85);font-size:20px}
-.dgb-tile.door{background:#cfb26c;box-shadow:inset 0 0 0 1px #7a6234,inset 0 -3px 0 rgba(0,0,0,.2)}
-.dgb-tile:disabled{cursor:inherit}
-.dgb-tile.step{cursor:pointer;transform:translateZ(3px);background:#d8f5de;box-shadow:inset 0 0 0 2px #2fb463,0 0 14px rgba(47,180,99,.9);animation:dgb-pulse 1.1s ease-in-out infinite}
-.dgb-tile.far{cursor:pointer;transform:translateZ(2px);box-shadow:inset 0 0 0 2px rgba(240,200,100,.95),0 0 9px rgba(240,200,100,.55)}
-.dgb-lines{position:absolute;left:0;top:0;pointer-events:none;transform:translateZ(2px)}
-.dgb-room{position:absolute;transform-style:preserve-3d;pointer-events:none;transform:translateZ(3px)}
-.dgb-floor{position:absolute;inset:0;padding:0;overflow:hidden;pointer-events:auto;border:3px solid #b8923e;border-radius:3px;background-size:100% auto;background-position:center bottom;
- box-shadow:inset 0 16px 20px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.6),0 6px 14px rgba(0,0,0,.55)}
-.dgb-floor:disabled{cursor:inherit}
-.dgb-floor.step{cursor:pointer;border-color:#2fb463;box-shadow:inset 0 16px 20px rgba(0,0,0,.5),0 0 22px rgba(47,180,99,.95);animation:dgb-pulse 1.1s ease-in-out infinite}
-.dgb-floor.far{cursor:pointer;border-color:#f0cf7a;box-shadow:inset 0 16px 20px rgba(0,0,0,.5),0 0 16px rgba(240,207,122,.7)}
-.dgb-glow{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(circle at 50% 38%,rgba(255,200,115,.42),rgba(255,170,80,0) 66%);animation:dgb-flicker 3.8s ease-in-out infinite}
-.dgb-wall{position:absolute;pointer-events:none;background-repeat:no-repeat;box-shadow:inset 0 0 0 1px rgba(0,0,0,.55)}
-.dgb-wall.back{border-top:4px solid #b8923e;border-bottom:5px solid #3a2616;background-size:100% auto;background-position:center top;transform-origin:50% 100%;transform:rotateX(-90deg);
- box-shadow:inset 0 0 0 1px rgba(0,0,0,.55),inset 0 -22px 20px -10px rgba(0,0,0,.55),inset 0 26px 22px -12px rgba(0,0,0,.5)}
-.dgb-wall.west{transform-origin:100% 50%;transform:rotateY(90deg);border-top:4px solid #8d6f2f;background-size:330% auto;background-position:0 12%}
-.dgb-wall.east{transform-origin:0 50%;transform:rotateY(-90deg);border-top:4px solid #8d6f2f;background-size:330% auto;background-position:100% 12%}
-.dgb-wall.west,.dgb-wall.east{filter:brightness(.62) saturate(.9)}
-.dgb-flame{position:absolute;width:7px;height:11px;border-radius:50% 50% 45% 45%;background:radial-gradient(circle at 50% 70%,#fff6c8,#ffb43c 55%,transparent 72%);box-shadow:0 0 14px 6px rgba(255,170,60,.55);animation:dgb-flicker 1.7s ease-in-out infinite}
-.dgb-label{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;pointer-events:none}
-.dgb-label>div{position:absolute;left:0;bottom:0;transform:translateX(-50%) rotateX(calc(var(--tilt) * -1));transform-origin:50% 100%;text-align:center;white-space:nowrap}
-.dgb-plaque{display:inline-block;padding:3px 9px;border-radius:7px;background:#f6f1e6;color:#1c2430;font-family:var(--font-display,serif);font-size:13px;line-height:1.1;border:1px solid #b8923e;box-shadow:inset 3px 0 0 #a83434,0 3px 8px rgba(0,0,0,.5)}
-.dgb-pass{display:inline-block;margin-top:3px;padding:1px 6px;border-radius:6px;background:rgba(18,12,8,.82);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#f0cf7a}
-.dgb-tok{position:absolute;left:0;top:0;width:0;height:0;transform-style:preserve-3d;pointer-events:none;transition:transform .5s cubic-bezier(.3,.7,.2,1)}
-.dgb-base{position:absolute;left:-15px;top:-15px;width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#fff6,transparent 45%),var(--tok,#ddd);box-shadow:0 0 0 2px #1a1410,0 0 0 4px rgba(255,255,255,.35),0 5px 8px rgba(0,0,0,.65)}
-.dgb-tok.turn .dgb-base{box-shadow:0 0 0 2px #1a1410,0 0 0 4px #ffe9a0,0 0 18px 6px rgba(255,226,140,.85);animation:dgb-pulse 1.1s ease-in-out infinite}
-.dgb-stand{position:absolute;left:${-FIG_W / 2}px;top:${-FIG_H + 6}px;width:${FIG_W}px;height:${FIG_H}px;transform-origin:50% 100%;transform:rotateX(calc(var(--tilt) * -1));transform-style:flat}
-.dgb-stand img{position:absolute;left:0;bottom:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;filter:drop-shadow(0 4px 3px rgba(0,0,0,.65));animation:dgb-breathe 3.2s ease-in-out infinite;transform-origin:50% 100%}
-.dgb-stand img.bust{height:auto;aspect-ratio:1;bottom:18px;border-radius:50%;object-fit:cover;border:2px solid var(--tok,#ddd);background:#1a1410}
-.dgb-name{position:absolute;left:50%;top:-16px;transform:translateX(-50%);white-space:nowrap;font-size:10px;line-height:1;color:#1c2430;background:#f6f1e6;padding:3px 7px;border-radius:7px;box-shadow:inset 3px 0 0 #a83434,0 2px 6px rgba(0,0,0,.5)}
+.dgb-frame{position:relative;width:100%;height:100%;min-height:200px;overflow:hidden;border-radius:14px;
+ background:radial-gradient(120% 100% at 50% 40%,#16241d 0%,#0c1511 70%,#070c0a 100%);
+ box-shadow:inset 0 0 0 1px var(--j-ring,#9db4e640),0 8px 24px rgba(0,0,0,.45)}
+.dgb-view{position:absolute;inset:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.dgb-world{position:absolute;left:0;top:0;transform-origin:0 0}
+.dgb-ground{position:absolute;inset:0;border-radius:26px;overflow:hidden;box-shadow:0 0 0 4px #050807,0 18px 30px rgba(0,0,0,.55);
+ background:
+  radial-gradient(circle at 5% 7%,#2f5a37 0 3.4%,transparent 3.8%),radial-gradient(circle at 9% 4%,#27502f 0 2.8%,transparent 3.2%),
+  radial-gradient(circle at 95% 6%,#2f5a37 0 3.2%,transparent 3.6%),radial-gradient(circle at 91% 3.5%,#27502f 0 2.6%,transparent 3%),
+  radial-gradient(circle at 6% 95%,#2f5a37 0 3.4%,transparent 3.8%),radial-gradient(circle at 94% 94%,#2f5a37 0 3.4%,transparent 3.8%),
+  linear-gradient(160deg,#1c3a2d,#122a3c 55%,#173324)}
+.dgb-house{position:absolute;border-radius:8px;background:
+  repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 5px,transparent 5px 10px),#1d1b22;
+ box-shadow:0 0 0 5px #000,0 0 0 7px #b8923e,inset 0 0 40px rgba(0,0,0,.7)}
+.dgb-hu{position:absolute;background:#000;border-radius:3px}
+.dgb-hc{position:absolute;background:#efe8d6;box-shadow:inset 0 0 0 1px rgba(120,102,70,.32);z-index:1}
+.dgb-hc.b{background:#e6dcc4}
+.dgb-hc.plaza{background:#7d2a3a;box-shadow:inset 0 0 0 1px rgba(214,178,92,.5)}
+.dgb-hc.plaza.b{background:#702333}
+.dgb-hc.mid::after{content:"✦";position:absolute;inset:0;display:grid;place-items:center;color:rgba(240,210,130,.9);font-size:${CELL * 0.5}px}
+.dgb-hc.door{background:#d8bb74;box-shadow:inset 0 0 0 1px #8a6d2c;z-index:3}
+.dgb-hc.door::after{content:"";position:absolute;background:#d8bb74;box-shadow:0 0 0 1px #8a6d2c}
+.dgb-hc.door-n::after{left:18%;right:18%;top:-7px;height:9px}
+.dgb-hc.door-s::after{left:18%;right:18%;bottom:-7px;height:9px}
+.dgb-hc.door-e::after{top:18%;bottom:18%;right:-7px;width:9px}
+.dgb-hc.door-w::after{top:18%;bottom:18%;left:-7px;width:9px}
+.dgb-reach{position:absolute;z-index:4;pointer-events:none;border-radius:3px;background:rgba(120,245,160,.46);box-shadow:inset 0 0 0 2px #2fb463,0 0 10px rgba(47,180,99,.75);animation:dgb-pulse 1.2s ease-in-out infinite}
+.dgb-reach.edge{background:rgba(240,200,100,.45);box-shadow:inset 0 0 0 2px #f0cf7a,0 0 10px rgba(240,207,122,.75)}
+.dgb-reach.pick{background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 3px #fff,0 0 16px #fff}
+.dgb-room{position:absolute;z-index:2;overflow:hidden;border-radius:6px;background-size:cover;background-position:center;
+ box-shadow:0 0 0 4px #000,inset 0 0 0 3px var(--tint,#6a3030),inset 0 -26px 28px -10px rgba(0,0,0,.55),inset 0 20px 24px -12px rgba(0,0,0,.4)}
+.dgb-room::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(255,200,115,.22),transparent 66%);mix-blend-mode:screen;pointer-events:none}
+.dgb-room.reach{z-index:5;animation:dgb-pulse 1.2s ease-in-out infinite;box-shadow:0 0 0 4px #000,0 0 0 7px #2fb463,0 0 22px 6px rgba(47,180,99,.9),inset 0 0 0 3px var(--tint,#6a3030)}
+.dgb-room.reach.edge{box-shadow:0 0 0 4px #000,0 0 0 7px #f0cf7a,0 0 22px 6px rgba(240,207,122,.85),inset 0 0 0 3px var(--tint,#6a3030)}
+.dgb-room.pick{box-shadow:0 0 0 4px #000,0 0 0 8px #fff,0 0 26px 8px rgba(255,255,255,.85),inset 0 0 0 3px var(--tint,#6a3030)}
+.dgb-plaque{position:absolute;left:50%;top:6%;transform:translateX(-50%);max-width:94%;padding:.18em .55em;border-radius:3px;background:#000;color:#fff;text-align:center;font-weight:800;letter-spacing:.07em;text-transform:uppercase;line-height:1.1;box-shadow:0 2px 6px rgba(0,0,0,.6);z-index:3}
+.dgb-plaque.v-s{top:auto;bottom:6%}
+.dgb-plaque.v-e,.dgb-plaque.v-w{top:50%;max-width:none;max-height:94%;writing-mode:vertical-rl;padding:.5em .2em;letter-spacing:.02em;font-size:.84em}
+.dgb-plaque.v-e{left:auto;right:5%;transform:translateY(-50%)}
+.dgb-plaque.v-w{left:5%;transform:translateY(-50%) rotate(180deg)}
+.dgb-court{position:absolute;border-radius:4px;box-shadow:0 0 0 3px #000,inset 0 0 34px rgba(0,0,0,.6);background:
+  repeating-linear-gradient(90deg,rgba(0,0,0,.2) 0 2px,transparent 2px 20px),
+  repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 2px,transparent 2px 20px),linear-gradient(135deg,#6e4c2d,#4a3120)}
+.dgb-note{position:absolute;right:3%;bottom:4%;max-width:60%;padding:.15em .4em;background:#f6f1e6;color:#1c2430;font-weight:700;line-height:1.1;transform:rotate(-5deg);box-shadow:0 2px 5px rgba(0,0,0,.55);z-index:3}
+.dgb-plaque.v-s~.dgb-note{bottom:auto;top:4%}
+.dgb-plaque.v-e~.dgb-note,.dgb-plaque.v-w~.dgb-note{right:auto;left:4%;bottom:3%;max-width:92%}
+.dgb-path{position:absolute;left:0;top:0;pointer-events:none;z-index:6}
+.dgb-tok{position:absolute;left:0;top:0;width:0;height:0;pointer-events:none;transition-property:transform;transition-timing-function:linear}
+.dgb-shadow{position:absolute;left:calc(var(--bw) * -.65);top:calc(var(--bh) * -.3);width:calc(var(--bw) * 1.3);height:calc(var(--bh) * 1.1);border-radius:50%;background:radial-gradient(#000a,#0000 70%)}
+.dgb-base{position:absolute;left:calc(var(--bw) * -.5);top:calc(var(--bh) * -.5);width:var(--bw);height:var(--bh);border-radius:50%;
+ background:radial-gradient(ellipse at 36% 28%,#ffffffb0,transparent 42%),var(--tok,#ddd);
+ box-shadow:0 0 0 1.5px #120d0a,0 calc(var(--bh) * .34) 0 -0.5px color-mix(in srgb,var(--tok,#ddd) 55%,#000),0 calc(var(--bh) * .34) 0 1px #120d0a,0 calc(var(--bh) * .6) calc(var(--bh) * .4) rgba(0,0,0,.55)}
+.dgb-tok.turn .dgb-base{animation:dgb-ring 1.3s ease-in-out infinite}
+.dgb-stand{position:absolute;left:calc(var(--fw) * -.5);bottom:calc(var(--bh) * .1);width:var(--fw);height:var(--fh);transform-origin:50% 100%;transform:perspective(220px) rotateX(-7deg)}
+.dgb-stand img{position:absolute;left:0;bottom:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;filter:drop-shadow(1.5px 3px 2px rgba(0,0,0,.7)) saturate(1.06) contrast(1.04)}
+.dgb-stand img.bust{height:auto;width:100%;aspect-ratio:1;bottom:12%;border-radius:50%;object-fit:cover;border:2.5px solid var(--tok,#ddd);background:#1a1410}
+.dgb-tok.turn .dgb-stand{animation:dgb-bob 1.4s ease-in-out infinite}
+.dgb-name{position:absolute;left:50%;top:calc(var(--fh) * -.02);transform:translate(-50%,-100%);white-space:nowrap;line-height:1;color:#1c2430;background:#f6f1e6;padding:.22em .5em;border-radius:.5em;font-weight:700;box-shadow:inset .25em 0 0 #a83434,0 2px 6px rgba(0,0,0,.55)}
 .dgb-hud{position:absolute;z-index:11;pointer-events:none}
 .dgb-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:12px;background:#f6f1e6;color:#1c2430;font-size:12px;line-height:1.25;border:1px solid #c4b396;box-shadow:inset 3px 0 0 #a83434,0 4px 10px rgba(0,0,0,.45);max-width:100%}
-.dgb-chip b{font-family:var(--font-display,serif);font-size:18px;font-weight:700;line-height:1}
-.dgb-btn{pointer-events:auto;display:grid;place-items:center;width:38px;height:38px;border-radius:999px;background:var(--j-spine,#1a2b50);color:#f6f1e6;border:1px solid var(--j-ring,#9db4e6);box-shadow:0 3px 8px rgba(0,0,0,.45)}
-.dgb-btn:active{transform:scale(.95)}
-.dgb-stop{pointer-events:auto;padding:8px 16px;border-radius:999px;background:#f6f1e6;color:#1c2430;font-weight:600;font-size:13px;border:1px solid #1a2b50;box-shadow:0 4px 10px rgba(0,0,0,.5)}
-@keyframes dgb-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
-@keyframes dgb-flicker{0%,100%{opacity:.75}22%{opacity:1}41%{opacity:.62}63%{opacity:.95}82%{opacity:.7}}
-@keyframes dgb-breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.018)}}
-@media (prefers-reduced-motion:reduce){.dgb-glow,.dgb-flame,.dgb-stand img,.dgb-tile.step,.dgb-floor.step,.dgb-tok.turn .dgb-base{animation:none}.dgb-world,.dgb-tok{transition:none}}
+.dgb-chip b{font-family:var(--font-display,serif);font-size:20px;font-weight:700;line-height:1}
+.dgb-stop{pointer-events:auto;padding:9px 18px;border-radius:999px;background:#f6f1e6;color:#1c2430;font-weight:700;font-size:13px;border:1px solid #1a2b50;box-shadow:0 4px 10px rgba(0,0,0,.5)}
+.dgb-stop:active{transform:scale(.96)}
+@keyframes dgb-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.28)}}
+@keyframes dgb-ring{0%,100%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #ffe9a0,0 0 14px 5px rgba(255,226,140,.8),0 calc(var(--bh) * .34) 0 1px #120d0a}50%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #fff3c4,0 0 22px 9px rgba(255,226,140,.95),0 calc(var(--bh) * .34) 0 1px #120d0a}}
+@keyframes dgb-bob{0%,100%{transform:perspective(220px) rotateX(-7deg) translateY(0)}50%{transform:perspective(220px) rotateX(-7deg) translateY(-4%)}}
+@media (prefers-reduced-motion:reduce){.dgb-reach,.dgb-room.reach,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
 `;
 
-const wallHeight = (room: RoomSpec) => (room.side === "s" ? Math.round(CELL * 0.5) : Math.round(CELL * 1.7));
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
 function roomArt(state: GameState, room: RoomSpec): string | undefined {
   const card = state.cards.find((c) => c.id === room.id);
@@ -111,6 +119,63 @@ function figures(players: Player[]): Record<string, string> {
     else out[p.id] = free.shift() ?? DEFAULT_FIGURES[p.seat % DEFAULT_FIGURES.length];
   }
   return out;
+}
+
+function rectDist(px: number, py: number, l: number, t: number, r: number, b: number) {
+  const dx = px < l ? l - px : px > r ? px - r : 0;
+  const dy = py < t ? t - py : py > b ? py - b : 0;
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Guests walk square by square across the board, however far a tap sent them. The game state jumps straight to
+ * the destination, so this only decides where each piece is drawn on its way there.
+ */
+function useWalkers(players: Player[], layout: BoardLayout, enabled: string[], passages: Array<{ a: string; b: string }>) {
+  const at = useRef<Record<string, PiecePos>>({});
+  const goal = useRef<Record<string, string>>({});
+  const timers = useRef<Record<string, number[]>>({});
+  const [shown, setShown] = useState<Record<string, { pos: PiecePos; ms: number }>>(() =>
+    Object.fromEntries(players.map((p) => [p.id, { pos: p.position, ms: 260 }])),
+  );
+  const sig = players.map((p) => `${p.id}=${posKey(p.position)}`).join("|");
+  useEffect(() => {
+    for (const p of players) {
+      const key = posKey(p.position);
+      if (goal.current[p.id] === key) continue;
+      goal.current[p.id] = key;
+      (timers.current[p.id] ?? []).forEach((t) => window.clearTimeout(t));
+      timers.current[p.id] = [];
+      const from = at.current[p.id];
+      let path: PiecePos[] = [];
+      if (from && posKey(from) !== key) {
+        const { nodes } = reachable(from, 80, enabled, passages, new Set(), layout);
+        path = reconstructPath(nodes, p.position);
+      }
+      if (path.length < 3 || path.length > 45) {
+        at.current[p.id] = p.position;
+        setShown((s) => ({ ...s, [p.id]: { pos: p.position, ms: 260 } }));
+        continue;
+      }
+      const ms = clamp(1500 / path.length, 45, 110);
+      path.slice(1).forEach((pos, i) => {
+        timers.current[p.id].push(
+          window.setTimeout(() => {
+            at.current[p.id] = pos;
+            setShown((s) => ({ ...s, [p.id]: { pos, ms } }));
+          }, i * ms),
+        );
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, layout]);
+  useEffect(
+    () => () => {
+      Object.values(timers.current).forEach((list) => list.forEach((t) => window.clearTimeout(t)));
+    },
+    [],
+  );
+  return shown;
 }
 
 export function MansionBoard({
@@ -132,29 +197,29 @@ export function MansionBoard({
   const layout = useMemo(() => layoutFor(state.settings), [state.settings]);
   const actor = state.players.find((p) => p.id === actorId);
   const enabled = state.settings.enabledRoomIds;
-  const anywhere = state.phase === "event" && state.event?.kind === "move-anywhere";
-  const reach =
-    interactive && actor && state.phase === "move"
-      ? reachable(actor.position, state.moveBudget, enabled, state.passages ?? [], blockedHallsFor(state.players, actor.id), layout)
-      : null;
+  const passages = state.passages ?? [];
+  const anywhere = interactive && state.phase === "event" && state.event?.kind === "move-anywhere";
+  const walking = Boolean(interactive && actor && state.phase === "move");
+  const reach = useMemo(
+    () =>
+      walking && actor
+        ? reachable(actor.position, state.moveBudget, enabled, passages, blockedHallsFor(state.players, actor.id), layout)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [walking, actor?.id, actor && posKey(actor.position), state.moveBudget, state.players, layout, enabled, state.passages],
+  );
   const hall = useMemo(() => hallCells(layout), [layout]);
   const who = useMemo(() => figures(state.players), [state.players]);
-
-  const hallDist = (x: number, y: number) => reach?.nodes.get(`h:${x},${y}`)?.dist ?? 0;
-  const roomDist = (id: string) => reach?.nodes.get(`r:${id}`)?.dist ?? 0;
+  const shown = useWalkers(state.players, layout, enabled, passages);
 
   const boardW = layout.cols * CELL;
   const boardH = layout.rows * CELL;
+  const worldW = boardW + PAD * 2;
+  const worldH = boardH + PAD * 2;
 
   const view = useRef<HTMLDivElement>(null);
+  const world = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 380, h: 420 });
-  const [tiltIx, setTiltIx] = useState(1);
-  const tilt = TILTS[tiltIx];
-  const [zoomPick, setZoomPick] = useState<number | null>(null);
-  const [fit, setFit] = useState(false);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-
   useEffect(() => {
     const el = view.current;
     if (!el) return;
@@ -162,300 +227,272 @@ export function MansionBoard({
     read();
     const watcher = typeof ResizeObserver !== "undefined" ? new ResizeObserver(read) : null;
     watcher?.observe(el);
-    return () => watcher?.disconnect();
+    window.addEventListener("orientationchange", read);
+    return () => {
+      watcher?.disconnect();
+      window.removeEventListener("orientationchange", read);
+    };
   }, []);
 
-  const baseZoom = Math.max(0.5, Math.min(1.15, size.w / (13 * CELL)));
-  const fitZoom = Math.max(
-    0.2,
-    Math.min(size.w / (boardW + PAD * 2), size.h / (boardH * Math.cos((tilt * Math.PI) / 180) + 120)) * 0.96,
-  );
-  const zoom = fit ? fitZoom : (zoomPick ?? baseZoom);
+  // The whole house always fits. No zoom.
+  const scale = Math.max(0.1, Math.min((size.w - 6) / worldW, (size.h - 6) / worldH));
+  const offX = (size.w - worldW * scale) / 2;
+  const offY = (size.h - worldH * scale) / 2;
+  const inv = 1 / scale;
+  const labelPx = clamp(CELL * scale * 0.3, 9.5, 15) * inv;
+  const pieceH = clamp(CELL * scale * 1.6, 28, 84) * inv;
+  const pieceBaseW = pieceH * 0.4;
+  const pieceBaseH = pieceBaseW * 0.52;
+  const pieceW = pieceH * 0.56;
 
-  const mover = state.players.find((p) => p.id === actorId);
-  const moverKey = mover ? (mover.position.kind === "hall" ? `${mover.position.x},${mover.position.y}` : mover.position.roomId) : "";
-  useEffect(() => {
-    setPan({ x: 0, y: 0 });
-  }, [moverKey, actorId]);
+  // Every square a tap could land on, with how far it is. Rooms are one destination each.
+  const targets = useMemo(() => {
+    const out: Array<{ key: string; pos: PiecePos; l: number; t: number; r: number; b: number; dist: number }> = [];
+    if (anywhere) {
+      for (const room of layout.rooms) {
+        if (!enabled.includes(room.id)) continue;
+        out.push({ key: `r:${room.id}`, pos: { kind: "room", roomId: room.id }, l: room.x * CELL, t: room.y * CELL, r: (room.x + room.w) * CELL, b: (room.y + room.h) * CELL, dist: 1 });
+      }
+    } else if (reach) {
+      for (const node of reach.nodes.values()) {
+        if (node.dist < 1) continue;
+        if (node.pos.kind === "hall") {
+          out.push({ key: posKey(node.pos), pos: node.pos, l: node.pos.x * CELL, t: node.pos.y * CELL, r: (node.pos.x + 1) * CELL, b: (node.pos.y + 1) * CELL, dist: node.dist });
+        } else {
+          const room = layout.rooms.find((r) => r.id === (node.pos as { roomId: string }).roomId);
+          if (!room) continue;
+          out.push({ key: posKey(node.pos), pos: node.pos, l: room.x * CELL, t: room.y * CELL, r: (room.x + room.w) * CELL, b: (room.y + room.h) * CELL, dist: node.dist });
+        }
+      }
+    }
+    return out;
+  }, [anywhere, reach, layout, enabled]);
+  const targetByKey = useMemo(() => new Map(targets.map((t) => [t.key, t])), [targets]);
 
-  const at = mover ? anchor(mover, layout) : { x: boardW / 2, y: boardH / 2 };
-  const fx = (fit ? boardW / 2 : at.x) + (fit ? 0 : pan.x);
-  const fy = (fit ? boardH / 2 : at.y) + (fit ? 0 : pan.y);
+  /** The lit square a screen point means: the one under it, or the nearest within a thumb's width. */
+  const pick = (clientX: number, clientY: number) => {
+    const box = world.current?.getBoundingClientRect();
+    if (!box || !targets.length) return null;
+    const bx = (clientX - box.left) / scale - PAD;
+    const by = (clientY - box.top) / scale - PAD;
+    const reachPx = clamp(26 / scale, CELL * 0.9, CELL * 2.4);
+    let best: (typeof targets)[number] | null = null;
+    let bestD = Infinity;
+    for (const t of targets) {
+      const d = rectDist(bx, by, t.l, t.t, t.r, t.b);
+      // A room is a big target: prefer a corridor square the finger is really on over a room it only grazes.
+      const score = d === 0 ? (t.pos.kind === "room" ? 0.01 : 0) : d;
+      if (score < bestD) {
+        best = t;
+        bestD = score;
+      }
+    }
+    return best && bestD <= reachPx ? best : null;
+  };
 
-  // Drag to look around, pinch to zoom. A tap on a lit square is still a tap.
-  const pts = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef({ sx: 0, sy: 0, moved: false, pinch: 0, pinchZoom: 1 });
-  const justDragged = useRef(false);
-  const down = (e: ReactPointerEvent<HTMLDivElement>) => {
-    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    gesture.current.sx = e.clientX;
-    gesture.current.sy = e.clientY;
-    gesture.current.moved = false;
-    if (pts.current.size === 2) {
-      const [a, b] = [...pts.current.values()];
-      gesture.current.pinch = Math.hypot(a.x - b.x, a.y - b.y);
-      gesture.current.pinchZoom = zoom;
+  const downAt = useRef<{ x: number; y: number; t: number } | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    downAt.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  };
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const d = downAt.current;
+    downAt.current = null;
+    if (!d || !targets.length) return;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 14 || Date.now() - d.t > 900) return;
+    const hit = pick(e.clientX, e.clientY);
+    if (hit) {
+      setHover(null);
+      onMove(hit.pos);
     }
   };
-  const move = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const prev = pts.current.get(e.pointerId);
-    if (!prev) return;
-    pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.current.size === 2) {
-      const [a, b] = [...pts.current.values()];
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (gesture.current.pinch > 0) {
-        setFit(false);
-        setZoomPick(Math.max(0.35, Math.min(1.8, gesture.current.pinchZoom * (d / gesture.current.pinch))));
-        gesture.current.moved = true;
-        justDragged.current = true;
-      }
+  const onHover = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || !targets.length) {
+      if (hover) setHover(null);
       return;
     }
-    const total = Math.hypot(e.clientX - gesture.current.sx, e.clientY - gesture.current.sy);
-    if (!gesture.current.moved && total < 7) return;
-    if (!gesture.current.moved) {
-      gesture.current.moved = true;
-      setDragging(true);
-      try {
-        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-      } catch {
-        /* capture is a nicety */
-      }
-    }
-    justDragged.current = true;
-    if (fit) setFit(false);
-    const c = Math.cos((tilt * Math.PI) / 180);
-    setPan((p) => ({ x: p.x - (e.clientX - prev.x) / zoom, y: p.y - (e.clientY - prev.y) / (zoom * Math.max(0.35, c)) }));
-  };
-  const up = (e: ReactPointerEvent<HTMLDivElement>) => {
-    pts.current.delete(e.pointerId);
-    if (pts.current.size < 2) gesture.current.pinch = 0;
-    if (pts.current.size === 0) {
-      setDragging(false);
-      window.setTimeout(() => {
-        justDragged.current = false;
-      }, 0);
-    }
+    const hit = pick(e.clientX, e.clientY);
+    const next = hit?.key ?? null;
+    if (next !== hover) setHover(next);
   };
 
-  const passages = state.passages ?? [];
-  const walking = Boolean(actor && state.phase === "move");
+  const hoverPath = useMemo(() => {
+    if (!hover || !reach) return [];
+    const target = targetByKey.get(hover);
+    return target ? reconstructPath(reach.nodes, target.pos) : [];
+  }, [hover, reach, targetByKey]);
+
   const here = actor?.position.kind === "room" ? roomLabel(state, actor.position.roomId, layout) : "";
+  const turnId = state.turnOrder[state.turnIndex % Math.max(1, state.turnOrder.length)];
 
   return (
     <div className={cn("dgb-frame", className)}>
       <style>{BOARD_CSS}</style>
-      <span className="dgb-spiral" aria-hidden="true" />
       <div
         ref={view}
-        className={cn("dgb-view", dragging && "drag")}
-        onPointerDown={down}
-        onPointerMove={move}
-        onPointerUp={up}
-        onPointerCancel={up}
-        onClickCapture={(e) => {
-          if (justDragged.current) {
-            e.stopPropagation();
-            e.preventDefault();
-          }
-        }}
-        onWheel={(e) => {
-          setFit(false);
-          setZoomPick((z) => Math.max(0.35, Math.min(1.8, (z ?? zoom) * (e.deltaY > 0 ? 0.92 : 1.08))));
-        }}
+        className="dgb-view"
+        role="application"
+        aria-label={walking || anywhere ? "House board. Tap a lit square to go there." : "House board"}
+        onPointerDown={onDown}
+        onPointerUp={onUp}
+        onPointerCancel={() => (downAt.current = null)}
+        onPointerMove={onHover}
+        onPointerLeave={() => setHover(null)}
       >
         <div
+          ref={world}
           className="dgb-world"
           style={
             {
-              width: boardW,
-              height: boardH,
-              ["--tilt" as string]: `${tilt}deg`,
-              transform: `rotateX(${tilt}deg) scale(${zoom}) translate(${-fx}px, ${-fy}px)`,
+              width: worldW,
+              height: worldH,
+              transform: `translate(${offX}px, ${offY}px) scale(${scale})`,
             } as CSSProperties
           }
         >
-          <div className="dgb-ground" style={{ left: -PAD, top: -PAD, width: boardW + PAD * 2, height: boardH + PAD * 2 }} />
+          <div className="dgb-ground" />
+          <div style={{ position: "absolute", left: PAD, top: PAD, width: boardW, height: boardH }}>
+            <div className="dgb-house" style={{ left: 0, top: 0, width: boardW, height: boardH }} />
+            <div
+              className="dgb-court"
+              style={{
+                left: (layout.margin + 1) * CELL,
+                top: (layout.margin + 1) * CELL,
+                width: (layout.ring - 1) * CELL,
+                height: (layout.ring - 1) * CELL,
+              }}
+            />
 
-          {hall.map((c) => {
-            const dist = hallDist(c.x, c.y);
-            const active = dist > 0;
-            const inPlaza =
-              c.x >= layout.plaza.x && c.x < layout.plaza.x + layout.plaza.w && c.y >= layout.plaza.y && c.y < layout.plaza.y + layout.plaza.h;
-            const middle = c.x === layout.plaza.x + 2 && c.y === layout.plaza.y + 2;
-            return (
-              <button
-                key={`h-${c.x}-${c.y}`}
-                type="button"
-                disabled={!active}
-                onClick={() => onMove({ kind: "hall", x: c.x, y: c.y })}
-                className={cn(
-                  "dgb-tile",
-                  (c.x + c.y) % 2 === 1 && "b",
-                  inPlaza && "plaza",
-                  middle && "mid",
-                  isDoor(c.x, c.y, layout) && "door",
-                  active && dist === 1 && "step",
-                  active && dist > 1 && "far",
-                )}
-                style={{ left: c.x * CELL, top: c.y * CELL, width: CELL, height: CELL }}
-                aria-label={active ? (dist === 1 ? `Step to ${c.x},${c.y}` : `Walk toward ${c.x},${c.y}`) : `Corridor ${c.x},${c.y}`}
-              />
-            );
-          })}
-
-          <svg className="dgb-lines" width={boardW} height={boardH} aria-hidden="true">
-            {passages.map((p) => {
-              const a = layout.rooms.find((r) => r.id === p.a);
-              const b = layout.rooms.find((r) => r.id === p.b);
-              if (!a || !b) return null;
+            {hall.map((c) => (
+              <div key={`u-${c.x}-${c.y}`} className="dgb-hu" style={{ left: c.x * CELL - 3, top: c.y * CELL - 3, width: CELL + 6, height: CELL + 6 }} />
+            ))}
+            {hall.map((c) => {
+              const inPlaza = c.x >= layout.plaza.x && c.x < layout.plaza.x + layout.plaza.w && c.y >= layout.plaza.y && c.y < layout.plaza.y + layout.plaza.h;
+              const middle = c.x === layout.plaza.x + 2 && c.y === layout.plaza.y + 2;
+              const doorRoom = layout.rooms.find((r) => (layout.doors[r.id] ?? []).some((d) => d.x === c.x && d.y === c.y));
               return (
-                <line
-                  key={`${p.a}:${p.b}`}
-                  x1={(a.x + a.w / 2) * CELL}
-                  y1={(a.y + a.h / 2) * CELL}
-                  x2={(b.x + b.w / 2) * CELL}
-                  y2={(b.y + b.h / 2) * CELL}
-                  stroke="#f0cf7a"
-                  strokeOpacity="0.55"
-                  strokeWidth="3"
-                  strokeDasharray="3 9"
-                  strokeLinecap="round"
+                <div
+                  key={`h-${c.x}-${c.y}`}
+                  className={cn("dgb-hc", (c.x + c.y) % 2 === 1 && "b", inPlaza && "plaza", middle && "mid", doorRoom && "door", doorRoom && `door-${doorRoom.side}`)}
+                  style={{ left: c.x * CELL, top: c.y * CELL, width: CELL, height: CELL }}
                 />
               );
             })}
-          </svg>
 
-          {layout.rooms.map((room, index) => {
-            const dist = roomDist(room.id);
-            const active = anywhere ? enabled.includes(room.id) : dist > 0;
-            const links = passages
-              .filter((p) => p.a === room.id || p.b === room.id)
-              .map((p) => roomLabel(state, p.a === room.id ? p.b : p.a, layout))
-              .filter(Boolean);
-            const art = roomArt(state, room);
-            const wallH = wallHeight(room);
-            const W = room.w * CELL;
-            const D = room.h * CELL;
-            const tall = room.side !== "s";
-            const door = (layout.doors[room.id] ?? [])[0];
-            const gap = door ? (door.x + 0.5) * CELL - room.x * CELL : W / 2;
-            const maskGap = room.side === "s" ? `linear-gradient(90deg,#000 ${gap - 15}px,transparent ${gap - 15}px ${gap + 15}px,#000 ${gap + 15}px)` : undefined;
-            const wallArt = art ? `url(${art})` : undefined;
-            return (
-              <div key={room.id} className="dgb-room" style={{ left: room.x * CELL, top: room.y * CELL, width: W, height: D }}>
-                <button
-                  type="button"
-                  disabled={!active}
-                  onClick={() => onMove({ kind: "room", roomId: room.id })}
-                  className={cn("dgb-floor", active && dist === 1 && "step", active && (dist > 1 || anywhere) && "far")}
-                  style={{
-                    backgroundColor: room.tint,
-                    backgroundImage: wallArt,
-                  }}
-                  aria-label={`${roomLabel(state, room.id, layout)}${links.length ? `, secret passage to ${links.join(", ")}` : ""}`}
-                >
-                  <span className="dgb-glow" style={{ animationDelay: `${-(index % 7) * 0.6}s` }} />
-                </button>
+            {targets
+              .filter((t) => t.pos.kind === "hall")
+              .map((t) => (
+                <span
+                  key={`g-${t.key}`}
+                  className={cn("dgb-reach", t.dist >= state.moveBudget && !anywhere && "edge", hover === t.key && "pick")}
+                  style={{ left: t.l + 1, top: t.t + 1, width: CELL - 2, height: CELL - 2 }}
+                />
+              ))}
 
+            {hoverPath.length > 1 ? (
+              <svg className="dgb-path" width={boardW} height={boardH} aria-hidden="true">
+                <polyline
+                  points={hoverPath
+                    .map((p) => {
+                      if (p.kind === "hall") return `${(p.x + 0.5) * CELL},${(p.y + 0.5) * CELL}`;
+                      const r = layout.rooms.find((x) => x.id === p.roomId);
+                      return r ? `${(r.x + r.w / 2) * CELL},${(r.y + r.h / 2) * CELL}` : "";
+                    })
+                    .filter(Boolean)
+                    .join(" ")}
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="2 9"
+                />
+              </svg>
+            ) : null}
+
+            {layout.rooms.map((room) => {
+              const t = targetByKey.get(`r:${room.id}`);
+              const links = passages
+                .filter((p) => p.a === room.id || p.b === room.id)
+                .map((p) => roomLabel(state, p.a === room.id ? p.b : p.a, layout))
+                .filter(Boolean);
+              const art = roomArt(state, room);
+              const name = roomLabel(state, room.id, layout);
+              // Shrink the name plate until the longest word fits along the wall it sits on.
+              const longest = Math.max(4, ...name.split(/\s+/).map((w) => w.length));
+              const along = (room.side === "e" || room.side === "w" ? room.h : room.w) * CELL * 0.88;
+              const plateFont = Math.max(6 * inv, Math.min(labelPx, along / (longest * 0.8)));
+              return (
                 <div
-                  className="dgb-wall back"
-                  style={{
-                    left: 0,
-                    top: -wallH,
-                    width: W,
-                    height: wallH,
-                    backgroundColor: room.tint,
-                    backgroundImage: wallArt ? `linear-gradient(to bottom, rgba(0,0,0,.3), rgba(0,0,0,0) 35%), ${wallArt}` : undefined,
-                    WebkitMaskImage: maskGap,
-                    maskImage: maskGap,
-                  }}
+                  key={room.id}
+                  className={cn("dgb-room", t && "reach", t && !anywhere && t.dist >= state.moveBudget && "edge", t && hover === t.key && "pick")}
+                  role="img"
+                  aria-label={`${name}${links.length ? `, secret passage to ${links.join(", ")}` : ""}`}
+                  style={
+                    {
+                      left: room.x * CELL + 2,
+                      top: room.y * CELL + 2,
+                      width: room.w * CELL - 4,
+                      height: room.h * CELL - 4,
+                      backgroundColor: room.tint,
+                      backgroundImage: art ? `url(${art})` : undefined,
+                      ["--tint" as string]: room.tint,
+                    } as CSSProperties
+                  }
                 >
-                  {tall ? (
-                    <>
-                      <span className="dgb-flame" style={{ left: "13%", bottom: "26%", animationDelay: `${-(index % 5) * 0.4}s` }} />
-                      <span className="dgb-flame" style={{ right: "13%", bottom: "26%", animationDelay: `${-(index % 4) * 0.55}s` }} />
-                    </>
+                  <span className={cn("dgb-plaque", `v-${room.side}`)} style={{ fontSize: plateFont }}>
+                    {name}
+                  </span>
+                  {links.length ? (
+                    <span className="dgb-note" style={{ fontSize: Math.min(labelPx * 0.78, plateFont * 0.85) }}>
+                      ⇄ {links.join(", ")}
+                    </span>
                   ) : null}
                 </div>
-                {room.side !== "e" ? (
-                  <div
-                    className="dgb-wall west"
-                    style={{ left: -wallH, top: 0, width: wallH, height: D, backgroundColor: room.tint, backgroundImage: wallArt }}
-                  />
-                ) : null}
-                {room.side !== "w" ? (
-                  <div
-                    className="dgb-wall east"
-                    style={{ left: W, top: 0, width: wallH, height: D, backgroundColor: room.tint, backgroundImage: wallArt }}
-                  />
-                ) : null}
+              );
+            })}
 
-                <div className="dgb-label" style={{ left: W / 2, top: -wallH }}>
-                  <div style={{ marginBottom: 6 }}>
-                    <span className="dgb-plaque">{roomLabel(state, room.id, layout)}</span>
-                    {links.length ? <span className="dgb-pass">⇄ {links.join(", ")}</span> : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {state.players.map((p) => {
-            const shift = crowdShift(state, p);
-            return <Piece key={p.id} player={p} art={who[p.id]} layout={layout} isTurn={currentIs(state, p.id)} crowd={shift.x} lift={shift.y} />;
-          })}
-        </div>
-
-        <div className="dgb-hud" style={{ left: 10, top: 10, right: 120 }}>
-          <span className="dgb-chip">
-            {walking ? (
-              <>
-                <b>{state.moveBudget}</b>
-                <span>{state.moveBudget === 1 ? "step left" : "steps left"}</span>
-              </>
-            ) : (
-              <span>{mover ? `${mover.name}${here ? ` · ${here}` : ""}` : "Harrington House"}</span>
-            )}
-          </span>
-        </div>
-        <div className="dgb-hud" style={{ right: 10, top: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          <button type="button" className="dgb-btn" aria-label="Zoom in" onClick={() => (setFit(false), setZoomPick(Math.min(1.8, zoom + 0.15)))}>
-            <Plus className="size-4" />
-          </button>
-          <button type="button" className="dgb-btn" aria-label="Zoom out" onClick={() => (setFit(false), setZoomPick(Math.max(0.35, zoom - 0.15)))}>
-            <Minus className="size-4" />
-          </button>
-          <button
-            type="button"
-            className="dgb-btn"
-            aria-label="Show the whole house"
-            onClick={() => (setFit((v) => !v), setPan({ x: 0, y: 0 }))}
-          >
-            <Maximize2 className="size-4" />
-          </button>
-          <button type="button" className="dgb-btn" aria-label="Change the camera angle" onClick={() => setTiltIx((i) => (i + 1) % TILTS.length)}>
-            <Box className="size-4" />
-          </button>
-        </div>
-        {walking && interactive ? (
-          <div className="dgb-hud" style={{ left: 10, right: 10, bottom: 10, display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-            <span className="dgb-chip">Tap a lit square. A doorway ends your walk.</span>
-            {onStop ? (
-              <button type="button" className="dgb-stop" onClick={onStop}>
-                Stop here
-              </button>
-            ) : null}
+            {[...state.players]
+              .map((p) => ({ p, at: anchor(shown[p.id]?.pos ?? p.position, layout, pieceBaseH) }))
+              .map(({ p, at }) => ({ p, at, shift: crowdShift(state, p, pieceW * 0.95, layout) }))
+              .sort((a, b) => a.at.y + a.shift.y - (b.at.y + b.shift.y))
+              .map(({ p, at, shift }) => (
+                <Piece
+                  key={p.id}
+                  player={p}
+                  art={who[p.id]}
+                  isTurn={turnId === p.id}
+                  x={at.x + shift.x}
+                  y={at.y + shift.y}
+                  ms={shown[p.id]?.ms ?? 260}
+                  dims={{ fh: pieceH, fw: pieceW, bw: pieceBaseW, bh: pieceBaseH, tag: labelPx }}
+                />
+              ))}
           </div>
+        </div>
+      </div>
+
+      <div className="dgb-hud" style={{ left: 8, top: 8, right: 8, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <span className="dgb-chip">
+          {anywhere ? (
+            <span>Tap any room</span>
+          ) : walking ? (
+            <>
+              <b>{state.moveBudget}</b>
+              <span>{state.moveBudget === 1 ? "step" : "steps"} · tap a lit square</span>
+            </>
+          ) : (
+            <span>{actor ? `${actor.name}${here ? ` · ${here}` : ""}` : "Harrington House"}</span>
+          )}
+        </span>
+        {walking && onStop ? (
+          <button type="button" className="dgb-stop" onClick={onStop}>
+            Stay here
+          </button>
         ) : null}
       </div>
     </div>
   );
-}
-
-function currentIs(state: GameState, id: string) {
-  return state.turnOrder[state.turnIndex % state.turnOrder.length] === id;
 }
 
 function sameSpot(a: Player, b: Player) {
@@ -466,41 +503,73 @@ function sameSpot(a: Player, b: Player) {
   return false;
 }
 
-function crowdShift(state: GameState, player: Player) {
+function crowdShift(state: GameState, player: Player, gap: number, layout: BoardLayout) {
   const mates = state.players.filter((other) => sameSpot(player, other));
   if (mates.length < 2) return { x: 0, y: 0 };
   const i = Math.max(0, mates.findIndex((other) => other.id === player.id));
   const inRoom = player.position.kind === "room";
-  const cols = Math.min(inRoom ? 4 : 3, mates.length);
+  const roomId = player.position.kind === "room" ? player.position.roomId : "";
+  const side = layout.rooms.find((r) => r.id === roomId)?.side;
+  // Side rooms are only three squares across, so a crowd there stacks in two columns instead of spreading wide.
+  const cols = Math.min(inRoom ? (side === "e" || side === "w" ? 2 : 4) : 3, mates.length);
   const col = i % cols;
   const row = Math.floor(i / cols);
   const rowCount = Math.ceil(mates.length / cols);
   const inRow = Math.min(cols, mates.length - row * cols);
-  const gap = inRoom ? 26 : 20;
-  return { x: (col - (inRow - 1) / 2) * gap, y: (row - (rowCount - 1) / 2) * 20 };
+  return { x: (col - (inRow - 1) / 2) * gap, y: (row - (rowCount - 1) / 2) * gap * 0.6 };
 }
 
 /** Where a guest's feet are, in board pixels. */
-function anchor(player: Player, layout: BoardLayout) {
-  if (player.position.kind === "hall") {
-    return { x: player.position.x * CELL + CELL / 2, y: player.position.y * CELL + CELL / 2 };
-  }
-  const roomId = player.position.roomId;
-  const room = layout.rooms.find((r) => r.id === roomId);
+function anchor(pos: PiecePos, layout: BoardLayout, baseH: number) {
+  if (pos.kind === "hall") return { x: pos.x * CELL + CELL / 2, y: pos.y * CELL + CELL * 0.62 };
+  const room = layout.rooms.find((r) => r.id === pos.roomId);
   if (!room) return { x: CELL / 2, y: CELL / 2 };
-  return { x: (room.x + room.w / 2) * CELL, y: (room.y + room.h / 2) * CELL + 8 };
+  // Guests stand on the half of the room nearest the door; the name plate takes the far wall.
+  const cx = (room.x + room.w / 2) * CELL;
+  const cy = (room.y + room.h / 2) * CELL;
+  if (room.side === "n") return { x: cx, y: (room.y + room.h) * CELL - CELL * 0.55 - baseH * 0.2 };
+  if (room.side === "s") return { x: cx, y: room.y * CELL + CELL * 1.75 };
+  if (room.side === "e") return { x: room.x * CELL + CELL * 1.0, y: cy + CELL * 0.7 };
+  return { x: (room.x + room.w) * CELL - CELL * 1.0, y: cy + CELL * 0.7 };
 }
 
-function Piece({ player, art, layout, isTurn, crowd, lift }: { player: Player; art: string; layout: BoardLayout; isTurn: boolean; crowd: number; lift: number }) {
-  const at = anchor(player, layout);
+function Piece({
+  player,
+  art,
+  isTurn,
+  x,
+  y,
+  ms,
+  dims,
+}: {
+  player: Player;
+  art: string;
+  isTurn: boolean;
+  x: number;
+  y: number;
+  ms: number;
+  dims: { fh: number; fw: number; bw: number; bh: number; tag: number };
+}) {
   const cut = charCutout({ id: art } as never);
   const face = portraitFor(player.seat);
   return (
     <div
       className={cn("dgb-tok", isTurn && "turn")}
-      style={{ transform: `translate3d(${at.x + crowd}px, ${at.y + lift}px, 4px)`, ["--tok" as string]: player.color }}
       title={player.name}
+      style={
+        {
+          transform: `translate(${x}px, ${y}px)`,
+          transitionDuration: `${ms}ms`,
+          zIndex: 10 + Math.round(y),
+          ["--tok" as string]: player.color,
+          ["--fh" as string]: `${dims.fh}px`,
+          ["--fw" as string]: `${dims.fw}px`,
+          ["--bw" as string]: `${dims.bw}px`,
+          ["--bh" as string]: `${dims.bh}px`,
+        } as CSSProperties
+      }
     >
+      <span className="dgb-shadow" />
       <span className="dgb-base" />
       <div className="dgb-stand">
         {cut ? (
@@ -516,7 +585,11 @@ function Piece({ player, art, layout, isTurn, crowd, lift }: { player: Player; a
             }}
           />
         )}
-        {isTurn ? <span className="dgb-name">{player.name.split(" ")[0]}</span> : null}
+        {isTurn ? (
+          <span className="dgb-name" style={{ fontSize: dims.tag }}>
+            {player.name.split(" ")[0]}
+          </span>
+        ) : null}
       </div>
     </div>
   );

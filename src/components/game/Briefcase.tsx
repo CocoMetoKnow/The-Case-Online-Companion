@@ -17,6 +17,17 @@ import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
 
+const BOARD_SCREEN_CSS = `
+.bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:4px;padding:2px 6px max(env(safe-area-inset-bottom),6px)}
+.bd-top{grid-area:top;min-width:0}
+.bd-board{grid-area:board;min-height:0;min-width:0;position:relative}
+.bd-hand{grid-area:hand;min-width:0;display:flex;flex-direction:column;height:176px}
+@media (orientation:landscape) and (min-width:640px){
+ .bd-screen{grid-template-columns:minmax(0,1fr) min(38vw,320px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"board top" "board hand";column-gap:8px}
+ .bd-hand{height:auto;min-height:0}
+}
+`;
+
 function rollWords(state: GameState): { title: string; detail: string } | null {
   if (!state.dice) return null;
   const total = state.singleDie ? state.dice[0] : (movementTotal(state.dice) ?? 0);
@@ -312,9 +323,135 @@ function BriefcaseTable() {
           ack: askedMe,
         }
       : null;
+  const turnTitle =
+    state.phase === "gameover"
+      ? "The case is closed"
+      : state.phase === "roll"
+        ? myTurn
+          ? "Roll the dice"
+          : `${cur?.name ?? "Someone"} is rolling`
+        : myTurn
+          ? "Your turn"
+          : `${cur?.name ?? "Someone"}'s turn`;
+  const canMoveMenu = myTurn && (state.phase === "action" || state.phase === "move");
+
+  // Digital board: the house fills the screen. The turn info sits above it and the hand below it (beside it when
+  // the phone is on its side). Every prompt (roll, powers, questions, the journal) still opens over the top.
+  const boardUi = (
+    <div className="bd-screen">
+      <style>{BOARD_SCREEN_CSS}</style>
+      <section className="bd-top">
+        <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
+          <p className="min-w-0 truncate font-display text-lg leading-none">
+            {turnTitle}
+            <span className="ml-1 text-xs text-subtle">
+              {me?.name ? `· ${me.name}` : ""}
+              {state.hostId === actor ? " · Host" : ""}
+              {state.settings.speakMode ? " · Speaking" : ""}
+            </span>
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            {canMoveMenu ? (
+              <Button size="sm" onClick={() => setMovesOpen(true)}>
+                Your move
+              </Button>
+            ) : null}
+            <MusicToggle />
+            <button type="button" className="text-sm text-subtle" onClick={() => setSureLeave(true)}>
+              Leave
+            </button>
+          </div>
+        </header>
+
+        {me?.eliminated && state.phase !== "gameover" ? (
+          <p className="mt-1 rounded-xl border border-[#a33b32]/60 bg-[#2a1410] px-3 py-1.5 text-xs text-paper" role="status">
+            <span className="font-display text-base text-brass">You are out of the case.</span> Your cards stay in play and you still show one when asked.
+          </p>
+        ) : null}
+
+        <div className="mt-0.5 flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <TurnTracker />
+          </div>
+          <div className="flex shrink-0 items-end gap-1">
+            <DicePair
+              small
+              ready={canRoll}
+              values={state.dice}
+              toss={toss}
+              snake={Boolean(state.dice && !state.singleDie && state.dice[0] === 1 && state.dice[1] === 1)}
+              single={Boolean(state.singleDie)}
+              extra={state.extraDie}
+              onRoll={canRoll ? roll : undefined}
+            />
+            <p className="pb-0.5 text-right leading-none">
+              <span className="block font-display text-xl">
+                {!state.dice || state.phase === "roll" ? "—" : state.pace ?? (state.singleDie ? state.dice[0] : movementTotal(state.dice))}
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.14em] text-subtle">move</span>
+            </p>
+          </div>
+        </div>
+
+        {state.notice ? (
+          <p className="mt-1 rounded-xl border border-brass/50 bg-[#2a1410] px-3 py-1.5 text-xs text-paper">{state.notice}</p>
+        ) : null}
+        {guide && cur ? (
+          <p className="mt-1 truncate text-[11px] text-muted">
+            {guide.controllerId === actor
+              ? `You guide ${cur.name}. You cannot Solve the Case for them, and their cards stay theirs.`
+              : `${state.players.find((p) => p.id === guide.controllerId)?.name ?? "A guest"} guides this turn.`}
+          </p>
+        ) : null}
+      </section>
+
+      <div className="bd-board">
+        <MansionBoard
+          state={state}
+          actorId={walker}
+          interactive={walking}
+          onMove={moveTo}
+          onStop={state.phase === "move" ? stay : undefined}
+        />
+      </div>
+
+      <section className="bd-hand">
+        <CardHand
+          cards={hand}
+          facesDown={facesDown}
+          spread={spread}
+          onOpen={(card) => {
+            if (facesDown) {
+              setFacesDown(false);
+              localStorage.setItem("gmm.faces", "up");
+              return;
+            }
+            sfxPaper();
+            setLifted(card);
+          }}
+        />
+        {leftover.length ? (
+          <div className="mt-1 flex shrink-0 items-center gap-2">
+            <p className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-subtle">Table</p>
+            <div className="flex gap-1 overflow-x-auto">
+              {leftover.map((card) => (
+                <CardFace key={card.id} card={card} compact onClick={() => setLifted(card)} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {state.wait && state.phase !== "gameover" ? <CatchUp state={state} selfId={actor} onKick={kick} /> : null}
+        {onlinePending ? <p className="shrink-0 text-center text-xs uppercase tracking-[0.14em] text-brass">Sending your move…</p> : null}
+      </section>
+    </div>
+  );
+
   return (
     <main className="leather h-dvh overflow-hidden">
-      <div className={`mx-auto flex h-full flex-col px-2 py-1 ${board ? "max-w-5xl" : "max-w-lg"}`}>
+      {board ? (
+        boardUi
+      ) : (
+      <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
         <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
           <p className="min-w-0 truncate font-display text-lg leading-none">
             {me?.name ?? "Your case"}
@@ -444,6 +581,7 @@ function BriefcaseTable() {
           ) : null}
         </section>
       </div>
+      )}
 
       <QuestionResolve
         facesDown={facesDown}

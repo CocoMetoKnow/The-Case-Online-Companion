@@ -32,6 +32,8 @@ export interface BoardLayout {
   margin: number;
   /** Ring side length in cells. */
   ring: number;
+  /** How many cells long each room is along its wall (rooms are always ROOM_SIZE deep). */
+  roomLong: number;
   rooms: RoomSpec[];
   doors: Record<string, Array<{ x: number; y: number }>>;
   /** Start squares in the middle plaza, best seat first. */
@@ -42,7 +44,10 @@ export interface BoardLayout {
   roomAt: Map<string, RoomSpec>;
 }
 
+/** How deep a room reaches out from the ring. Also the empty margin around the ring, so hall coordinates never move. */
 export const ROOM_SIZE = 3;
+/** The longest a room gets along its wall. It shrinks to 3 when two doors on one side sit too close for the gap. */
+const ROOM_LONG = 5;
 /** Wanted walking distance between the doors of neighbouring rooms. */
 const DOOR_GAP = 7;
 const MIN_RING = 8;
@@ -246,50 +251,71 @@ export function buildLayout(roomIds: string[]): BoardLayout {
       phase = candidate;
     }
   }
+  // Rooms are wide, like the printed board. How wide depends on how close two doors on one side end up:
+  // a room always leaves at least one empty square of wall between itself and its neighbour.
+  const doorsBySide: number[][] = [[], [], [], []];
+  roomIds.forEach((_, i) => {
+    const { side, off } = arcOf(phase, i);
+    doorsBySide[side].push(off);
+  });
+  let tightest = Infinity;
+  for (const offs of doorsBySide) {
+    offs.sort((a, b) => a - b);
+    for (let k = 1; k < offs.length; k++) tightest = Math.min(tightest, offs[k] - offs[k - 1]);
+  }
+  const roomLong = tightest >= ROOM_LONG + 1 ? ROOM_LONG : 3;
+  const half = (roomLong - 1) / 2;
+
   roomIds.forEach((id, i) => {
     const { side, off } = arcOf(phase, i);
     let x = 0;
     let y = 0;
+    let w = roomLong;
+    let h = ROOM_SIZE;
     let door = { x: 0, y: 0 };
     let dir: RoomSpec["side"] = "n";
     if (side === 0) {
       dir = "n";
       door = { x: lo + off, y: lo };
-      x = door.x - 1;
+      x = door.x - half;
       y = lo - ROOM_SIZE;
     } else if (side === 1) {
       dir = "e";
       door = { x: hi, y: lo + off };
       x = hi + 1;
-      y = door.y - 1;
+      y = door.y - half;
+      w = ROOM_SIZE;
+      h = roomLong;
     } else if (side === 2) {
       dir = "s";
       door = { x: hi - off, y: hi };
-      x = door.x - 1;
+      x = door.x - half;
       y = hi + 1;
     } else {
       dir = "w";
       door = { x: lo, y: hi - off };
       x = lo - ROOM_SIZE;
-      y = door.y - 1;
+      y = door.y - half;
+      w = ROOM_SIZE;
+      h = roomLong;
     }
     const spec: RoomSpec = {
       id,
       name: prettify(id),
       x,
       y,
-      w: ROOM_SIZE,
-      h: ROOM_SIZE,
+      w,
+      h,
       questionRoom: true,
       tint: TINTS[i % TINTS.length],
       side: dir,
     };
     rooms.push(spec);
     doors[id] = [door];
-    for (let yy = y; yy < y + ROOM_SIZE; yy++) for (let xx = x; xx < x + ROOM_SIZE; xx++) roomAt.set(`${xx},${yy}`, spec);
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) roomAt.set(`${xx},${yy}`, spec);
   });
 
-  const layout: BoardLayout = { key, cols: size, rows: size, margin, ring, rooms, doors, starts, plaza, hall, roomAt };
+  const layout: BoardLayout = { key, cols: size, rows: size, margin, ring, roomLong, rooms, doors, starts, plaza, hall, roomAt };
   layoutCache.set(key, layout);
   return layout;
 }

@@ -120,7 +120,7 @@ export function GameTable() {
             </p>
           </div>
         </div>
-        <div className="mx-auto w-fit">
+        <div className="mx-auto h-[70dvh] w-full max-w-[720px]">
           <MansionBoard
             state={state}
             actorId={cur?.id ?? actor}

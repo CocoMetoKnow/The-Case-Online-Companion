@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, applyClassicNames, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
-import { blockedHallsFor, isQuestionRoom, layoutFor, posKey, reachable, reconstructPath, resolvePassages, roomLabel } from "./board";
+import { blockedHallsFor, isQuestionRoom, layoutFor, posKey, reachable, resolvePassages, roomLabel } from "./board";
 import { NPC_ID, PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
 
@@ -588,19 +588,14 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 	const key = dest.kind === "hall" ? `h:${dest.x},${dest.y}` : `r:${dest.roomId}`;
 	const node = nodes.get(key);
 	if (!node || node.dist < 1) return state;
-	const step = node.dist === 1 ? dest : reconstructPath(nodes, dest)[1];
-	if (!step) return state;
-	const stepNode = nodes.get(posKey(step));
-	if (!stepNode || stepNode.dist !== 1) return state;
+	// One tap goes the whole way: any square the roll can reach is a legal destination.
+	// The board animates the path it took.
+	const step: PiecePos = dest.kind === "hall" ? { kind: "hall", x: dest.x, y: dest.y } : { kind: "room", roomId: dest.roomId };
 	const moved = placePlayer(state, subject, step);
-	const left = state.moveBudget - 1;
 	const fromRoom = player.position.kind === "room" ? player.position.roomId : null;
 	const toRoom = step.kind === "room" ? step.roomId : null;
 	const entered = toRoom != null;
-	if (!entered && left > 0) return {
-		...moved,
-		moveBudget: left
-	};
+	// Choosing where to stand is the whole move, so a tap that lands in the corridor ends it too.
 	const toRoomLabel = toRoom ? roomLabel(state, toRoom, layoutFor(state.settings)) : "";
 	const text = fromRoom && toRoom && fromRoom !== toRoom ? `${player.name} takes the passage into the ${toRoomLabel}.` : entered ? `${player.name} steps into the ${toRoomLabel}.` : `${player.name} stops in the corridor.`;
 	return log({
