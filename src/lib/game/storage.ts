@@ -7,6 +7,7 @@ const TABLE_KEY = "gmm.table.v1";
 const NOTES_KEY = "gmm.notes.v1";
 const NAME_KEY = "gmm.player-name.v1";
 const CLUE_KEY = "gmm.clue.v1";
+const BOARD_KEY = "gmm.board.v1";
 const ART_KEY = "gmm.art.v1";
 const MIGRATED_KEY = "gmm.migrated";
 const DB_NAME = "gmm.vault";
@@ -20,7 +21,7 @@ const DB_STORE = "kv";
 // are only ever deleted below.
 const SESSION_KEY = "gmm.session.v2";
 const SESSION_MAX_AGE = 12 * 60 * 60 * 1000;
-const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY, CLUE_KEY];
+const VAULT_KEYS = [SETS_KEY, TABLE_KEY, NOTES_KEY, NAME_KEY, ART_KEY, CLUE_KEY, BOARD_KEY];
 
 export interface TableSave {
   version: number;
@@ -38,6 +39,25 @@ export interface VaultData {
   art: Record<string, string>;
   /** The "clue" secret code. Once typed it stays on for this device until it is typed again. */
   clue: boolean;
+  /** The "DB" secret code and the digital board options. Once typed it stays on for this device until it is typed again. */
+  board: BoardPrefs;
+}
+
+export interface BoardPrefs {
+  on: boolean;
+  hiddenRooms?: boolean;
+  noRepeatRoom?: boolean;
+  boardPassages?: Array<{ a: string; b: string; via?: string }>;
+}
+
+function cleanBoardPrefs(value: unknown): BoardPrefs {
+  const v = (value && typeof value === "object" ? value : {}) as Partial<BoardPrefs>;
+  return {
+    on: v.on === true,
+    ...(typeof v.hiddenRooms === "boolean" ? { hiddenRooms: v.hiddenRooms } : {}),
+    ...(typeof v.noRepeatRoom === "boolean" ? { noRepeatRoom: v.noRepeatRoom } : {}),
+    ...(Array.isArray(v.boardPassages) ? { boardPassages: v.boardPassages } : {}),
+  };
 }
 
 function readLocal<T>(key: string): T | undefined {
@@ -229,11 +249,12 @@ export async function loadVault(): Promise<VaultData> {
     const sets = validSets(readLocal(SETS_KEY));
     const name = readLocal<string>(NAME_KEY) ?? "";
     const clue = readLocal<boolean>(CLUE_KEY) === true;
-    return { sets, table, notes, name, art: collectArt(sets, table, undefined), clue };
+    const board = cleanBoardPrefs(readLocal(BOARD_KEY));
+    return { sets, table, notes, name, art: collectArt(sets, table, undefined), clue, board };
   }
-  const [setsRaw, name, clue] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY), idbGet<boolean>(CLUE_KEY)]);
+  const [setsRaw, name, clue, boardRaw] = await Promise.all([idbGet<CardSet[]>(SETS_KEY), idbGet<string>(NAME_KEY), idbGet<boolean>(CLUE_KEY), idbGet<unknown>(BOARD_KEY)]);
   const sets = validSets(setsRaw);
-  return { sets, table, notes, name: typeof name === "string" ? name : "", art: collectArt(sets, table, undefined), clue: clue === true };
+  return { sets, table, notes, name: typeof name === "string" ? name : "", art: collectArt(sets, table, undefined), clue: clue === true, board: cleanBoardPrefs(boardRaw) };
 }
 
 function clearSessionScopedKeys() {
@@ -309,6 +330,11 @@ export function emptyNotes(): PlayerNotes {
 /** Keep the "clue" code on (or off) for good, across games and visits. */
 export function saveClueCode(on: boolean) {
   remember(CLUE_KEY, on);
+}
+
+/** Keep the "DB" code (digital board) and its options on (or off) for good, across games and visits. */
+export function saveBoardPrefs(prefs: BoardPrefs) {
+  remember(BOARD_KEY, prefs);
 }
 
 export function savePlayerName(name: string) {

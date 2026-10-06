@@ -139,6 +139,8 @@ function settingsStamp(state: GameState): string {
     settings.speakMode ? "1" : "0",
     settings.extraDifficulty ? "1" : "0",
     settings.classicNames ? "1" : "0",
+    settings.hiddenRooms === false ? "0" : "1",
+    settings.noRepeatRoom ? "1" : "0",
     settings.timeOfDayEnabled ? "1" : "0",
     String(settings.maxPlayers),
     (settings.enabledEvents ?? []).join(","),

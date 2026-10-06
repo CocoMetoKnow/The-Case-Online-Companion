@@ -60,6 +60,32 @@ function DigitalBoard() {
         </span>
         <Switch aria-label="Digital board" checked={on} onCheckedChange={(value) => patchSettings({ table: value ? "board" : "case" })} />
       </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span>
+          <span className="block text-sm">Secret passage extra rooms</span>
+          <span className="block text-xs text-muted">
+            {settings.hiddenRooms === false ? "Off: passages go straight from one room to the other." : "On: each passage runs through a hidden room (Boiler Room, Vault, Catacombs...)."}
+          </span>
+        </span>
+        <Switch
+          aria-label="Secret passage extra rooms"
+          checked={settings.hiddenRooms !== false}
+          onCheckedChange={(value) => patchSettings({ hiddenRooms: value })}
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span>
+          <span className="block text-sm">No repeat suggestions in a room</span>
+          <span className="block text-xs text-muted">
+            {settings.noRepeatRoom ? "On: after suggesting in a room, you must leave and go to a different room before you can suggest again." : "Off: you may suggest in the same room turn after turn."}
+          </span>
+        </span>
+        <Switch
+          aria-label="No repeat suggestions in a room"
+          checked={Boolean(settings.noRepeatRoom)}
+          onCheckedChange={(value) => patchSettings({ noRepeatRoom: value })}
+        />
+      </div>
       <Button variant="outline" className="mt-3 w-full" onClick={() => setOpen(true)}>
         Set up the house
       </Button>
@@ -72,17 +98,9 @@ function DigitalBoard() {
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-subtle">Secret passages</p>
               <p className="mt-1 text-sm text-muted">
-                Two shortcuts that cost one step. With the switch on, every passage runs through a hidden room that is not on the map (pick one below, or leave it on Auto): it becomes a room card in the game, and
+                Two shortcuts that cost one step. With the Secret passage extra rooms switch on, every passage runs through a hidden room that is not on the map (pick one below, or leave it on Auto): it becomes a room card in the game, and
                 guests can only walk into it through the passage. Auto uses Study to Kitchen and Lounge to Conservatory.
               </p>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <span className="text-sm">Hidden room on every passage</span>
-                <Switch
-                  aria-label="Hidden room on every passage"
-                  checked={settings.hiddenRooms !== false}
-                  onCheckedChange={(value) => patchSettings({ hiddenRooms: value })}
-                />
-              </div>
               {[0, 1].map((i) => (
                 <div key={i} className="mt-3">
                   <p className="mb-1 text-xs text-muted">
@@ -110,7 +128,8 @@ function DigitalBoard() {
                   <select
                     className={`${SELECT_CLASS} mt-2`}
                     aria-label={`Passage ${i + 1}, hidden room in between`}
-                    value={passages[i]?.via ?? ""}
+                    disabled={settings.hiddenRooms === false}
+                    value={settings.hiddenRooms === false ? "" : passages[i]?.via ?? ""}
                     onChange={(e) => setPassage(i, "via", e.target.value)}
                   >
                     <option value="">{settings.hiddenRooms === false ? "No hidden room in between" : "Auto hidden room"}</option>

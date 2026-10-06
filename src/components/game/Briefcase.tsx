@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { canAsk, currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
+import { canAsk, repeatBlocked, currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
 import { movementTotal, blockingPlayerIds } from "@/lib/game/engine";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
@@ -614,6 +614,11 @@ function BriefcaseTable() {
                 >
                   Suggest
                 </Button>
+              ) : null}
+              {(state.actionsLeft ?? 1) > 0 && repeatBlocked(state, actor) ? (
+                <p className="rounded-[12px] border border-line px-3 py-2 text-center text-sm text-muted">
+                  You already made a suggestion in this room. Leave and go to a different room to suggest again.
+                </p>
               ) : null}
               {state.phase === "action" && (state.actionsLeft ?? 1) > 0 && !influenced ? (
                 <Button

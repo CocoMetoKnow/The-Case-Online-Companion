@@ -168,6 +168,8 @@ export interface GameSettings {
   boardPassages?: Passage[];
   /** Digital board: put a hidden room on every secret passage that the host left without one. On unless set to false. */
   hiddenRooms?: boolean;
+  /** Digital board: a guest may not suggest in the same room twice in a row. They must go to a different room first. */
+  noRepeatRoom?: boolean;
   /** Deal each category round-robin so hands stay as even as they can. */
   evenDeal?: boolean;
   /** The case is a theft. Weapon cards are the valuables that were taken. */
@@ -271,6 +273,8 @@ export interface GameState {
   suggesting?: NamingState | null;
   /** The most recent suggestion and who showed a card for it. Stays until each player closes it. */
   lastSuggestion?: LastSuggestion | null;
+  /** Digital board, "no repeat room" rule: the room each guest last made a suggestion in. Cleared when they enter a different room. */
+  suggestedIn?: Record<string, string>;
   /** A card just shown in speak mode. Blank card id means this phone must not see it. */
   privateShow?: { fromId: string; toId: string; cardId: string; at: number } | null;
 }

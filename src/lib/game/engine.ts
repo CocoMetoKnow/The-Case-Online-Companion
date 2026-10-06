@@ -269,6 +269,7 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		noticeSelf: null,
 		noticeFor: null,
 		lastSuggestion: null,
+		suggestedIn: {},
 		privateShow: null
 	};
 	const split = splitEven(started, { solution: {}, hands: {} });
@@ -613,6 +614,13 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 	}, text);
 }
 export function placePlayer(state, playerId, dest) {
+	// "No repeat room": walking into a different room frees the guest to suggest again.
+	const lastRoom = state.suggestedIn?.[playerId];
+	const freed = Boolean(lastRoom && dest.kind === "room" && dest.roomId !== lastRoom);
+	if (freed) {
+		const { [playerId]: _gone, ...rest } = state.suggestedIn;
+		state = { ...state, suggestedIn: rest };
+	}
 	return {
 		...state,
 		players: state.players.map((p) => p.id === playerId ? {
@@ -630,6 +638,23 @@ export function skipMove(state: GameState, playerId: string): GameState {
 		moveBudget: 0
 	}, `${currentName(state)} stays put.`);
 }
+/** Digital board, "no repeat room" on: this guest's last suggestion was in the room they are standing in. */
+export function repeatBlocked(state: GameState, playerId: string): boolean {
+	if (state.settings?.table !== "board" || !state.settings.noRepeatRoom) return false;
+	const subject = subjectOf(state, playerId);
+	const p = subject ? state.players.find((x) => x.id === subject) : null;
+	if (!p || p.position.kind !== "room") return false;
+	// A won gamble gives a bonus suggestion that may name any room, so it is never blocked.
+	if (state.bonusRoom?.playerId === p.id) return false;
+	return state.suggestedIn?.[p.id] === p.position.roomId;
+}
+/** Remember where a guest just made a suggestion, when the "no repeat room" rule is on. */
+function markSuggested(state: GameState, subject: string): GameState {
+	if (state.settings?.table !== "board" || !state.settings.noRepeatRoom) return state;
+	const p = state.players.find((x) => x.id === subject);
+	if (!p || p.position.kind !== "room") return state;
+	return { ...state, suggestedIn: { ...(state.suggestedIn ?? {}), [subject]: p.position.roomId } };
+}
 export function canAsk(state: GameState, playerId: string): boolean {
 	// On the digital board a guest standing in a room may suggest while they still have steps left to walk.
 	if (state.phase !== "action" && !(state.phase === "move" && state.settings?.table === "board")) return false;
@@ -641,6 +666,7 @@ export function canAsk(state: GameState, playerId: string): boolean {
 	if (!p || p.eliminated) return false;
 	// The digital board: a suggestion can only be made from inside a room. No power, passage, or speak mode changes that.
 	if (state.settings?.table === "board") {
+		if (repeatBlocked(state, playerId)) return false;
 		return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 	}
 	// Speak mode plays on the real board. The player says they are in a room and that is enough.
@@ -757,7 +783,7 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 	const hushLine = silencedName ? ` The hush lifts: ${silencedName} is silenced, so no one shows it.` : "";
 	const betLine = bet.line ? ` ${bet.line}` : "";
 	const moveLine = bonus ? ` ${asker.name} moves into the ${roomName}.` : "";
-	return advanceQuestion(log(nextState, `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}${betLine}${moveLine}`), secrets);
+	return advanceQuestion(log(markSuggested(nextState, subject), `${asker.name} (in the ${roomName}) asks: ${asked}${hushLine}${betLine}${moveLine}`), secrets);
 }
 
 function spokenOrder(state, subject) {
@@ -843,7 +869,7 @@ export function beginSpokenQuestion(state: GameState, playerId: string, pick?, s
 			silencedId
 		}
 	};
-	return advanceSpoken(log(next, `${asker.name} is in a room and makes a suggestion out loud.${bet.line ? ` ${bet.line}` : ""}${hushLine}${bonusLine}`), secrets);
+	return advanceSpoken(log(markSuggested(next, subject), `${asker.name} is in a room and makes a suggestion out loud.${bet.line ? ` ${bet.line}` : ""}${hushLine}${bonusLine}`), secrets);
 }
 function advanceSpoken(state, secrets?) {
 	const q = state?.question;

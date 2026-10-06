@@ -12,7 +12,7 @@ import {
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { characterColor } from "@/lib/game/character-colors";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Camera, Crosshair, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
@@ -22,10 +22,11 @@ import { charCutout } from "@/lib/game/scene-art";
  * guests walk on, the gaps in the walls are the doorways, and the ten rooms never move. Hidden rooms (a stop in the
  * middle of a secret passage) are not on the house at all: a guest in one stands on a small plaque on the lawn.
  *
- * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow and a slight
- * lean so they read as 3D. The whole house starts scaled to fit the space it is given. It never zooms or turns by
- * pinching or dragging: the labelled buttons in the corner zoom in and out, turn the house a quarter turn either way,
- * and (when zoomed in) move the view. To move, tap anywhere near a lit square. Any square the roll can reach is a
+ * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow, so they read as
+ * 3D while standing perfectly upright. The whole house starts scaled to fit the space it is given. It never zooms or turns by
+ * pinching or dragging: one camera button in the middle of the bottom bar opens the camera controls (zoom, turn a
+ * quarter turn, and move the view when zoomed in). The house is always drawn flat, top down, at every angle, and it
+ * is fitted between the top bar and the bottom bar so the hidden rooms on the lawn are never covered. To move, tap anywhere near a lit square. Any square the roll can reach is a
  * destination, and a tap that lands close to one snaps to it. After walking into a room the steps left over can still
  * be used, by a door or by a secret passage, and the passage buttons at the bottom of the board say where each goes.
  */
@@ -37,19 +38,25 @@ const BOARD_CSS = `
 .dgb-world{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .32s ease}
 .dgb-upright{transition:transform .32s ease}
 .dgb-tile{position:absolute;z-index:3;pointer-events:none;border-radius:4px;background:color-mix(in srgb,var(--tint) 80%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint) 55%,#000),0 0 9px color-mix(in srgb,var(--tint) 70%,transparent)}
-.dgb-ctls{position:absolute;z-index:12;left:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
-.dgb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
 .dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:52px;min-height:46px;padding:4px 6px;border-radius:10px;background:#f6f1e6;color:#1c2430;border:1px solid #c4b396;box-shadow:0 3px 8px rgba(0,0,0,.5);font-size:10px;font-weight:700;line-height:1.05;text-align:center}
 .dgb-ctl:active:not(:disabled){transform:scale(.95)}
 .dgb-ctl:disabled{opacity:.4}
-.dgb-pad{pointer-events:auto;display:grid;grid-template-columns:repeat(4,30px);gap:4px;align-items:center;justify-items:center;padding:4px 6px 6px;border-radius:10px;background:rgba(246,241,230,.94);border:1px solid #c4b396;box-shadow:0 3px 8px rgba(0,0,0,.5);color:#1c2430}
-.dgb-pad p{grid-column:1/-1;font-size:10px;font-weight:700;line-height:1}
-.dgb-pad button{width:30px;height:28px;display:grid;place-items:center;border-radius:8px;background:#fff;border:1px solid #c4b396}
+.dgb-bar{position:absolute;z-index:12;left:0;right:0;bottom:0;height:60px;padding:0 8px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;pointer-events:none}
+.dgb-cam{pointer-events:auto;grid-column:2;width:48px;height:48px;border-radius:999px;display:grid;place-items:center;background:#f6f1e6;color:#1c2430;border:2px solid #c4b396;box-shadow:0 3px 10px rgba(0,0,0,.55)}
+.dgb-cam.open{background:#2a1e0c;color:#fbe9b4;border-color:#f0cf7a}
+.dgb-cam:active{transform:scale(.94)}
+.dgb-panel{position:absolute;z-index:14;left:50%;bottom:66px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 6px 18px rgba(0,0,0,.6);color:#1c2430}
+.dgb-panel h4{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;line-height:1}
+.dgb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:64px;min-height:48px;padding:4px 8px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:10px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-ctl:active:not(:disabled){transform:scale(.95)}
+.dgb-ctl:disabled{opacity:.4}
+.dgb-pad{display:grid;grid-template-columns:repeat(3,38px);grid-template-rows:repeat(2,34px);gap:4px;justify-items:center;align-items:center}
+.dgb-pad button{width:38px;height:34px;display:grid;place-items:center;border-radius:8px;background:#fff;border:1px solid #c4b396}
 .dgb-pad button:active{transform:scale(.94)}
-.dgb-pass{position:absolute;z-index:12;right:8px;bottom:8px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;max-width:52%;pointer-events:none}
-.dgb-pass p{pointer-events:none;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#f0cf7a;text-shadow:0 1px 3px #000}
-.dgb-passbtn{pointer-events:auto;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 12px;border-radius:12px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;box-shadow:0 4px 10px rgba(0,0,0,.55);font-size:13px;font-weight:800;line-height:1.1;text-align:left}
-.dgb-passbtn small{font-size:10px;font-weight:600;opacity:.85}
+.dgb-passbtn{pointer-events:auto;min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;border-radius:12px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;box-shadow:0 4px 10px rgba(0,0,0,.55);font-size:12px;font-weight:800;line-height:1.1;text-align:left}
+.dgb-passbtn span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dgb-passbtn small{font-size:9px;font-weight:600;opacity:.85;white-space:nowrap}
 .dgb-passbtn:active{transform:scale(.96)}
 .dgb-reach{position:absolute;z-index:4;pointer-events:none;border-radius:3px;background:rgba(120,245,160,.46);box-shadow:inset 0 0 0 2px #2fb463,0 0 10px rgba(47,180,99,.75);animation:dgb-pulse 1.2s ease-in-out infinite}
 .dgb-reach.edge{background:rgba(240,200,100,.45);box-shadow:inset 0 0 0 2px #f0cf7a,0 0 10px rgba(240,207,122,.75)}
@@ -61,20 +68,20 @@ const BOARD_CSS = `
  background:radial-gradient(ellipse at 36% 28%,#ffffffb0,transparent 42%),var(--tok,#ddd);
  box-shadow:0 0 0 1.5px #120d0a,0 calc(var(--bh) * .34) 0 -0.5px color-mix(in srgb,var(--tok,#ddd) 55%,#000),0 calc(var(--bh) * .34) 0 1px #120d0a,0 calc(var(--bh) * .6) calc(var(--bh) * .4) rgba(0,0,0,.55)}
 .dgb-tok.turn .dgb-base{animation:dgb-ring 1.3s ease-in-out infinite}
-.dgb-stand{position:absolute;left:calc(var(--fw) * -.5);bottom:calc(var(--bh) * .1);width:var(--fw);height:var(--fh);transform-origin:50% 100%;transform:perspective(220px) rotateX(-7deg)}
+.dgb-stand{position:absolute;left:calc(var(--fw) * -.5);bottom:calc(var(--bh) * .1);width:var(--fw);height:var(--fh);transform-origin:50% 100%}
 .dgb-stand img{position:absolute;left:0;bottom:0;width:100%;height:100%;object-fit:contain;object-position:50% 100%;filter:drop-shadow(1.5px 3px 2px rgba(0,0,0,.7)) saturate(1.06) contrast(1.04)}
 .dgb-stand img.bust{height:auto;width:100%;aspect-ratio:1;bottom:12%;border-radius:50%;object-fit:cover;border:2.5px solid var(--tok,#ddd);background:#1a1410}
 .dgb-tok.turn .dgb-stand{animation:dgb-bob 1.4s ease-in-out infinite}
 .dgb-name{position:absolute;left:50%;top:calc(var(--fh) * -.02);transform:translate(-50%,-100%);white-space:nowrap;line-height:1;color:#1c2430;background:#f6f1e6;padding:.22em .5em;border-radius:.5em;font-weight:700;box-shadow:inset .25em 0 0 #a83434,0 2px 6px rgba(0,0,0,.55)}
 .dgb-hud{position:absolute;z-index:11;pointer-events:none}
-.dgb-chip{pointer-events:auto;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:12px;background:#f6f1e6;color:#1c2430;font-size:12px;line-height:1.25;border:1px solid #c4b396;box-shadow:inset 3px 0 0 #a83434,0 4px 10px rgba(0,0,0,.45);max-width:100%}
+.dgb-chip{pointer-events:auto;min-width:0;display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:12px;background:#f6f1e6;color:#1c2430;font-size:12px;line-height:1.25;border:1px solid #c4b396;box-shadow:inset 3px 0 0 #a83434,0 4px 10px rgba(0,0,0,.45);max-width:100%}
 .dgb-chip b{font-family:var(--font-display,serif);font-size:20px;font-weight:700;line-height:1}
 .dgb-stop{pointer-events:auto;padding:9px 18px;border-radius:999px;background:#f6f1e6;color:#1c2430;font-weight:700;font-size:13px;border:1px solid #1a2b50;box-shadow:0 4px 10px rgba(0,0,0,.5)}
 .dgb-stop:active{transform:scale(.96)}
 @keyframes dgb-hlpulse{0%,100%{opacity:.55}50%{opacity:1}}
 @keyframes dgb-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.28)}}
 @keyframes dgb-ring{0%,100%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #ffe9a0,0 0 14px 5px rgba(255,226,140,.8),0 calc(var(--bh) * .34) 0 1px #120d0a}50%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #fff3c4,0 0 22px 9px rgba(255,226,140,.95),0 calc(var(--bh) * .34) 0 1px #120d0a}}
-@keyframes dgb-bob{0%,100%{transform:perspective(220px) rotateX(-7deg) translateY(0)}50%{transform:perspective(220px) rotateX(-7deg) translateY(-4%)}}
+@keyframes dgb-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4%)}}
 @media (prefers-reduced-motion:reduce){.dgb-world,.dgb-upright{transition:none!important}.dgb-reach,.dgb-room.reach,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
 
 .dgb-house{position:absolute;left:0;top:0;display:block;max-width:none;border-radius:10px;pointer-events:none;-webkit-user-drag:none}
@@ -84,7 +91,7 @@ const BOARD_CSS = `
 .dgb-room.reach.pick{box-shadow:inset 0 0 0 8px #fff,0 0 40px 10px #fff;background:rgba(255,255,255,.2)}
 .dgb-tag{position:absolute;z-index:3;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3em;pointer-events:none;max-width:90%}
 .dgb-plaque{padding:.2em .6em;border-radius:3px;background:rgba(0,0,0,.82);color:#fff;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;line-height:1.15;box-shadow:0 0 0 1px #b8923e}
-.dgb-note{padding:.15em .45em;background:#f6f1e6;color:#1c2430;font-weight:700;line-height:1.1;transform:rotate(-3deg);box-shadow:0 2px 5px rgba(0,0,0,.55);white-space:nowrap;font-size:.82em}
+.dgb-note{padding:.15em .45em;background:#f6f1e6;color:#1c2430;font-weight:700;line-height:1.1;box-shadow:0 2px 5px rgba(0,0,0,.55);white-space:nowrap;font-size:.82em}
 .dgb-pocket{position:absolute;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.25em;padding-top:.5em;border-radius:18px;border:5px solid #b8923e;background:rgba(10,12,16,.82);color:#e9dcc0;text-align:center;box-shadow:0 0 0 4px #000}
 .dgb-pocket b{font-family:var(--font-display,serif);color:#fff;line-height:1.05}
 .dgb-pocket span{letter-spacing:.14em;text-transform:uppercase;opacity:.85}
@@ -92,6 +99,10 @@ const BOARD_CSS = `
 .dgb-pocket.reach.edge{box-shadow:0 0 0 4px #000,0 0 30px 8px rgba(240,207,122,.85);border-color:#f0cf7a}
 .dgb-pocket.reach.pick{border-color:#fff;box-shadow:0 0 0 4px #000,0 0 40px 10px #fff}
 `;
+
+/** Room kept clear for the top bar (steps, Stay here) and the bottom bar (camera button, secret passages). */
+const PAD_TOP = 60;
+const PAD_BOTTOM = 64;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -250,12 +261,16 @@ export function MansionBoard({
   const [zoomAt, setZoomAt] = useState(0);
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [camOpen, setCamOpen] = useState(false);
   const quarter = ((turns % 4) + 4) % 4;
   const cos = COS[quarter];
   const sin = SIN[quarter];
   const zoomed = zoomAt > 0;
   const sideways = quarter % 2 === 1;
-  const fit = Math.max(0.05, Math.min((size.w - 4) / (sideways ? worldH : worldW), (size.h - 4) / (sideways ? worldW : worldH)));
+  // The house is fitted between the top bar and the bottom bar, so no control ever sits on top of a room.
+  const availH = Math.max(120, size.h - PAD_TOP - PAD_BOTTOM);
+  const midY = PAD_TOP + availH / 2;
+  const fit = Math.max(0.05, Math.min((size.w - 4) / (sideways ? worldH : worldW), (availH - 4) / (sideways ? worldW : worldH)));
   const scale = fit * ZOOMS[zoomAt];
   const inv = 1 / scale;
   const upright = `rotate(${-turns * 90}deg)`;
@@ -275,7 +290,7 @@ export function MansionBoard({
   const focusPos = actor ? shown[actor.id]?.pos ?? actor.position : null;
   const focus = zoomed && focusPos ? spot(focusPos) : { x: worldW / 2, y: worldH / 2 };
   const offX = size.w / 2 + (zoomed ? pan.x : 0) - scale * rotX(focus.x, focus.y);
-  const offY = size.h / 2 + (zoomed ? pan.y : 0) - scale * rotY(focus.x, focus.y);
+  const offY = midY + (zoomed ? pan.y : 0) - scale * rotY(focus.x, focus.y);
 
   const zoomTo = (next: number) => {
     const at = clamp(next, 0, ZOOMS.length - 1);
@@ -592,62 +607,81 @@ export function MansionBoard({
         ) : null}
       </div>
 
-      <div className="dgb-ctls">
-        {zoomed ? (
-          <button type="button" className="dgb-ctl" onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter on the guest whose turn it is" title="Recenter on the guest whose turn it is">
-            <Crosshair size={18} />
-            Recenter
-          </button>
-        ) : null}
-        {zoomed ? (
-          <div className="dgb-pad" role="group" aria-label="Move the view">
-            <p>Move view</p>
-            <button type="button" onClick={() => nudge(0, 1)} aria-label="Move the view up" title="Move the view up">
-              <ArrowUp size={16} />
+      {camOpen ? (
+        <div className="dgb-panel" role="group" aria-label="Camera controls">
+          <h4>Camera</h4>
+          <div className="dgb-grid">
+            <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
+              <ZoomIn size={18} />
+              Zoom in
             </button>
-            <button type="button" onClick={() => nudge(0, -1)} aria-label="Move the view down" title="Move the view down">
-              <ArrowDown size={16} />
+            <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
+              <ZoomOut size={18} />
+              Zoom out
             </button>
-            <button type="button" onClick={() => nudge(1, 0)} aria-label="Move the view left" title="Move the view left">
-              <ArrowLeft size={16} />
+            <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
+              <RotateCcw size={18} />
+              Turn left
             </button>
-            <button type="button" onClick={() => nudge(-1, 0)} aria-label="Move the view right" title="Move the view right">
-              <ArrowRight size={16} />
+            <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
+              <RotateCw size={18} />
+              Turn right
             </button>
           </div>
-        ) : null}
-        <div className="dgb-grid" role="group" aria-label="Zoom and turn the house">
-          <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
-            <ZoomIn size={18} />
-            Zoom in
-          </button>
-          <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
-            <ZoomOut size={18} />
-            Zoom out
-          </button>
-          <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
-            <RotateCcw size={18} />
-            Turn left
-          </button>
-          <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
-            <RotateCw size={18} />
-            Turn right
-          </button>
-        </div>
-      </div>
-
-      {passageOptions.length ? (
-        <div className="dgb-pass">
-          <p>Secret {passageOptions.length === 1 ? "passage" : "passages"} · 1 step</p>
-          {passageOptions.map((o) => (
-            <button key={posKey(o.pos)} type="button" className="dgb-passbtn" onClick={() => onMove(o.pos)}>
-              <span>⇄ {o.name}</span>
-              <small>{o.hidden ? "Hidden room, through a secret passage" : "Take the secret passage"}</small>
-            </button>
-          ))}
+          {zoomed ? (
+            <>
+              <div className="dgb-pad" role="group" aria-label="Move the view">
+                <span />
+                <button type="button" onClick={() => nudge(0, 1)} aria-label="Move the view up" title="Move the view up">
+                  <ArrowUp size={16} />
+                </button>
+                <span />
+                <button type="button" onClick={() => nudge(1, 0)} aria-label="Move the view left" title="Move the view left">
+                  <ArrowLeft size={16} />
+                </button>
+                <button type="button" onClick={() => nudge(0, -1)} aria-label="Move the view down" title="Move the view down">
+                  <ArrowDown size={16} />
+                </button>
+                <button type="button" onClick={() => nudge(-1, 0)} aria-label="Move the view right" title="Move the view right">
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+              <button type="button" className="dgb-ctl" style={{ flexDirection: "row", gap: 6 }} onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter on the guest whose turn it is" title="Recenter on the guest whose turn it is">
+                <Crosshair size={16} />
+                Recenter
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
+
+      <div className="dgb-bar">
+        {passageOptions[1] ? <PassageButton option={passageOptions[0]} onMove={onMove} style={{ gridColumn: 1, gridRow: 1, justifySelf: "end" }} /> : null}
+        <button
+          type="button"
+          className={cn("dgb-cam", camOpen && "open")}
+          style={{ gridRow: 1 }}
+          onClick={() => setCamOpen((v) => !v)}
+          aria-label={camOpen ? "Close camera controls" : "Open camera controls"}
+          aria-expanded={camOpen}
+          title="Camera"
+        >
+          {camOpen ? <X size={22} /> : <Camera size={22} />}
+        </button>
+        {passageOptions.length ? (
+          <PassageButton option={passageOptions[passageOptions.length > 1 ? 1 : 0]} onMove={onMove} style={{ gridColumn: 3, gridRow: 1, justifySelf: "start" }} />
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+function PassageButton({ option, onMove, style }: { option: { pos: PiecePos; name: string; hidden: boolean }; onMove: (pos: PiecePos) => void; style?: CSSProperties }) {
+  return (
+    <button type="button" className="dgb-passbtn" style={style} onClick={() => onMove(option.pos)}>
+      <span>⇄ {option.name}</span>
+      <small>{option.hidden ? "Hidden room · 1 step" : "Secret passage · 1 step"}</small>
+    </button>
   );
 }
 

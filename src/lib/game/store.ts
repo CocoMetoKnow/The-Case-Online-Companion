@@ -7,6 +7,7 @@ import {
   setAvatar as applyAvatar,
   setClassicNames as applyClassicNamesToTable,
   canAsk,
+  repeatBlocked,
   createLobby,
   currentPlayer,
   dealAndStart,
@@ -28,6 +29,7 @@ import {
   saveCardArt,
   saveCardSets,
   saveClueCode,
+  saveBoardPrefs,
   savePlayerName,
   saveTable,
 } from "@/lib/game/storage";
@@ -36,7 +38,7 @@ import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
 import { BOARD_MAX_PLAYERS, HIDDEN_ROOM_SUGGESTIONS, MAP_ROOM_IDS, hiddenRoomsOf, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
-export { canAsk, currentPlayer, turnActorId };
+export { canAsk, repeatBlocked, currentPlayer, turnActorId };
 export type { GameState };
 
 export type OnlineIntent = { kind: string; payload?: Record<string, unknown> };
@@ -222,8 +224,14 @@ function hiddenRoomPool(): string[] {
 function boardPassagesFor(settings: GameSettings): Passage[] {
   const pool = hiddenRoomPool();
   const chosenVias = (settings.boardPassages ?? []).map((p) => p?.via).filter((id): id is string => Boolean(id));
+  // Extra (hidden) rooms off: the passages join two rooms on the house directly, and any hidden room picked earlier is ignored.
+  if (settings.hiddenRooms === false) {
+    return resolvePassages(
+      MAP_ROOM_IDS,
+      (settings.boardPassages ?? []).map((p) => ({ a: p?.a ?? "", b: p?.b ?? "" })),
+    );
+  }
   const base = resolvePassages([...MAP_ROOM_IDS, ...pool, ...chosenVias], settings.boardPassages);
-  if (settings.hiddenRooms === false) return base;
   const used = new Set(base.map((p) => p.via).filter(Boolean) as string[]);
   return base.map((p) => {
     if (p.via) return p;
@@ -716,7 +724,12 @@ export const useGame = create<GameStore>((set, get) => ({
   setSetup: (patch) => set({ setup: { ...get().setup, ...patch } }),
   patchSettings: (patch) => {
     if ("classicNames" in patch) saveClueCode(Boolean(patch.classicNames));
-    set({ setup: { ...get().setup, settings: { ...get().setup.settings, ...patch } } });
+    const merged = { ...get().setup.settings, ...patch };
+    // The "DB" code stays on for this device, with its options, like the "clue" code does.
+    if ("table" in patch || "hiddenRooms" in patch || "noRepeatRoom" in patch || "boardPassages" in patch) {
+      saveBoardPrefs({ on: merged.table === "board", hiddenRooms: merged.hiddenRooms, noRepeatRoom: merged.noRepeatRoom, boardPassages: merged.boardPassages });
+    }
+    set({ setup: { ...get().setup, settings: merged } });
   },
   setCounts: (counts) => {
     const rooms = activeCards({ ...get().setup, counts }).filter((c) => c.category === "room").map((c) => c.id);
@@ -1104,7 +1117,20 @@ export const useGame = create<GameStore>((set, get) => ({
           ...current,
           deck,
           name: name || cleanStoredName(current.name),
-          settings: { ...current.settings, maxPlayers: current.settings.table === "board" ? BOARD_MAX_PLAYERS : 15, classicNames: vault.clue },
+          settings: {
+            ...current.settings,
+            // The "DB" code is remembered on this device, so the next table starts with the digital board the same way.
+            ...(vault.board.on
+              ? {
+                  table: "board" as const,
+                  ...(vault.board.hiddenRooms !== undefined ? { hiddenRooms: vault.board.hiddenRooms } : {}),
+                  ...(vault.board.noRepeatRoom !== undefined ? { noRepeatRoom: vault.board.noRepeatRoom } : {}),
+                  ...(vault.board.boardPassages ? { boardPassages: vault.board.boardPassages } : {}),
+                }
+              : {}),
+            maxPlayers: vault.board.on || current.settings.table === "board" ? BOARD_MAX_PLAYERS : 15,
+            classicNames: vault.clue,
+          },
           ...(deck !== current.deck
             ? {
                 counts: deck.reduce(
