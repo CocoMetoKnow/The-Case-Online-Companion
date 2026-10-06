@@ -215,6 +215,10 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     actionsLeft: safe.actionsLeft ?? 0,
     freeQuestion: Boolean(safe.freeQuestion),
     bonusRoom: safe.bonusRoom ?? null,
+    // "No repeat room": phones need this to hide the Suggest button in a room where the guest suggested last time.
+    suggestedIn: safe.suggestedIn ?? {},
+    // Where each guest started: phones color that square with the guest's character color.
+    spawns: safe.spawns ?? {},
     whisperMode: Boolean(safe.whisperMode),
     question: safe.phase === "question" ? safe.question : null,
     notice: safe.noticeFor === peer && safe.noticeSelf ? safe.noticeSelf : (safe.notice ?? null),
