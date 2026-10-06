@@ -10,6 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 export function EventPanel() {
   const state = useGame((s) => s.state);
+  const screen = useGame((s) => s.screen);
   const actor = useActorId();
   const eventChoice = useGame((s) => s.eventChoice);
   const hand = useMyHand();
@@ -60,7 +61,11 @@ export function EventPanel() {
         type="button"
         className="power-chip"
         // The digital board's bottom bar stays on top, so the chip sits just above it.
-        style={state.settings.table === "board" ? { bottom: "calc(56px + max(12px, env(safe-area-inset-bottom)))" } : undefined}
+        style={
+          state.settings.table === "board"
+            ? { bottom: screen === "chat" ? "calc(56px + 68px + max(12px, env(safe-area-inset-bottom)))" : "calc(56px + max(12px, env(safe-area-inset-bottom)))" }
+            : undefined
+        }
         onClick={() => setClosedKey("")}
       >
         <span className="block text-[10px] uppercase tracking-[0.16em] text-brass">{acting ? "Your power-up" : "Power-up in play"}</span>
