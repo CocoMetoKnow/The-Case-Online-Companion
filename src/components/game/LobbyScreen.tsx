@@ -10,6 +10,7 @@ import { ClueCodeField } from "./ClueCodeField";
 import { ProfileBadge } from "./PlayerBadge";
 import { useEffect, useState } from "react";
 import { SettingsGear } from "./SettingsGear";
+import { SetupScreen } from "./SetupScreen";
 
 export function LobbyScreen() {
   const state = useGame((s) => s.state);
@@ -24,6 +25,8 @@ export function LobbyScreen() {
   const setClassicNames = useGame((s) => s.setClassicNames);
   const setBoardMode = useGame((s) => s.setBoardMode);
   const localPlayerId = useGame((s) => s.localPlayerId);
+  const lobbyEdit = useGame((s) => s.lobbyEdit);
+  const editLobbyRules = useGame((s) => s.editLobbyRules);
   const [guest, setGuest] = useState("");
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
@@ -40,6 +43,8 @@ export function LobbyScreen() {
   }, [code]);
 
   if (!state) return null;
+  // The host changes the rules and cards right here, so the table stays connected and guests keep joining.
+  if (lobbyEdit && localPlayerId === state.hostId) return <SetupScreen />;
   const host = localPlayerId === state.hostId;
   const groups: CategoryId[] = state.settings.timeOfDayEnabled ? ["suspect", "room", "weapon", "time"] : ["suspect", "room", "weapon"];
   const answers = answerCards(state.settings.timeOfDayEnabled);
@@ -137,6 +142,11 @@ export function LobbyScreen() {
         </div>
 
         <HouseRules state={state} />
+        {host ? (
+          <Button type="button" variant="outline" className="mt-3 w-full" onClick={editLobbyRules}>
+            Change rules and cards
+          </Button>
+        ) : null}
 
         {seated ? (
           <ClueCodeField

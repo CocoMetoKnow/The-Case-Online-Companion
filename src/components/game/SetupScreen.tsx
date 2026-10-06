@@ -309,6 +309,10 @@ export function SetupScreen() {
   const clearFile = useGame((s) => s.clearFile);
   const cardSets = useGame((s) => s.cardSets);
   const setDeck = useGame((s) => s.setDeck);
+  const lobbyEdit = useGame((s) => s.lobbyEdit);
+  const cancelLobbyEdit = useGame((s) => s.cancelLobbyEdit);
+  const applyLobbyRules = useGame((s) => s.applyLobbyRules);
+  const seatedNow = useGame((s) => s.state?.players.length ?? 0);
 
   const files = ["file-1", "file-2", "file-3"] as const;
   const activeFile = cardSets.find((s) => s.id === setup.setId);
@@ -362,11 +366,11 @@ export function SetupScreen() {
   return (
     <main className="leather min-h-dvh px-4 py-6">
       <div className="mx-auto max-w-lg">
-        <button type="button" className="text-sm text-muted" onClick={() => setView("landing")}>
-          Close the case
+        <button type="button" className="text-sm text-muted" onClick={() => (lobbyEdit ? cancelLobbyEdit() : setView("landing"))}>
+          {lobbyEdit ? "Back to the lobby" : "Close the case"}
         </button>
         <div className="mt-3 flex items-center justify-between gap-3">
-          <h1 className="font-display text-4xl">Build the deck</h1>
+          <h1 className="font-display text-4xl">{lobbyEdit ? "Change the rules" : "Build the deck"}</h1>
           <MusicToggle />
         </div>
         <p className="mt-1 text-sm text-muted">Open a group to choose its cards. The number on each button is how many are in the deck.</p>
@@ -532,8 +536,13 @@ export function SetupScreen() {
             }
           />
 
-          <Button size="lg" className="w-full" disabled={!ready} onClick={hostTable}>
-            Open the lobby
+          <Button
+            size="lg"
+            className="w-full"
+            disabled={!ready || (lobbyEdit && seatedNow > seatMax)}
+            onClick={lobbyEdit ? () => void applyLobbyRules() : hostTable}
+          >
+            {lobbyEdit ? "Save changes to the lobby" : "Open the lobby"}
           </Button>
           {!ready ? (
             <p className="text-center text-sm text-muted">

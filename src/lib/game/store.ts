@@ -78,6 +78,11 @@ interface GameStore {
   booted: boolean;
   panel: "table" | "notes" | "log";
   setView: (view: View) => void;
+  /** Host, while the lobby is still waiting: true while the rules and cards are being changed. */
+  lobbyEdit: boolean;
+  editLobbyRules: () => void;
+  cancelLobbyEdit: () => void;
+  applyLobbyRules: () => boolean;
   setSetup: (patch: Partial<SetupDraft>) => void;
   patchSettings: (patch: Partial<GameSettings>) => void;
   setCounts: (counts: Record<CategoryId, number>) => void;
@@ -704,6 +709,7 @@ function freshenSets(sets: CardSet[]) {
 
 export const useGame = create<GameStore>((set, get) => ({
   view: "landing",
+  lobbyEdit: false,
   localPlayerId: "",
   viewingPlayerId: "",
   passGate: null,
@@ -897,6 +903,42 @@ export const useGame = create<GameStore>((set, get) => ({
     if (next === state) return;
     set({ state: next });
     persist(get);
+  },
+  editLobbyRules: () => {
+    const { state, setup, localPlayerId } = get();
+    if (!state || state.phase !== "lobby" || state.startedAt || localPlayerId !== state.hostId) return;
+    // Start from the deck and rules the table has right now, so what the host sees is what the guests have.
+    const deck = setup.deck.length ? setup.deck : state.cards;
+    set({ setup: withDeck({ ...setup, deck, settings: { ...setup.settings, ...state.settings } }, deck), lobbyEdit: true });
+  },
+  cancelLobbyEdit: () => set({ lobbyEdit: false }),
+  applyLobbyRules: () => {
+    const { state, setup, localPlayerId } = get();
+    if (!state || state.phase !== "lobby" || state.startedAt || localPlayerId !== state.hostId) return false;
+    const cards = tableCards(setup);
+    if (!deckReady(cards, setup.settings.timeOfDayEnabled, Math.max(2, state.players.length))) return false;
+    const rooms = cards.filter((c) => c.category === "room").map((c) => c.id);
+    const board = setup.settings.table === "board";
+    const settings: GameSettings = {
+      ...state.settings,
+      ...setup.settings,
+      // These belong to the table that is already open, not to the draft.
+      playMode: state.settings.playMode,
+      locked: state.settings.locked,
+      cardSetId: setup.setId,
+      enabledRoomIds: rooms,
+      table: board ? "board" : "case",
+      maxPlayers: Math.max(state.players.length, 2, Math.min(15, setup.settings.maxPlayers || 15)),
+    };
+    Object.assign(settings, boardSetup(settings, rooms));
+    if (board) saveBoardPrefs({ on: true, hiddenRooms: settings.hiddenRooms, noRepeatRoom: settings.noRepeatRoom, boardPassages: settings.boardPassages });
+    set({ lobbyEdit: false });
+    if (sendOnline(get, { kind: "board", payload: { settings, cards } })) return true;
+    const next = applyBoardMode(state, localPlayerId, { settings, cards });
+    if (next === state) return false;
+    set({ state: next });
+    persist(get);
+    return true;
   },
   setBoardMode: (on) => {
     const { state, localPlayerId, setup } = get();

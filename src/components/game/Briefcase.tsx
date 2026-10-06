@@ -166,9 +166,19 @@ function BriefcaseTable() {
 
   // Digital board: it is the first thing you see when it is your turn to roll. You can still go to your cards or the journal.
   const rollKey = state && state.settings.table === "board" && state.phase === "roll" && turnActorId(state) === actor ? `${state.code}:${state.turnIndex}` : "";
+  // If you are reading or typing in the chat when your turn starts, you stay there and get a tap-to-go prompt instead.
+  const [turnPrompt, setTurnPrompt] = useState(false);
   useEffect(() => {
-    if (rollKey) setScreen("board");
+    if (!rollKey) {
+      setTurnPrompt(false);
+      return;
+    }
+    if (useGame.getState().screen === "chat") setTurnPrompt(true);
+    else setScreen("board");
   }, [rollKey, setScreen]);
+  useEffect(() => {
+    if (screen !== "chat") setTurnPrompt(false);
+  }, [screen]);
 
   useEffect(() => {
     if (state?.accusation?.at) setAccuse(false);
@@ -456,6 +466,32 @@ function BriefcaseTable() {
       className="leather h-dvh overflow-hidden"
       style={board ? { paddingBottom: `calc(${DOCK_HEIGHT}px + env(safe-area-inset-bottom))` } : undefined}
     >
+      {board && screen === "chat" && turnPrompt && rollKey ? (
+        <button
+          type="button"
+          onClick={() => {
+            setTurnPrompt(false);
+            setScreen("board");
+          }}
+          style={{
+            position: "fixed",
+            left: 12,
+            right: 12,
+            top: "calc(env(safe-area-inset-top) + 8px)",
+            zIndex: 100002,
+            padding: "12px 16px",
+            borderRadius: 16,
+            border: "2px solid #b8923e",
+            background: "rgba(20,14,8,.96)",
+            color: "#f0cf7a",
+            fontWeight: 700,
+            textAlign: "center",
+            boxShadow: "0 8px 24px rgba(0,0,0,.55)",
+          }}
+        >
+          It's your turn — tap to go to the board
+        </button>
+      ) : null}
       {board && screen === "board" ? (
         boardUi
       ) : board && screen === "chat" ? (

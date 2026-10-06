@@ -14,7 +14,7 @@ import type { GameState, Secrets } from "@/lib/game/types";
  */
 
 function hostCap(settings: { table?: string; maxPlayers?: number } | undefined) {
-  const hard = settings?.table === "board" ? 8 : 15;
+  const hard = 15;
   const picked = Number(settings?.maxPlayers);
   if (!Number.isFinite(picked)) return hard;
   return Math.max(2, Math.min(hard, Math.floor(picked)));
