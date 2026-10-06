@@ -12,7 +12,7 @@ import {
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { characterColor } from "@/lib/game/character-colors";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Camera, Crosshair, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, Crosshair, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "lucide-react";
 import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
@@ -24,8 +24,8 @@ import { charCutout } from "@/lib/game/scene-art";
  *
  * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow, so they read as
  * 3D while standing perfectly upright. The whole house starts scaled to fit the space it is given. It never zooms or turns by
- * pinching or dragging: one camera button in the middle of the bottom bar opens the camera controls (zoom, turn a
- * quarter turn, and move the view when zoomed in). The house is always drawn flat, top down, at every angle, and it
+ * pinching or dragging: one camera button in the middle of the bottom bar opens a flat control strip: a thumb stick in
+ * the middle that moves the view, turn left and right, and zoom. A Recenter button shows up only after the view has been moved. The house is always drawn flat, top down, at every angle, and it
  * is fitted between the top bar and the bottom bar so the hidden rooms on the lawn are never covered. To move, tap anywhere near a lit square. Any square the roll can reach is a
  * destination, and a tap that lands close to one snaps to it. After walking into a room the steps left over can still
  * be used, by a door or by a secret passage, and the passage buttons at the bottom of the board say where each goes.
@@ -38,22 +38,21 @@ const BOARD_CSS = `
 .dgb-world{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .32s ease}
 .dgb-upright{transition:transform .32s ease}
 .dgb-tile{position:absolute;z-index:3;pointer-events:none;border-radius:4px;background:color-mix(in srgb,var(--tint) 80%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint) 55%,#000),0 0 9px color-mix(in srgb,var(--tint) 70%,transparent)}
-.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:52px;min-height:46px;padding:4px 6px;border-radius:10px;background:#f6f1e6;color:#1c2430;border:1px solid #c4b396;box-shadow:0 3px 8px rgba(0,0,0,.5);font-size:10px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-dock{pointer-events:auto;grid-column:1/-1;grid-row:1;height:64px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 8px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 4px 14px rgba(0,0,0,.6);color:#1c2430}
+.dgb-side{display:flex;align-items:center;gap:6px}
+.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:46px;height:48px;padding:2px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:9px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-stick{position:relative;flex:none;width:62px;height:62px;border-radius:50%;background:radial-gradient(#e9dfc8,#c9b999);border:2px solid #9b8760;touch-action:none;-webkit-user-select:none;user-select:none}
+.dgb-knob{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:#2a1e0c;border:2px solid #f0cf7a;box-shadow:0 2px 5px rgba(0,0,0,.6)}
+.dgb-recenter{position:absolute;z-index:13;left:50%;bottom:76px;transform:translateX(-50%);pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;font-size:12px;font-weight:800;box-shadow:0 4px 10px rgba(0,0,0,.55)}
+.dgb-recenter:active{transform:translateX(-50%) scale(.96)}
 .dgb-ctl:active:not(:disabled){transform:scale(.95)}
 .dgb-ctl:disabled{opacity:.4}
-.dgb-bar{position:absolute;z-index:12;left:0;right:0;bottom:0;height:60px;padding:0 8px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;pointer-events:none}
+.dgb-bar{position:absolute;z-index:12;left:0;right:0;bottom:0;height:68px;padding:0 8px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px;pointer-events:none}
 .dgb-cam{pointer-events:auto;grid-column:2;width:48px;height:48px;border-radius:999px;display:grid;place-items:center;background:#f6f1e6;color:#1c2430;border:2px solid #c4b396;box-shadow:0 3px 10px rgba(0,0,0,.55)}
-.dgb-cam.open{background:#2a1e0c;color:#fbe9b4;border-color:#f0cf7a}
 .dgb-cam:active{transform:scale(.94)}
-.dgb-panel{position:absolute;z-index:14;left:50%;bottom:66px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 6px 18px rgba(0,0,0,.6);color:#1c2430}
-.dgb-panel h4{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;line-height:1}
-.dgb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:64px;min-height:48px;padding:4px 8px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:10px;font-weight:700;line-height:1.05;text-align:center}
 .dgb-ctl:active:not(:disabled){transform:scale(.95)}
 .dgb-ctl:disabled{opacity:.4}
-.dgb-pad{display:grid;grid-template-columns:repeat(3,38px);grid-template-rows:repeat(2,34px);gap:4px;justify-items:center;align-items:center}
-.dgb-pad button{width:38px;height:34px;display:grid;place-items:center;border-radius:8px;background:#fff;border:1px solid #c4b396}
-.dgb-pad button:active{transform:scale(.94)}
 .dgb-passbtn{pointer-events:auto;min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;border-radius:12px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;box-shadow:0 4px 10px rgba(0,0,0,.55);font-size:12px;font-weight:800;line-height:1.1;text-align:left}
 .dgb-passbtn span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dgb-passbtn small{font-size:9px;font-weight:600;opacity:.85;white-space:nowrap}
@@ -102,7 +101,7 @@ const BOARD_CSS = `
 
 /** Room kept clear for the top bar (steps, Stay here) and the bottom bar (camera button, secret passages). */
 const PAD_TOP = 60;
-const PAD_BOTTOM = 64;
+const PAD_BOTTOM = 72;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -286,22 +285,63 @@ export function MansionBoard({
     return a ? { x: a.x + a.w / 2, y: a.y + a.h / 2 } : { x: TILE, y: TILE };
   };
 
-  // Zoomed in, the view follows the guest whose turn it is. The view buttons nudge it from there.
+  // Zoomed in, the view follows the guest whose turn it is. The thumb stick moves it from there.
   const focusPos = actor ? shown[actor.id]?.pos ?? actor.position : null;
   const focus = zoomed && focusPos ? spot(focusPos) : { x: worldW / 2, y: worldH / 2 };
-  const offX = size.w / 2 + (zoomed ? pan.x : 0) - scale * rotX(focus.x, focus.y);
-  const offY = midY + (zoomed ? pan.y : 0) - scale * rotY(focus.x, focus.y);
+  const offX = size.w / 2 + pan.x - scale * rotX(focus.x, focus.y);
+  const offY = midY + pan.y - scale * rotY(focus.x, focus.y);
 
   const zoomTo = (next: number) => {
     const at = clamp(next, 0, ZOOMS.length - 1);
     setZoomAt(at);
     if (at === 0) setPan({ x: 0, y: 0 });
   };
-  const nudge = (dx: number, dy: number) => {
-    const step = Math.min(size.w, size.h) * 0.3;
-    const lim = Math.max(size.w, size.h);
-    setPan((p) => ({ x: clamp(p.x + dx * step, -lim, lim), y: clamp(p.y + dy * step, -lim, lim) }));
+  // Thumb stick: while it is held away from the middle the view glides that way. Screen directions, whatever the turn.
+  const stickVec = useRef({ x: 0, y: 0 });
+  const stickBox = useRef<{ x: number; y: number } | null>(null);
+  const panLimit = useRef(0);
+  panLimit.current = (Math.max(worldW, worldH) * scale) / 2;
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const STICK_R = 20;
+  const stickTo = (clientX: number, clientY: number) => {
+    const c = stickBox.current;
+    if (!c) return;
+    const dx = clientX - c.x;
+    const dy = clientY - c.y;
+    const d = Math.hypot(dx, dy);
+    const k = d > STICK_R ? STICK_R / d : 1;
+    setKnob({ x: dx * k, y: dy * k });
+    stickVec.current = { x: (dx * k) / STICK_R, y: (dy * k) / STICK_R };
   };
+  const stickDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    stickBox.current = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    stickTo(e.clientX, e.clientY);
+  };
+  const stickUp = () => {
+    stickBox.current = null;
+    stickVec.current = { x: 0, y: 0 };
+    setKnob({ x: 0, y: 0 });
+  };
+  useEffect(() => {
+    if (!camOpen) return;
+    let raf = 0;
+    const tick = () => {
+      const v = stickVec.current;
+      const mag = Math.hypot(v.x, v.y);
+      if (mag > 0.08) {
+        const speed = 10 * mag * mag;
+        const lim = panLimit.current;
+        // Pushing the stick right moves the camera right, so the house slides left.
+        setPan((p) => ({ x: clamp(p.x - (v.x / mag) * speed, -lim, lim), y: clamp(p.y - (v.y / mag) * speed, -lim, lim) }));
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [camOpen]);
+  const moved = Math.abs(pan.x) > 2 || Math.abs(pan.y) > 2;
   const labelPx = clamp(10.5, 9, 14) * inv;
   const pieceH = clamp(TILE * scale * 1.7, 30, 84) * inv;
   const pieceBaseW = pieceH * 0.4;
@@ -607,70 +647,63 @@ export function MansionBoard({
         ) : null}
       </div>
 
-      {camOpen ? (
-        <div className="dgb-panel" role="group" aria-label="Camera controls">
-          <h4>Camera</h4>
-          <div className="dgb-grid">
-            <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
-              <ZoomIn size={18} />
-              Zoom in
-            </button>
-            <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
-              <ZoomOut size={18} />
-              Zoom out
-            </button>
-            <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
-              <RotateCcw size={18} />
-              Turn left
-            </button>
-            <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
-              <RotateCw size={18} />
-              Turn right
-            </button>
-          </div>
-          {zoomed ? (
-            <>
-              <div className="dgb-pad" role="group" aria-label="Move the view">
-                <span />
-                <button type="button" onClick={() => nudge(0, 1)} aria-label="Move the view up" title="Move the view up">
-                  <ArrowUp size={16} />
-                </button>
-                <span />
-                <button type="button" onClick={() => nudge(1, 0)} aria-label="Move the view left" title="Move the view left">
-                  <ArrowLeft size={16} />
-                </button>
-                <button type="button" onClick={() => nudge(0, -1)} aria-label="Move the view down" title="Move the view down">
-                  <ArrowDown size={16} />
-                </button>
-                <button type="button" onClick={() => nudge(-1, 0)} aria-label="Move the view right" title="Move the view right">
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-              <button type="button" className="dgb-ctl" style={{ flexDirection: "row", gap: 6 }} onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter on the guest whose turn it is" title="Recenter on the guest whose turn it is">
-                <Crosshair size={16} />
-                Recenter
-              </button>
-            </>
-          ) : null}
-        </div>
+      {moved ? (
+        <button type="button" className="dgb-recenter" onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter the view" title="Recenter the view">
+          <Crosshair size={16} />
+          Recenter
+        </button>
       ) : null}
 
       <div className="dgb-bar">
-        {passageOptions[1] ? <PassageButton option={passageOptions[0]} onMove={onMove} style={{ gridColumn: 1, gridRow: 1, justifySelf: "end" }} /> : null}
-        <button
-          type="button"
-          className={cn("dgb-cam", camOpen && "open")}
-          style={{ gridRow: 1 }}
-          onClick={() => setCamOpen((v) => !v)}
-          aria-label={camOpen ? "Close camera controls" : "Open camera controls"}
-          aria-expanded={camOpen}
-          title="Camera"
-        >
-          {camOpen ? <X size={22} /> : <Camera size={22} />}
-        </button>
-        {passageOptions.length ? (
-          <PassageButton option={passageOptions[passageOptions.length > 1 ? 1 : 0]} onMove={onMove} style={{ gridColumn: 3, gridRow: 1, justifySelf: "start" }} />
-        ) : null}
+        {camOpen ? (
+          <div className="dgb-dock" role="group" aria-label="Camera controls">
+            <div className="dgb-side">
+              <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
+                <RotateCcw size={18} />
+                Turn left
+              </button>
+              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
+                <ZoomOut size={18} />
+                Zoom out
+              </button>
+            </div>
+            <div
+              className="dgb-stick"
+              role="application"
+              aria-label="Thumb stick: move the view"
+              onPointerDown={stickDown}
+              onPointerMove={(e) => stickBox.current && stickTo(e.clientX, e.clientY)}
+              onPointerUp={stickUp}
+              onPointerCancel={stickUp}
+            >
+              <span className="dgb-knob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+            </div>
+            <div className="dgb-side">
+              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
+                <ZoomIn size={18} />
+                Zoom in
+              </button>
+              <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
+                <RotateCw size={18} />
+                Turn right
+              </button>
+              <button type="button" className="dgb-ctl" onClick={() => setCamOpen(false)} aria-label="Close camera controls" title="Close camera controls">
+                <X size={18} />
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {passageOptions[1] ? <PassageButton option={passageOptions[0]} onMove={onMove} style={{ gridColumn: 1, gridRow: 1, justifySelf: "end" }} /> : null}
+            <button type="button" className="dgb-cam" style={{ gridRow: 1 }} onClick={() => setCamOpen(true)} aria-label="Open camera controls" aria-expanded={false} title="Camera">
+              <Camera size={22} />
+            </button>
+            {passageOptions.length ? (
+              <PassageButton option={passageOptions[passageOptions.length > 1 ? 1 : 0]} onMove={onMove} style={{ gridColumn: 3, gridRow: 1, justifySelf: "start" }} />
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
