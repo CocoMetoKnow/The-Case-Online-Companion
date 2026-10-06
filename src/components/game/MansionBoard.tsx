@@ -265,6 +265,10 @@ export function MansionBoard({
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [camOpen, setCamOpen] = useState(false);
+  // These are written during render below, so they have to be declared before that line runs.
+  const baseRef = useRef({ x: 0, y: 0 });
+  const tailRef = useRef("");
+  const limRef = useRef(0);
   const quarter = ((turns % 4) + 4) % 4;
   const cos = COS[quarter];
   const sin = SIN[quarter];
@@ -310,9 +314,6 @@ export function MansionBoard({
   const stickVec = useRef({ x: 0, y: 0 });
   const stickBox = useRef<{ x: number; y: number } | null>(null);
   const live = useRef({ active: false, raf: 0, last: 0, vx: 0, vy: 0, px: 0, py: 0 });
-  const baseRef = useRef({ x: 0, y: 0 });
-  const tailRef = useRef("");
-  const limRef = useRef(0);
   const knobEl = useRef<HTMLSpanElement>(null);
   const moveKnob = (x: number, y: number) => {
     if (knobEl.current) knobEl.current.style.transform = `translate(${x}px, ${y}px)`;
