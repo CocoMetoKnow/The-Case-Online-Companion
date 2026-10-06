@@ -235,6 +235,8 @@ function wireState(state: GameState, peer: string, known: Known, answers: Set<st
     influences: safe.influences ?? [],
     hush: safe.hush ?? null,
     wait: safe.wait ?? null,
+    // The in-game chat is public to the whole table.
+    chat: (safe.chat ?? []).slice(-60),
     sync: safe.sync ? { byId: String(safe.sync.byId), agreed: (safe.sync.agreed ?? []).map(String).slice(0, 15) } : null,
     // Solve the Case picks are shown live to the whole table, so every phone gets them, not just the guesser's.
     naming: safe.naming ?? null,

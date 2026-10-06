@@ -56,7 +56,13 @@ export function EventPanel() {
 
   if (hidden) {
     return (
-      <button type="button" className="power-chip" onClick={() => setClosedKey("")}>
+      <button
+        type="button"
+        className="power-chip"
+        // The digital board's bottom bar stays on top, so the chip sits just above it.
+        style={state.settings.table === "board" ? { bottom: "calc(56px + max(12px, env(safe-area-inset-bottom)))" } : undefined}
+        onClick={() => setClosedKey("")}
+      >
         <span className="block text-[10px] uppercase tracking-[0.16em] text-brass">{acting ? "Your power-up" : "Power-up in play"}</span>
         <span className="block font-display text-lg leading-tight">{ev.title} · tap to open</span>
       </button>

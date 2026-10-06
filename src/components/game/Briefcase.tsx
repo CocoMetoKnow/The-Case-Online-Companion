@@ -977,7 +977,11 @@ function Victory({
     : { suspect: "Character", weapon: "Weapon", room: "Room", time: "Time" };
   const yours = scoreLine(state, solution, youId);
   return (
-    <div className="folio-sheet verdict-win flex flex-col" style={{ background: "#140e0b" }}>
+    <div
+      className="folio-sheet verdict-win flex flex-col"
+      // The digital board's bottom bar stays on top of everything, so the Play again and Leave buttons stop above it.
+      style={{ background: "#140e0b", ...(state.settings.table === "board" ? { paddingBottom: `calc(${DOCK_HEIGHT}px + env(safe-area-inset-bottom))` } : {}) }}
+    >
       <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
         <div className="verdict-seal">
           <p className="text-xs uppercase tracking-[0.28em] text-brass">The case is solved</p>

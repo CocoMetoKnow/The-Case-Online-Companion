@@ -89,7 +89,7 @@ function mergeWire(next: GameState, prev: GameState | null, keepFx = false): Gam
     : {
         notesLock: { ...(prev.notesLock ?? {}), ...(next.notesLock ?? {}) },
       };
-  return { ...next, ...kept, cards, settings, passages, eventDeck: [], eventDiscard: [], log: (next.log ?? []).slice(-4) };
+  return { ...next, ...kept, cards, settings, passages, chat: next.chat ?? prev.chat, eventDeck: [], eventDiscard: [], log: (next.log ?? []).slice(-4) };
 }
 
 async function post(body: unknown): Promise<View | null> {

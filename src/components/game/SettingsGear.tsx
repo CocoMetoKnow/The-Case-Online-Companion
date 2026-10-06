@@ -178,7 +178,10 @@ export function SettingsGear() {
               if (event.target === event.currentTarget) setPanel(null);
             }}
           >
-            <div className="relative w-full max-w-sm rounded-[24px] border border-line bg-surface p-5 text-fg shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+            <div
+              className="relative max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[24px] border border-line bg-surface p-5 text-fg shadow-[0_18px_50px_rgba(0,0,0,0.5)]"
+              style={{ WebkitOverflowScrolling: "touch" }}
+            >
               {panel === "main" ? (
                 <>
                   <div className="flex items-center justify-between">
