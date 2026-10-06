@@ -602,10 +602,14 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 	// Choosing where to stand is the whole move, so a tap that lands in the corridor ends it too.
 	const toRoomLabel = toRoom ? roomLabel(state, toRoom, layoutFor(state.settings)) : "";
 	const text = fromRoom && toRoom && fromRoom !== toRoom ? `${player.name} takes the passage into the ${toRoomLabel}.` : entered ? `${player.name} steps into the ${toRoomLabel}.` : `${player.name} stops in the corridor.`;
+	// Walking into a room does not end the move on the digital board: any steps left over can be spent leaving by a
+	// door or going through a secret passage. A tap that lands in the corridor still ends it.
+	const left = Math.max(0, (state.moveBudget ?? 0) - node.dist);
+	const keepGoing = entered && left > 0 && state.settings?.table === "board";
 	return log({
 		...moved,
-		phase: "action",
-		moveBudget: 0
+		phase: keepGoing ? "move" : "action",
+		moveBudget: keepGoing ? left : 0
 	}, text);
 }
 export function placePlayer(state, playerId, dest) {

@@ -55,14 +55,36 @@ test("a square past the roll is refused", () => {
   assert.equal(next.phase, "move");
 });
 
-test("tapping a room in range enters it in one go", () => {
+test("tapping a room in range enters it in one go, and the steps left over can still be walked", () => {
   const s = state(14, start);
   const { nodes } = reachable(start, 14, ROOMS, [], new Set(), DEFAULT_LAYOUT);
-  const room = [...nodes.values()].find((n) => n.pos.kind === "room" && n.dist > 2);
+  const room = [...nodes.values()].find((n) => n.pos.kind === "room" && n.dist > 2 && n.dist < 14);
   assert.ok(room, "some room is within 14 steps");
   const next = applyMove(s, "ada", room!.pos);
   assert.deepEqual(next.players[0].position, room!.pos);
+  assert.equal(next.phase, "move");
+  assert.equal(next.moveBudget, 14 - room!.dist);
+});
+
+test("a room reached with no steps left ends the move", () => {
+  const { nodes } = reachable(start, 14, ROOMS, [], new Set(), DEFAULT_LAYOUT);
+  const room = [...nodes.values()].find((n) => n.pos.kind === "room" && n.dist > 2);
+  assert.ok(room);
+  const next = applyMove(state(room!.dist, start), "ada", room!.pos);
   assert.equal(next.phase, "action");
+  assert.equal(next.moveBudget, 0);
+});
+
+test("after entering a room, a secret passage can be taken with the steps left", () => {
+  const s = { ...state(3, { kind: "room", roomId: "study" }), passages: [{ a: "study", b: "kitchen" }] } as GameState;
+  const next = applyMove(s, "ada", { kind: "room", roomId: "kitchen" });
+  assert.deepEqual(next.players[0].position, { kind: "room", roomId: "kitchen" });
+  assert.equal(next.phase, "move");
+  assert.equal(next.moveBudget, 2);
+  // And straight back through it again.
+  const back = applyMove(next, "ada", { kind: "room", roomId: "study" });
+  assert.deepEqual(back.players[0].position, { kind: "room", roomId: "study" });
+  assert.equal(back.moveBudget, 1);
 });
 
 test("another guest's square cannot be landed on", () => {

@@ -8,7 +8,8 @@ import { HOUSE_CENTER, HOUSE_H, HOUSE_LINKS, HOUSE_ROOMS, HOUSE_SPAWNS, HOUSE_TI
  *
  * Position: a guest in the corridor is on a marble square, written { x, y } where y is the row of the picture and x
  * the square's number along that row. A guest in a room is { roomId }. One step of the dice moves one square, and a
- * step through a doorway or a secret passage enters a room, which ends the move.
+ * step through a doorway or a secret passage enters a room. One tap never walks through a room, but the steps
+ * left over after entering one can be spent on the next tap (out by a door, or through a secret passage).
  *
  * Secret passages join two of the ten rooms. A passage may run through a hidden room: a room card that is in the
  * game and on a guest's turn can be walked into, but is not drawn anywhere on the house.
@@ -318,7 +319,7 @@ export function reachable(
   while (q.length) {
     const cur = q.shift()!;
     if (cur.dist >= budget) continue;
-    // Entering a room ends the move, so a room is a destination, not a shortcut.
+    // One tap never walks through a room: a room is a destination, not a shortcut. The steps left over are used by the next tap.
     if (cur.dist > 0 && cur.pos.kind === "room") continue;
     for (const n of neighbors(cur.pos, enabled, passages, blockedHalls, layout)) {
       const k = posKey(n);

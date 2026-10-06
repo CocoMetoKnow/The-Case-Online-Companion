@@ -197,7 +197,7 @@ export function GameTable() {
           {isMyTurn && state.phase === "move" ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="max-w-xl text-sm text-[#f3ead8]/80">
-                Step one square at a time, only onto lit squares. The roll is how far you can get. A doorway or a secret passage ends the move.
+                Step one square at a time, only onto lit squares. The roll is how far you can get. Walking into a room does not use up the roll: with steps left you can leave by a door or take a secret passage.
               </p>
               <Button variant="outline" onClick={stay}>
                 Stop here

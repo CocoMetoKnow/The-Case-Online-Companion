@@ -34,6 +34,15 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
   );
   if (!state) return null;
   if (!canAsk(state, actor)) return null;
+  // Digital board: a suggestion is made from the room you are standing in, so that room is already picked.
+  // (The Gambler's bonus suggestion may name any room, so it is left open.)
+  const walker = currentPlayer(state);
+  const standingIn =
+    state.settings.table === "board" && walker?.position.kind === "room" && state.bonusRoom?.playerId !== walker.id
+      ? walker.position.roomId
+      : undefined;
+  const lockedRoom = standingIn && state.cards.some((c) => c.id === standingIn && c.category === "room") ? standingIn : undefined;
+  const locked: Partial<Record<CategoryId, string>> = lockedRoom ? { room: lockedRoom } : {};
   // Speak mode picks cards the same way as every other mode. The table is still asked out loud, one player at
   // a time, exactly as before. The picks stay on this phone as a reminder of what to say.
   const speak = Boolean(state.settings.speakMode);
@@ -58,6 +67,8 @@ export function QuestionPanel({ startOpen = false, fit = false, onAsked }: { sta
       steps={steps}
       suggesting
       handIds={hand.map((c) => c.id)}
+      initialPick={locked}
+      locked={locked}
       confirmTitle={speak ? "Say this out loud" : "Your suggestion"}
       doneLabel={speak ? "Suggest" : "Ask the table"}
       fit={fit}
@@ -862,6 +873,7 @@ function PickFlow({
   handIds = [],
   circled = {},
   initialPick = {},
+  locked = {},
   startAtConfirm = false,
   confirmTitle,
   doneLabel,
@@ -880,6 +892,8 @@ function PickFlow({
   handIds?: string[];
   circled?: Partial<Record<CategoryId, string>>;
   initialPick?: Partial<Record<CategoryId, string>>;
+  /** Groups that are already decided (the room you are standing in). They are skipped and cannot be changed. */
+  locked?: Partial<Record<CategoryId, string>>;
   startAtConfirm?: boolean;
   confirmTitle: string;
   doneLabel: string;
@@ -890,7 +904,8 @@ function PickFlow({
   const state = useGame((s) => s.state);
   const notes = useMyNotes();
   const actorId = useActorId();
-  const [step, setStep] = useState(() => (startAtConfirm ? steps.length : 0));
+  const firstStep = Math.max(0, steps.findIndex((id) => !locked[id]));
+  const [step, setStep] = useState(() => (startAtConfirm ? steps.length : firstStep));
   const [pick, setPick] = useState<Partial<Record<CategoryId, string>>>(() => ({ ...initialPick }));
   const sentOpen = useRef("");
   const seed = steps.map((id) => initialPick[id] ?? "").join("|");
@@ -957,6 +972,9 @@ function PickFlow({
         {reviewing ? (
           <>
             <p className="shrink-0 font-display text-3xl leading-none">{confirmTitle}</p>
+            {suggesting && locked.room ? (
+              <p className="mt-1 shrink-0 text-xs text-muted">You are in the {state.cards.find((c) => c.id === locked.room)?.name ?? "room"}, so that is the room.</p>
+            ) : null}
             <div className="mt-2 flex shrink-0 gap-2">
               <Button variant="outline" size="sm" className="flex-1" onClick={() => setStep(steps.length - 1)}>
                 Back
@@ -984,7 +1002,7 @@ function PickFlow({
                         selected
                         badge={fog || final ? undefined : statusOf(card.id)}
                         sheetMark={fog || final ? sheetOf(card.id) : undefined}
-                        onClick={() => setStep(index)}
+                        onClick={locked[cat] ? undefined : () => setStep(index)}
                       />
                     </div>
                     {final ? (
@@ -1003,7 +1021,7 @@ function PickFlow({
                 <p className="mt-1 text-sm text-[#5c4a38]">{bonusAnyRoom ? "Your bonus suggestion: any room. Your character moves there too." : "That room card has to be in this question."}</p>
               ) : null}
               <p className={final ? "truncate text-[11px] uppercase tracking-[0.14em] text-[#ffd0c8]" : "truncate text-[11px] uppercase tracking-[0.14em] text-brass"}>
-                {step + 1} of {steps.length}
+                {step + 1 - firstStep} of {steps.length - firstStep}
                 {chosen.length ? ` · ${chosen.map((card) => card.name).join(" · ")}` : ""}
               </p>
               <p className={final ? "truncate text-[11px] text-[#ffe7a8]" : "truncate text-[11px] text-muted"}>
@@ -1034,9 +1052,9 @@ function PickFlow({
                 </div>
               ))}
             </div>
-            {step > 0 || picks[current] ? (
+            {step > firstStep || picks[current] ? (
               <div className="mt-2 flex shrink-0 gap-2">
-                {step > 0 ? (
+                {step > firstStep ? (
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => setStep(step - 1)}>
                     Back
                   </Button>
@@ -1082,7 +1100,7 @@ function PickFlow({
           onClick={() => {
             const next = { ...circled, ...initialPick };
             setPick(next);
-            setStep(startAtConfirm ? steps.length : 0);
+            setStep(startAtConfirm ? steps.length : firstStep);
             onOpen();
             onPick?.(next);
           }}
@@ -1116,7 +1134,7 @@ function PickFlow({
       ) : (
         <div className="mt-3">
           <p className={final ? "text-xs uppercase tracking-[0.16em] text-[#ffd0c8]" : "text-xs uppercase tracking-[0.16em] text-brass"}>
-            {step + 1} of {steps.length}
+            {step + 1 - firstStep} of {steps.length - firstStep}
           </p>
           <p className="font-display text-2xl leading-tight">{askLine(current, state.settings.heist, suggesting, bonusAnyRoom)}</p>
           {suggesting && current === "room" ? (
@@ -1132,7 +1150,7 @@ function PickFlow({
           ) : chosen.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {chosen.map((card, i) => (
-                <CardFace key={card.id} card={card} compact selected badge={fog ? undefined : statusOf(card.id)} sheetMark={fog ? "maybe" : undefined} onClick={() => setStep(i)} />
+                <CardFace key={card.id} card={card} compact selected badge={fog ? undefined : statusOf(card.id)} sheetMark={fog ? "maybe" : undefined} onClick={locked[card.category] ? undefined : () => setStep(i)} />
               ))}
             </div>
           ) : null}
@@ -1194,7 +1212,7 @@ function PickFlow({
               Use the circled card
             </Button>
           ) : null}
-          {step > 0 ? (
+          {step > firstStep ? (
             <Button variant="ghost" className="mt-3 w-full" onClick={() => setStep(step - 1)}>
               Back
             </Button>

@@ -1,5 +1,5 @@
 import { Pointer } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const PIPS: Record<number, Array<[number, number]>> = {
@@ -85,9 +85,12 @@ const FLICK_MS = 55;
 function useTumble(n: number, toss: number, delay: number, live: boolean) {
   const [shown, setShown] = useState(n);
   const [rolling, setRolling] = useState(false);
+  // The toss this die was first drawn with. Switching between the board and the cards draws a new die with the
+  // same toss, which is not a new roll, so it just shows the result. Only a toss that changes afterwards rolls.
+  const firstToss = useRef(toss);
   useEffect(() => {
     const calm = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (!live || toss <= 0 || calm) {
+    if (!live || toss <= 0 || calm || toss === firstToss.current) {
       setShown(n);
       setRolling(false);
       return;
@@ -140,13 +143,15 @@ function Die({
   small?: boolean;
 }) {
   const { shown, rolling } = useTumble(n, toss, delay, live);
+  const firstToss = useRef(toss);
+  const fresh = toss !== firstToss.current;
   const face = PIPS[shown] ?? PIPS[1];
   // The magnifying glass and the snake eyes ring only show once the die has stopped.
   const showGlass = glass && !rolling;
   return (
     <div
       key={toss}
-      className={cn("die-body", live && toss > 0 && "die-hit", snake && !rolling && "die-snake")}
+      className={cn("die-body", live && toss > 0 && fresh && "die-hit", snake && !rolling && "die-snake")}
       style={{ animationDelay: `${delay}ms` }}
     >
       {!showGlass ? (

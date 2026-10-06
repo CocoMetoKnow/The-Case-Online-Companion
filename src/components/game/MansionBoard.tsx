@@ -11,6 +11,8 @@ import {
 } from "@/lib/game/board";
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
+import { characterColor } from "@/lib/game/character-colors";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
@@ -21,16 +23,34 @@ import { charCutout } from "@/lib/game/scene-art";
  * middle of a secret passage) are not on the house at all: a guest in one stands on a small plaque on the lawn.
  *
  * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow and a slight
- * lean so they read as 3D. The whole house is always scaled to fit the space it is given. There is no zoom: nothing
- * to pinch, nothing to mis-tap. To move, tap anywhere near a lit square. Any square the roll can reach is a
- * destination, and a tap that lands close to one snaps to it.
+ * lean so they read as 3D. The whole house starts scaled to fit the space it is given. It never zooms or turns by
+ * pinching or dragging: the labelled buttons in the corner zoom in and out, turn the house a quarter turn either way,
+ * and (when zoomed in) move the view. To move, tap anywhere near a lit square. Any square the roll can reach is a
+ * destination, and a tap that lands close to one snaps to it. After walking into a room the steps left over can still
+ * be used, by a door or by a secret passage, and the passage buttons at the bottom of the board say where each goes.
  */
 const BOARD_CSS = `
 .dgb-frame{position:relative;width:100%;height:100%;min-height:200px;overflow:hidden;border-radius:14px;
  background:radial-gradient(120% 100% at 50% 40%,#16241d 0%,#0c1511 70%,#070c0a 100%);
  box-shadow:inset 0 0 0 1px var(--j-ring,#9db4e640),0 8px 24px rgba(0,0,0,.45)}
 .dgb-view{position:absolute;inset:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-.dgb-world{position:absolute;left:0;top:0;transform-origin:0 0}
+.dgb-world{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .32s ease}
+.dgb-upright{transition:transform .32s ease}
+.dgb-tile{position:absolute;z-index:3;pointer-events:none;border-radius:4px;background:color-mix(in srgb,var(--tint) 80%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint) 55%,#000),0 0 9px color-mix(in srgb,var(--tint) 70%,transparent)}
+.dgb-ctls{position:absolute;z-index:12;left:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.dgb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:52px;min-height:46px;padding:4px 6px;border-radius:10px;background:#f6f1e6;color:#1c2430;border:1px solid #c4b396;box-shadow:0 3px 8px rgba(0,0,0,.5);font-size:10px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-ctl:active:not(:disabled){transform:scale(.95)}
+.dgb-ctl:disabled{opacity:.4}
+.dgb-pad{pointer-events:auto;display:grid;grid-template-columns:repeat(4,30px);gap:4px;align-items:center;justify-items:center;padding:4px 6px 6px;border-radius:10px;background:rgba(246,241,230,.94);border:1px solid #c4b396;box-shadow:0 3px 8px rgba(0,0,0,.5);color:#1c2430}
+.dgb-pad p{grid-column:1/-1;font-size:10px;font-weight:700;line-height:1}
+.dgb-pad button{width:30px;height:28px;display:grid;place-items:center;border-radius:8px;background:#fff;border:1px solid #c4b396}
+.dgb-pad button:active{transform:scale(.94)}
+.dgb-pass{position:absolute;z-index:12;right:8px;bottom:8px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;max-width:52%;pointer-events:none}
+.dgb-pass p{pointer-events:none;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#f0cf7a;text-shadow:0 1px 3px #000}
+.dgb-passbtn{pointer-events:auto;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 12px;border-radius:12px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;box-shadow:0 4px 10px rgba(0,0,0,.55);font-size:13px;font-weight:800;line-height:1.1;text-align:left}
+.dgb-passbtn small{font-size:10px;font-weight:600;opacity:.85}
+.dgb-passbtn:active{transform:scale(.96)}
 .dgb-reach{position:absolute;z-index:4;pointer-events:none;border-radius:3px;background:rgba(120,245,160,.46);box-shadow:inset 0 0 0 2px #2fb463,0 0 10px rgba(47,180,99,.75);animation:dgb-pulse 1.2s ease-in-out infinite}
 .dgb-reach.edge{background:rgba(240,200,100,.45);box-shadow:inset 0 0 0 2px #f0cf7a,0 0 10px rgba(240,207,122,.75)}
 .dgb-reach.pick{background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 3px #fff,0 0 16px #fff}
@@ -55,7 +75,7 @@ const BOARD_CSS = `
 @keyframes dgb-pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.28)}}
 @keyframes dgb-ring{0%,100%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #ffe9a0,0 0 14px 5px rgba(255,226,140,.8),0 calc(var(--bh) * .34) 0 1px #120d0a}50%{box-shadow:0 0 0 1.5px #120d0a,0 0 0 4px #fff3c4,0 0 22px 9px rgba(255,226,140,.95),0 calc(var(--bh) * .34) 0 1px #120d0a}}
 @keyframes dgb-bob{0%,100%{transform:perspective(220px) rotateX(-7deg) translateY(0)}50%{transform:perspective(220px) rotateX(-7deg) translateY(-4%)}}
-@media (prefers-reduced-motion:reduce){.dgb-reach,.dgb-room.reach,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
+@media (prefers-reduced-motion:reduce){.dgb-world,.dgb-upright{transition:none!important}.dgb-reach,.dgb-room.reach,.dgb-tok.turn .dgb-base,.dgb-tok.turn .dgb-stand{animation:none}.dgb-tok{transition:none!important}}
 
 .dgb-house{position:absolute;left:0;top:0;display:block;max-width:none;border-radius:10px;pointer-events:none;-webkit-user-drag:none}
 .dgb-room{position:absolute;z-index:2;pointer-events:none;border-radius:10px}
@@ -77,6 +97,12 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 
 /** How big one marble square is on the picture, on average. Pieces and labels are sized from it. */
 const TILE = 66;
+/** How far in the zoom button goes, one press at a time. 1 is the whole house. */
+const ZOOMS = [1, 1.5, 2.2, 3.2];
+/** Quarter turns as exact numbers, so a turned board never picks up rounding noise. */
+const COS = [1, 0, -1, 0];
+const SIN = [0, 1, 0, -1];
+
 /** Where the hidden rooms are kept: two small plaques on the lawn below the house. Not part of the map. */
 const POCKETS: Rect[] = [
   { x: 70, y: 1950, w: 580, h: 180 },
@@ -195,6 +221,8 @@ export function MansionBoard({
     [walking, actor?.id, actor && posKey(actor.position), state.moveBudget, state.players, layout, enabled, state.passages],
   );
   const who = useMemo(() => figures(state.players), [state.players]);
+  /** A guest's own color: their character's (Mr. Take is maroon), or the seat color until a character is picked. */
+  const tintOf = (p: Player) => characterColor(p.avatar) ?? p.color;
   const shown = useWalkers(state.players, layout, enabled, passages);
 
   const worldW = layout.width;
@@ -218,11 +246,47 @@ export function MansionBoard({
     };
   }, []);
 
-  // The whole house always fits. No zoom.
-  const scale = Math.max(0.05, Math.min((size.w - 4) / worldW, (size.h - 4) / worldH));
-  const offX = (size.w - worldW * scale) / 2;
-  const offY = (size.h - worldH * scale) / 2;
+  // Zoom and turn are buttons only. `turns` counts quarter turns (it may go negative so the house spins the short way).
+  const [zoomAt, setZoomAt] = useState(0);
+  const [turns, setTurns] = useState(0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const quarter = ((turns % 4) + 4) % 4;
+  const cos = COS[quarter];
+  const sin = SIN[quarter];
+  const zoomed = zoomAt > 0;
+  const sideways = quarter % 2 === 1;
+  const fit = Math.max(0.05, Math.min((size.w - 4) / (sideways ? worldH : worldW), (size.h - 4) / (sideways ? worldW : worldH)));
+  const scale = fit * ZOOMS[zoomAt];
   const inv = 1 / scale;
+  const upright = `rotate(${-turns * 90}deg)`;
+  /** A spot on the house as it is drawn on the screen: where it sits after the turn, left to right and top to bottom. */
+  const rotX = (x: number, y: number) => x * cos - y * sin;
+  const rotY = (x: number, y: number) => x * sin + y * cos;
+  const spot = (pos: PiecePos): { x: number; y: number } => {
+    if (pos.kind === "hall") {
+      const t = layout.tiles.find((tile) => tile.x === pos.x && tile.y === pos.y);
+      return t ? { x: t.px.x + t.px.w / 2, y: t.px.y + t.px.h * 0.62 } : { x: TILE, y: TILE };
+    }
+    const a = areaOf(layout, pos.roomId);
+    return a ? { x: a.x + a.w / 2, y: a.y + a.h / 2 } : { x: TILE, y: TILE };
+  };
+
+  // Zoomed in, the view follows the guest whose turn it is. The view buttons nudge it from there.
+  const focusPos = actor ? shown[actor.id]?.pos ?? actor.position : null;
+  const focus = zoomed && focusPos ? spot(focusPos) : { x: worldW / 2, y: worldH / 2 };
+  const offX = size.w / 2 + (zoomed ? pan.x : 0) - scale * rotX(focus.x, focus.y);
+  const offY = size.h / 2 + (zoomed ? pan.y : 0) - scale * rotY(focus.x, focus.y);
+
+  const zoomTo = (next: number) => {
+    const at = clamp(next, 0, ZOOMS.length - 1);
+    setZoomAt(at);
+    if (at === 0) setPan({ x: 0, y: 0 });
+  };
+  const nudge = (dx: number, dy: number) => {
+    const step = Math.min(size.w, size.h) * 0.3;
+    const lim = Math.max(size.w, size.h);
+    setPan((p) => ({ x: clamp(p.x + dx * step, -lim, lim), y: clamp(p.y + dy * step, -lim, lim) }));
+  };
   const labelPx = clamp(10.5, 9, 14) * inv;
   const pieceH = clamp(TILE * scale * 1.7, 30, 84) * inv;
   const pieceBaseW = pieceH * 0.4;
@@ -256,10 +320,13 @@ export function MansionBoard({
 
   /** The lit square a screen point means: the one under it, or the nearest within a thumb's width. */
   const pick = (clientX: number, clientY: number) => {
-    const box = world.current?.getBoundingClientRect();
+    const box = view.current?.getBoundingClientRect();
     if (!box || !targets.length) return null;
-    const bx = (clientX - box.left) / scale;
-    const by = (clientY - box.top) / scale;
+    // Undo the turn and the zoom: the screen point becomes a point on the picture.
+    const vx = clientX - box.left - offX;
+    const vy = clientY - box.top - offY;
+    const bx = (vx * cos + vy * sin) / scale;
+    const by = (-vx * sin + vy * cos) / scale;
     const reachPx = clamp(26 / scale, TILE * 0.9, TILE * 2.4);
     let best: (typeof targets)[number] | null = null;
     let bestD = Infinity;
@@ -305,20 +372,25 @@ export function MansionBoard({
     if (next !== hover) setHover(next);
   };
 
-  const spot = (pos: PiecePos): { x: number; y: number } => {
-    if (pos.kind === "hall") {
-      const t = layout.tiles.find((tile) => tile.x === pos.x && tile.y === pos.y);
-      return t ? { x: t.px.x + t.px.w / 2, y: t.px.y + t.px.h * 0.62 } : { x: TILE, y: TILE };
-    }
-    const a = areaOf(layout, pos.roomId);
-    return a ? { x: a.x + a.w / 2, y: a.y + a.h / 2 } : { x: TILE, y: TILE };
-  };
-
   const hoverPath = useMemo(() => {
     if (!hover || !reach) return [];
     const target = targetByKey.get(hover);
     return target ? reconstructPath(reach.nodes, target.pos) : [];
   }, [hover, reach, targetByKey]);
+
+  // Secret passages out of the room the walking guest is standing in, each one a button that says where it goes.
+  const passageOptions = useMemo(() => {
+    const out: Array<{ pos: PiecePos; name: string; hidden: boolean }> = [];
+    if (!walking || !reach || !actor || actor.position.kind !== "room" || state.moveBudget < 1) return out;
+    const hereKey = posKey(actor.position);
+    for (const node of reach.nodes.values()) {
+      if (node.dist !== 1 || node.prev !== hereKey || node.pos.kind !== "room") continue;
+      const id = node.pos.roomId;
+      out.push({ pos: node.pos, name: roomLabel(state, id, layout), hidden: Boolean(layout.rooms.find((r) => r.id === id)?.hidden) });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walking, reach, actor?.id, actor && posKey(actor.position), state.moveBudget, layout]);
 
   const here = actor?.position.kind === "room" ? roomLabel(state, actor.position.roomId, layout) : "";
   const turnId = state.turnOrder[state.turnIndex % Math.max(1, state.turnOrder.length)];
@@ -362,7 +434,7 @@ export function MansionBoard({
         <div
           ref={world}
           className="dgb-world"
-          style={{ width: worldW, height: worldH, transform: `translate(${offX}px, ${offY}px) scale(${scale})` } as CSSProperties}
+          style={{ width: worldW, height: worldH, transform: `translate(${offX}px, ${offY}px) rotate(${turns * 90}deg) scale(${scale})` } as CSSProperties}
         >
           <img className="dgb-house" src="/board/house.jpg" width={worldW} height={worldH} alt="" draggable={false} />
 
@@ -382,7 +454,16 @@ export function MansionBoard({
                     role="img"
                     aria-label={`${name}${links.length ? `, secret passage to ${links.join(", ")}` : ""}`}
                   />
-                  <div className="dgb-tag" style={{ left: room.rect.x + room.rect.w / 2, top: room.rect.y + room.rect.h * 0.1, fontSize: labelPx }}>
+                  <div
+                    className="dgb-tag dgb-upright"
+                    style={{
+                      left: room.rect.x + room.rect.w / 2,
+                      top: room.rect.y + room.rect.h * (sideways ? 0.5 : 0.1),
+                      fontSize: labelPx,
+                      transformOrigin: sideways ? "50% 50%" : "50% 0",
+                      transform: `translate(-50%, ${sideways ? "-50%" : "0"}) ${upright}`,
+                    }}
+                  >
                     <span className="dgb-plaque">{name}</span>
                     {links.length ? <span className="dgb-note">⇄ {links.join(", ")}</span> : null}
                   </div>
@@ -396,10 +477,42 @@ export function MansionBoard({
             const name = roomLabel(state, room.id, layout);
             return (
               <div key={room.id} className={cn("dgb-pocket", lit(room.id))} style={{ left: a.x, top: a.y, width: a.w, height: a.h }} role="img" aria-label={`Hidden room: ${name}`}>
-                <span style={{ fontSize: labelPx * 1.1 }}>Hidden room</span>
-                <b style={{ fontSize: labelPx * 1.7 }}>{name}</b>
-                <span style={{ fontSize: labelPx * 0.9 }}>Only through a secret passage</span>
+                <div
+                  className="dgb-upright"
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "50%",
+                    width: sideways ? a.h : a.w,
+                    height: sideways ? a.w : a.h,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: ".25em",
+                    transform: `translate(-50%, -50%) ${upright}`,
+                  }}
+                >
+                  <span style={{ fontSize: labelPx * 1.1 }}>Hidden room</span>
+                  <b style={{ fontSize: labelPx * 1.7 }}>{name}</b>
+                  <span style={{ fontSize: labelPx * 0.9 }}>Only through a secret passage</span>
+                </div>
               </div>
+            );
+          })}
+
+          {state.players.map((p) => {
+            const at = shown[p.id]?.pos ?? p.position;
+            if (at.kind !== "hall") return null;
+            const t = layout.tiles.find((tile) => tile.x === at.x && tile.y === at.y);
+            if (!t) return null;
+            return (
+              <span
+                key={`tile-${p.id}`}
+                className="dgb-tile"
+                title={p.name}
+                style={{ left: t.px.x + 3, top: t.px.y + 3, width: t.px.w - 6, height: t.px.h - 6, ["--tint" as string]: tintOf(p) } as CSSProperties}
+              />
             );
           })}
 
@@ -437,7 +550,7 @@ export function MansionBoard({
 
           {[...state.players]
             .map((p) => ({ p, at: crowd(p) }))
-            .sort((a, b) => a.at.y - b.at.y)
+            .sort((a, b) => rotY(a.at.x, a.at.y) - rotY(b.at.x, b.at.y))
             .map(({ p, at }) => (
               <Piece
                 key={p.id}
@@ -446,6 +559,9 @@ export function MansionBoard({
                 isTurn={turnId === p.id}
                 x={at.x}
                 y={at.y}
+                depth={rotY(at.x, at.y) + worldW + worldH}
+                tint={tintOf(p)}
+                upright={upright}
                 ms={shown[p.id]?.ms ?? 260}
                 dims={{ fh: pieceH, fw: pieceW, bw: pieceBaseW, bh: pieceBaseH, tag: labelPx }}
               />
@@ -460,7 +576,9 @@ export function MansionBoard({
           ) : walking ? (
             <>
               <b>{state.moveBudget}</b>
-              <span>{state.moveBudget === 1 ? "step" : "steps"} · tap a lit square</span>
+              <span>
+                {state.moveBudget === 1 ? "step" : "steps"} · {actor?.position.kind === "room" ? "tap a lit square or use a secret passage" : "tap a lit square"}
+              </span>
             </>
           ) : (
             <span>{actor ? `${actor.name}${here ? ` · ${here}` : ""}` : "Harrington House"}</span>
@@ -472,6 +590,56 @@ export function MansionBoard({
           </button>
         ) : null}
       </div>
+
+      <div className="dgb-ctls">
+        {zoomed ? (
+          <div className="dgb-pad" role="group" aria-label="Move the view">
+            <p>Move view</p>
+            <button type="button" onClick={() => nudge(0, 1)} aria-label="Move the view up" title="Move the view up">
+              <ArrowUp size={16} />
+            </button>
+            <button type="button" onClick={() => nudge(0, -1)} aria-label="Move the view down" title="Move the view down">
+              <ArrowDown size={16} />
+            </button>
+            <button type="button" onClick={() => nudge(1, 0)} aria-label="Move the view left" title="Move the view left">
+              <ArrowLeft size={16} />
+            </button>
+            <button type="button" onClick={() => nudge(-1, 0)} aria-label="Move the view right" title="Move the view right">
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        ) : null}
+        <div className="dgb-grid" role="group" aria-label="Zoom and turn the house">
+          <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
+            <ZoomIn size={18} />
+            Zoom in
+          </button>
+          <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
+            <ZoomOut size={18} />
+            Zoom out
+          </button>
+          <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
+            <RotateCcw size={18} />
+            Turn left
+          </button>
+          <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
+            <RotateCw size={18} />
+            Turn right
+          </button>
+        </div>
+      </div>
+
+      {passageOptions.length ? (
+        <div className="dgb-pass">
+          <p>Secret {passageOptions.length === 1 ? "passage" : "passages"} · 1 step</p>
+          {passageOptions.map((o) => (
+            <button key={posKey(o.pos)} type="button" className="dgb-passbtn" onClick={() => onMove(o.pos)}>
+              <span>⇄ {o.name}</span>
+              <small>{o.hidden ? "Hidden room, through a secret passage" : "Take the secret passage"}</small>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -482,6 +650,9 @@ function Piece({
   isTurn,
   x,
   y,
+  depth,
+  tint,
+  upright,
   ms,
   dims,
 }: {
@@ -490,6 +661,11 @@ function Piece({
   isTurn: boolean;
   x: number;
   y: number;
+  /** How far toward the viewer the piece is on the screen, so nearer pieces draw over farther ones. */
+  depth: number;
+  tint: string;
+  /** Undoes the turn of the house so the figure always stands upright. */
+  upright: string;
   ms: number;
   dims: { fh: number; fw: number; bw: number; bh: number; tag: number };
 }) {
@@ -503,8 +679,8 @@ function Piece({
         {
           transform: `translate(${x}px, ${y}px)`,
           transitionDuration: `${ms}ms`,
-          zIndex: 10 + Math.round(y),
-          ["--tok" as string]: player.color,
+          zIndex: 10 + Math.round(depth),
+          ["--tok" as string]: tint,
           ["--fh" as string]: `${dims.fh}px`,
           ["--fw" as string]: `${dims.fw}px`,
           ["--bw" as string]: `${dims.bw}px`,
@@ -512,6 +688,7 @@ function Piece({
         } as CSSProperties
       }
     >
+      <div className="dgb-upright" style={{ transform: upright }}>
       <span className="dgb-shadow" />
       <span className="dgb-base" />
       <div className="dgb-stand">
@@ -533,6 +710,7 @@ function Piece({
             {player.name.split(" ")[0]}
           </span>
         ) : null}
+      </div>
       </div>
     </div>
   );
