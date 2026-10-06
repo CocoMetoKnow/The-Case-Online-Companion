@@ -72,9 +72,17 @@ function DigitalBoard() {
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-subtle">Secret passages</p>
               <p className="mt-1 text-sm text-muted">
-                Two shortcuts that cost one step. Add a hidden room to make a passage run through a room that is not on the map: it becomes a room card in the game, and
+                Two shortcuts that cost one step. With the switch on, every passage runs through a hidden room that is not on the map (pick one below, or leave it on Auto): it becomes a room card in the game, and
                 guests can only walk into it through the passage. Auto uses Study to Kitchen and Lounge to Conservatory.
               </p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <span className="text-sm">Hidden room on every passage</span>
+                <Switch
+                  aria-label="Hidden room on every passage"
+                  checked={settings.hiddenRooms !== false}
+                  onCheckedChange={(value) => patchSettings({ hiddenRooms: value })}
+                />
+              </div>
               {[0, 1].map((i) => (
                 <div key={i} className="mt-3">
                   <p className="mb-1 text-xs text-muted">
@@ -105,7 +113,7 @@ function DigitalBoard() {
                     value={passages[i]?.via ?? ""}
                     onChange={(e) => setPassage(i, "via", e.target.value)}
                   >
-                    <option value="">No hidden room in between</option>
+                    <option value="">{settings.hiddenRooms === false ? "No hidden room in between" : "Auto hidden room"}</option>
                     {hiddenChoices.map((room) => (
                       <option key={room.id} value={room.id}>
                         Hidden room: {room.name}

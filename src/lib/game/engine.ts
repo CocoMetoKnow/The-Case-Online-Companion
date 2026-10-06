@@ -631,7 +631,8 @@ export function skipMove(state: GameState, playerId: string): GameState {
 	}, `${currentName(state)} stays put.`);
 }
 export function canAsk(state: GameState, playerId: string): boolean {
-	if (state.phase !== "action") return false;
+	// On the digital board a guest standing in a room may suggest while they still have steps left to walk.
+	if (state.phase !== "action" && !(state.phase === "move" && state.settings?.table === "board")) return false;
 	if (state.question?.offerAccusation) return false;
 	if ((state.actionsLeft ?? 1) <= 0) return false;
 	const subject = subjectOf(state, playerId);
@@ -714,6 +715,7 @@ export function beginQuestion(state: GameState, playerId: string, pick, secrets:
 		hush: hit ? null : hush ?? null,
 		phase: "question",
 		actionsLeft: 0,
+		moveBudget: 0,
 		freeQuestion: false,
 		whisperMode: false,
 		naming: null,
@@ -808,6 +810,7 @@ export function beginSpokenQuestion(state: GameState, playerId: string, pick?, s
 		hush: hushHit ? null : hush ?? null,
 		phase: "question",
 		actionsLeft: 0,
+		moveBudget: 0,
 		freeQuestion: false,
 		whisperMode: false,
 		naming: null,

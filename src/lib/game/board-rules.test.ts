@@ -154,3 +154,23 @@ test("Lost in the Hall drops you on a corridor square; Send Home returns everyon
     assert.deepEqual(q.position, { kind: "hall", ...state.spawns![q.id] }, `${q.name} is back on their own start square`);
   }
 });
+
+test("a guest in a room may suggest with steps still left, and the leftover steps are taken away", () => {
+  const { state, secrets } = game(3);
+  const me = state.turnOrder[0];
+  const walking: GameState = {
+    ...state,
+    phase: "move",
+    moveBudget: 6,
+    actionsLeft: 1,
+    players: state.players.map((p) => (p.id === me ? { ...p, position: { kind: "room", roomId: "library" } } : p)),
+  };
+  assert.equal(canAsk(walking, me), true, "in a room, mid-move");
+  const inHall: GameState = { ...walking, players: walking.players.map((p) => (p.id === me ? { ...p, position: { kind: "hall", ...layoutFor(state.settings).starts[0] } } : p)) };
+  assert.equal(canAsk(inHall, me), false, "not in the corridor");
+  const suspect = state.cards.find((c) => c.category === "suspect")!.id;
+  const weapon = state.cards.find((c) => c.category === "weapon")!.id;
+  const out = applyPlay(walking, secrets, me, "ask", { suspectId: suspect, roomId: "library", weaponId: weapon }).state;
+  assert.equal(out.phase, "question");
+  assert.equal(out.moveBudget, 0, "the rest of the roll does not carry over");
+});

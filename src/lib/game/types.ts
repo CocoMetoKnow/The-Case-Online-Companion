@@ -166,6 +166,8 @@ export interface GameSettings {
    * hidden room card. An empty pair is left to the game (Study to Kitchen, Lounge to Conservatory).
    */
   boardPassages?: Passage[];
+  /** Digital board: put a hidden room on every secret passage that the host left without one. On unless set to false. */
+  hiddenRooms?: boolean;
   /** Deal each category round-robin so hands stay as even as they can. */
   evenDeal?: boolean;
   /** The case is a theft. Weapon cards are the valuables that were taken. */

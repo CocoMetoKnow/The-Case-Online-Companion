@@ -12,7 +12,7 @@ import {
 import type { GameState, PiecePos, Player } from "@/lib/game/types";
 import { cn } from "@/lib/utils";
 import { characterColor } from "@/lib/game/character-colors";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Crosshair, RotateCcw, RotateCw, ZoomIn, ZoomOut } from "lucide-react";
 import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
@@ -502,8 +502,9 @@ export function MansionBoard({
           })}
 
           {state.players.map((p) => {
-            const at = shown[p.id]?.pos ?? p.position;
-            if (at.kind !== "hall") return null;
+            // Each guest's own square is the one they started on. It stays put when they walk away from it.
+            const at = state.spawns?.[p.id];
+            if (!at) return null;
             const t = layout.tiles.find((tile) => tile.x === at.x && tile.y === at.y);
             if (!t) return null;
             return (
@@ -592,6 +593,12 @@ export function MansionBoard({
       </div>
 
       <div className="dgb-ctls">
+        {zoomed ? (
+          <button type="button" className="dgb-ctl" onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter on the guest whose turn it is" title="Recenter on the guest whose turn it is">
+            <Crosshair size={18} />
+            Recenter
+          </button>
+        ) : null}
         {zoomed ? (
           <div className="dgb-pad" role="group" aria-label="Move the view">
             <p>Move view</p>

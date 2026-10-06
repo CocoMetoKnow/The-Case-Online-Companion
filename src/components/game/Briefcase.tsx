@@ -193,13 +193,24 @@ function BriefcaseTable() {
   useEffect(() => {
     if (!state) return;
     const mine = turnActorId(state) === actor;
-    if (state.phase === "question" || state.phase !== "action" || !mine) setSuggest(false);
-    if (state.phase !== "action" || !mine) {
-      setAccuse(false);
-      setMovesOpen(false);
-    }
+    // On the digital board a guest standing in a room may suggest while steps are still left, so the move phase counts too.
+    const mayAct = state.phase === "action" || (state.phase === "move" && state.settings.table === "board");
+    if (state.phase === "question" || !mayAct || !mine) setSuggest(false);
+    if (state.phase !== "action" || !mine) setAccuse(false);
+    if (!mayAct || !mine) setMovesOpen(false);
     if (state.phase === "question" || state.phase === "event" || state.phase === "roll") setLifted(null);
   }, [state, actor]);
+
+  // Digital board: when the steps run out (or the guest stops), ask what to do next: suggest (if they are in a room),
+  // Solve the Case, or end the turn.
+  const lastPhase = useRef<string | undefined>(state?.phase);
+  useEffect(() => {
+    const was = lastPhase.current;
+    lastPhase.current = state?.phase;
+    if (!state || state.settings.table !== "board") return;
+    if (was === "move" && state.phase === "action" && turnActorId(state) === actor && (state.actionsLeft ?? 1) > 0) setMovesOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.phase]);
 
   useEffect(() => {
     setRollNote("");
@@ -361,7 +372,7 @@ function BriefcaseTable() {
         : myTurn
           ? "Your turn"
           : `${cur?.name ?? "Someone"}'s turn`;
-  const canMoveMenu = myTurn && (state.phase === "action" || state.phase === "move");
+  const canMoveMenu = myTurn && (state.phase === "action" || (state.phase === "move" && canAsk(state, actor)));
 
   // Digital board: the house fills the screen. The turn info sits above it and the hand below it (beside it when
   // the phone is on its side). Every prompt (roll, powers, questions, the journal) still opens over the top.
@@ -479,7 +490,7 @@ function BriefcaseTable() {
           </p>
         ) : null}
 
-        {myTurn && (state.phase === "action" || state.phase === "move") ? (
+        {canMoveMenu ? (
           <div className="mt-1 shrink-0">
             <Button size="lg" className="w-full" onClick={() => setMovesOpen(true)}>
               Your move
@@ -604,7 +615,7 @@ function BriefcaseTable() {
                   Suggest
                 </Button>
               ) : null}
-              {(state.actionsLeft ?? 1) > 0 && !influenced ? (
+              {state.phase === "action" && (state.actionsLeft ?? 1) > 0 && !influenced ? (
                 <Button
                   size="lg"
                   variant="outline"
@@ -618,7 +629,7 @@ function BriefcaseTable() {
                     : "Solve the Case"}
                 </Button>
               ) : null}
-              {(state.actionsLeft ?? 1) === 0 || influenced || !state.question?.offerAccusation ? (
+              {state.phase === "action" && ((state.actionsLeft ?? 1) === 0 || influenced || !state.question?.offerAccusation) ? (
                 <Button
                   size="lg"
                   variant="outline"

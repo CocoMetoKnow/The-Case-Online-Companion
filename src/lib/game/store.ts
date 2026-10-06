@@ -31,9 +31,9 @@ import {
   savePlayerName,
   saveTable,
 } from "@/lib/game/storage";
-import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
+import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, Passage, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
 import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
-import { BOARD_MAX_PLAYERS, MAP_ROOM_IDS, hiddenRoomsOf, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
+import { BOARD_MAX_PLAYERS, HIDDEN_ROOM_SUGGESTIONS, MAP_ROOM_IDS, hiddenRoomsOf, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
 export { canAsk, currentPlayer, turnActorId };
@@ -198,7 +198,7 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
  */
 function boardDeck(cards: CardDef[], settings?: GameSettings): CardDef[] {
   const pool = [...DEFAULT_CARDS, ...CLASSIC_CARDS, ...UNDERGROUND_ROOMS].filter((c) => c.category === "room");
-  const want = [...MAP_ROOM_IDS, ...hiddenRoomsOf(settings ?? null).slice(0, 2)];
+  const want = [...MAP_ROOM_IDS, ...hiddenRoomsOf(settings ? { boardPassages: boardPassagesFor(settings) } : null).slice(0, 2)];
   const have = new Map(cards.filter((c) => c.category === "room").map((c) => [c.id, c]));
   const rooms = want
     .map((id) => have.get(id) ?? pool.find((c) => c.id === id))
@@ -206,11 +206,39 @@ function boardDeck(cards: CardDef[], settings?: GameSettings): CardDef[] {
   return [...cards.filter((c) => c.category !== "room"), ...rooms];
 }
 
+/** Room cards that can sit on a secret passage without being on the house, the suggested ones first. */
+function hiddenRoomPool(): string[] {
+  const ids = [...DEFAULT_CARDS, ...CLASSIC_CARDS, ...UNDERGROUND_ROOMS]
+    .filter((c) => c.category === "room" && !MAP_ROOM_IDS.includes(c.id))
+    .map((c) => c.id);
+  const unique = [...new Set(ids)];
+  return [...HIDDEN_ROOM_SUGGESTIONS.filter((id) => unique.includes(id)), ...unique.filter((id) => !HIDDEN_ROOM_SUGGESTIONS.includes(id))];
+}
+
+/**
+ * The two secret passages for a game. Every passage the host did not give a hidden room gets one, so each passage
+ * leads through a room that is not on the house. (The host can turn this off with settings.hiddenRooms = false.)
+ */
+function boardPassagesFor(settings: GameSettings): Passage[] {
+  const pool = hiddenRoomPool();
+  const chosenVias = (settings.boardPassages ?? []).map((p) => p?.via).filter((id): id is string => Boolean(id));
+  const base = resolvePassages([...MAP_ROOM_IDS, ...pool, ...chosenVias], settings.boardPassages);
+  if (settings.hiddenRooms === false) return base;
+  const used = new Set(base.map((p) => p.via).filter(Boolean) as string[]);
+  return base.map((p) => {
+    if (p.via) return p;
+    const via = pool.find((id) => !used.has(id));
+    if (!via) return p;
+    used.add(via);
+    return { ...p, via };
+  });
+}
+
 /** Fill in whatever the host left to the game: the secret passages. */
 function boardSetup(settings: GameSettings, rooms: string[]): Partial<GameSettings> {
   if (settings.table !== "board") return {};
   return {
-    boardPassages: resolvePassages(rooms, settings.boardPassages),
+    boardPassages: resolvePassages(rooms, boardPassagesFor(settings)),
   };
 }
 
