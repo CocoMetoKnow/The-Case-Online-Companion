@@ -7,6 +7,11 @@ export function isClueCode(value: string): boolean {
   return value.trim().toLowerCase() === "clue";
 }
 
+/** The second secret code. Typing DB turns the digital board on or off. */
+export function isBoardCode(value: string): boolean {
+  return value.trim().toLowerCase() === "db";
+}
+
 /**
  * A visible "secret code" box. Typing the word clue flips the whole table between the custom
  * guest names and the original Clue names; typing it again flips them back.
@@ -14,11 +19,17 @@ export function isClueCode(value: string): boolean {
 export function ClueCodeField({
   active,
   onToggle,
+  boardActive = false,
+  onToggleBoard,
   className,
 }: {
   /** True while the original Clue names are showing. */
   active: boolean;
   onToggle: () => void;
+  /** True while the digital board is on. */
+  boardActive?: boolean;
+  /** Where the code DB is accepted (the setup screen). Left out, DB does nothing. */
+  onToggleBoard?: () => void;
   className?: string;
 }) {
   const [code, setCode] = useState("");
@@ -33,6 +44,9 @@ export function ClueCodeField({
         if (isClueCode(code)) {
           onToggle();
           setMessage(active ? "Back to the custom guest names." : "The original Clue names are in. Everyone at the table sees them.");
+        } else if (onToggleBoard && isBoardCode(code)) {
+          onToggleBoard();
+          setMessage(boardActive ? "The digital board is off." : "The digital board is on. Set up the house below.");
         } else {
           setMessage("That code does nothing.");
         }
@@ -63,6 +77,8 @@ export function ClueCodeField({
         </p>
       ) : active ? (
         <p className="mt-1 text-xs text-subtle">Original Clue names are on.</p>
+      ) : boardActive ? (
+        <p className="mt-1 text-xs text-subtle">Digital board is on.</p>
       ) : null}
     </form>
   );

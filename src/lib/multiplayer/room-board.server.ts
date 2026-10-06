@@ -14,7 +14,7 @@ import type { GameState, Secrets } from "@/lib/game/types";
  */
 
 function hostCap(settings: { table?: string; maxPlayers?: number } | undefined) {
-  const hard = settings?.table === "board" ? 10 : 15;
+  const hard = settings?.table === "board" ? 8 : 15;
   const picked = Number(settings?.maxPlayers);
   if (!Number.isFinite(picked)) return hard;
   return Math.max(2, Math.min(hard, Math.floor(picked)));
@@ -143,8 +143,7 @@ function settingsStamp(state: GameState): string {
     String(settings.maxPlayers),
     (settings.enabledEvents ?? []).join(","),
     (settings.enabledRoomIds ?? []).join(","),
-    (settings.boardRooms ?? []).join(","),
-    (settings.boardPassages ?? []).map((p) => `${p.a}:${p.b}`).join(","),
+    (settings.boardPassages ?? []).map((p) => `${p.a}:${p.b}:${p.via ?? ""}`).join(","),
     (state.passages ?? []).map((p) => `${p.a}:${p.b}`).join(","),
   ]);
 }

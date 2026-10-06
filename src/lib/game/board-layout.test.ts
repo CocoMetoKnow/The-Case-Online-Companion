@@ -1,161 +1,88 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_ROOMS, MIN_ROOMS, buildLayout, cellRuns, reachable, roomOutline, sideCounts } from "./board.ts";
+import { BOARD_MAX_PLAYERS, DEFAULT_LAYOUT, MAP_ROOM_IDS, expandPassages, hiddenRoomsOf, layoutFor, nearestRooms, reachable, resolvePassages, shuffledStarts } from "./board.ts";
 
-const idsFor = (n: number) => Array.from({ length: n }, (_, i) => `room-${i + 1}`);
-const counts = Array.from({ length: MAX_ROOMS - MIN_ROOMS + 1 }, (_, i) => MIN_ROOMS + i);
 const k = (x: number, y: number) => `${x},${y}`;
+const L = DEFAULT_LAYOUT;
 
-test("every room count from 4 to 15 builds exactly that many distinct rooms", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    assert.equal(layout.rooms.length, n, `${n} rooms`);
-    assert.equal(new Set(layout.rooms.map((r) => r.id)).size, n);
-    assert.deepEqual(layout.rooms.map((r) => r.id), idsFor(n), "rooms stay in slot order");
+test("the house is the ten fixed rooms, and never changes", () => {
+  assert.deepEqual(MAP_ROOM_IDS.slice().sort(), ["ballroom", "billiard-room", "cellar", "conservatory", "dining-room", "grand-hall", "kitchen", "library", "lounge", "study"]);
+  assert.equal(L.rooms.length, 10);
+  assert.equal(layoutFor({}), L);
+  assert.equal(layoutFor({ boardPassages: [{ a: "study", b: "kitchen" }] }), L, "passages without a hidden room leave the house alone");
+});
+
+test("the Cellar sits in the middle and has a single entrance, on the Dining Room side", () => {
+  const cellar = L.rooms.find((r) => r.id === "cellar")!;
+  const dining = L.rooms.find((r) => r.id === "dining-room")!;
+  assert.ok(cellar.rect.x > dining.rect.x + dining.rect.w - 100, "cellar is to the right of the dining room");
+  assert.ok(Math.abs(cellar.rect.x + cellar.rect.w / 2 - L.width / 2) < 100, "cellar is centred");
+  assert.equal(L.doors.cellar.length, 1);
+  const door = L.tiles.find((t) => t.x === L.doors.cellar[0].x && t.y === L.doors.cellar[0].y)!;
+  assert.ok(door.px.x + door.px.w <= cellar.rect.x + 30, "the door tile is on the cellar's left, dining room side");
+});
+
+test("every room has doors on the corridor, and every corridor square is connected", () => {
+  for (const room of L.rooms) {
+    assert.ok(L.doors[room.id].length >= 1, `${room.id} has a door`);
+    for (const d of L.doors[room.id]) assert.ok(L.hall.has(k(d.x, d.y)));
+  }
+  const start = L.starts[0];
+  const { nodes } = reachable({ kind: "hall", ...start }, 500, MAP_ROOM_IDS, [], new Set(), L);
+  const halls = [...nodes.values()].filter((n) => n.pos.kind === "hall").length;
+  assert.equal(halls, L.hall.size, "no sealed-off squares");
+  assert.equal([...nodes.values()].filter((n) => n.pos.kind === "room").length, 10, "every room can be reached");
+});
+
+test("there are eight start squares, all different, all on the corridor", () => {
+  assert.equal(L.starts.length, BOARD_MAX_PLAYERS);
+  assert.equal(new Set(L.starts.map((s) => k(s.x, s.y))).size, 8);
+  for (const s of L.starts) assert.ok(L.hall.has(k(s.x, s.y)));
+  const a = shuffledStarts(L, () => 0.3);
+  assert.deepEqual(a.map((s) => k(s.x, s.y)).sort(), L.starts.map((s) => k(s.x, s.y)).sort());
+});
+
+test("a doorway is one step, and entering a room ends the move", () => {
+  const door = L.doors.kitchen[0];
+  const { nodes } = reachable({ kind: "hall", ...door }, 6, MAP_ROOM_IDS, [], new Set(), L);
+  assert.equal(nodes.get("r:kitchen")?.dist, 1);
+  const inside = reachable({ kind: "room", roomId: "kitchen" }, 3, MAP_ROOM_IDS, [], new Set(), L);
+  assert.ok(inside.nodes.has(`h:${door.x},${door.y}`));
+});
+
+test("a guest standing in the corridor blocks that square", () => {
+  const door = L.doors.kitchen[0];
+  const from = { kind: "hall" as const, ...L.starts[2] };
+  const open = reachable(from, 40, MAP_ROOM_IDS, [], new Set(), L);
+  const shut = reachable(from, 40, MAP_ROOM_IDS, [], new Set([k(door.x, door.y)]), L);
+  assert.ok(open.nodes.has("r:kitchen"));
+  assert.ok(!shut.nodes.has("r:kitchen"), "the kitchen has one door and it is blocked");
+});
+
+test("secret passages cost one step between rooms, and a hidden room sits in between", () => {
+  const plain = resolvePassages(MAP_ROOM_IDS, [{ a: "study", b: "kitchen" }, { a: "lounge", b: "conservatory" }]);
+  assert.deepEqual(plain, [{ a: "study", b: "kitchen" }, { a: "lounge", b: "conservatory" }]);
+  const direct = reachable({ kind: "room", roomId: "study" }, 1, MAP_ROOM_IDS, expandPassages(plain), new Set(), L);
+  assert.ok(direct.nodes.has("r:kitchen"));
+
+  const withHidden = resolvePassages([...MAP_ROOM_IDS, "observatory", "catacombs"], [{ a: "study", b: "kitchen", via: "observatory" }, { a: "lounge", b: "conservatory", via: "catacombs" }]);
+  assert.deepEqual(hiddenRoomsOf({ boardPassages: withHidden }), ["observatory", "catacombs"]);
+  const house = layoutFor({ boardPassages: withHidden });
+  assert.equal(house.rooms.length, 12);
+  assert.ok(house.rooms.filter((r) => r.hidden).every((r) => r.rect.w === 0), "hidden rooms are not drawn on the map");
+  const links = expandPassages(withHidden);
+  const enabled = [...MAP_ROOM_IDS, "observatory", "catacombs"];
+  const oneStep = reachable({ kind: "room", roomId: "study" }, 1, enabled, links, new Set(), house);
+  assert.ok(oneStep.nodes.has("r:observatory"));
+  assert.ok(!oneStep.nodes.has("r:kitchen"), "the hidden room is a stop; it ends the move");
+  const next = reachable({ kind: "room", roomId: "observatory" }, 1, enabled, links, new Set(), house);
+  assert.ok(next.nodes.has("r:kitchen") && next.nodes.has("r:study"));
+  for (const bad of [{ a: "study", b: "kitchen", via: "ballroom" }, { a: "study", b: "kitchen", via: "not-a-card" }]) {
+    assert.equal(resolvePassages(MAP_ROOM_IDS, [bad])[0].via, undefined, "a via that is not a hidden room card is ignored");
   }
 });
 
-test("the house grows with the room count", () => {
-  const sizes = counts.map((n) => buildLayout(idsFor(n)).cols);
-  for (let i = 1; i < sizes.length; i++) assert.ok(sizes[i] >= sizes[i - 1]);
-  assert.ok(sizes[sizes.length - 1] > sizes[0]);
-});
-
-test("rooms stay inside the house, never overlap and never sit on the corridor or the staircase", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    const seen = new Set<string>();
-    for (const room of layout.rooms) {
-      for (const c of room.cells) {
-        assert.ok(c.x >= 0 && c.y >= 0 && c.x < layout.cols && c.y < layout.rows, `${n}: ${room.id} inside`);
-        assert.ok(!seen.has(k(c.x, c.y)), `${n}: ${room.id} overlaps`);
-        seen.add(k(c.x, c.y));
-        assert.ok(!layout.hall.has(k(c.x, c.y)), `${n}: ${room.id} on corridor`);
-        const { center } = layout;
-        assert.ok(!(c.x >= center.x && c.x < center.x + center.w && c.y >= center.y && c.y < center.y + center.h));
-      }
-    }
-  }
-});
-
-test("rooms have varied footprints, not a row of plain squares", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    const odd = layout.rooms.filter((r) => r.cells.length !== r.w * r.h);
-    assert.ok(odd.length >= Math.ceil(n / 2), `${n}: ${odd.length} shaped rooms`);
-    assert.ok(new Set(layout.rooms.map((r) => r.shape)).size >= Math.min(3, n), `${n}: several kinds of shape`);
-    assert.ok(new Set(layout.rooms.map((r) => `${r.w}x${r.h}`)).size >= Math.min(3, n), `${n}: several sizes`);
-  }
-});
-
-test("no square of the house is left sealed off: every square is a room, the staircase or walkable floor", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    const roomCells = layout.rooms.reduce((sum, r) => sum + r.cells.length, 0);
-    const total = layout.cols * layout.rows;
-    assert.equal(layout.hall.size + roomCells + layout.center.w * layout.center.h, total, `${n}: dead squares`);
-  }
-});
-
-test("the corridor is one connected floor and every start square is on it", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    const first = [...layout.hall][0].split(",").map(Number);
-    const seen = new Set([k(first[0], first[1])]);
-    const stack = [first];
-    while (stack.length) {
-      const [x, y] = stack.pop()!;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const key = k(x + dx, y + dy);
-        if (layout.hall.has(key) && !seen.has(key)) {
-          seen.add(key);
-          stack.push([x + dx, y + dy]);
-        }
-      }
-    }
-    assert.equal(seen.size, layout.hall.size, `${n}: no sealed-off corridor`);
-    assert.ok(layout.starts.length >= 15, `${n}: a start square for up to 15 guests`);
-    assert.equal(new Set(layout.starts.map((s) => k(s.x, s.y))).size, layout.starts.length, "start squares are distinct");
-    for (const s of layout.starts) assert.ok(layout.hall.has(k(s.x, s.y)));
-  }
-});
-
-test("every room has real doors onto the corridor, and bigger rooms have more", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    const used = new Set<string>();
-    for (const room of layout.rooms) {
-      const doors = layout.doors[room.id];
-      assert.ok(doors.length >= 1 && doors.length <= 3, `${n}: ${room.id} has ${doors.length} doors`);
-      if (room.cells.length >= 46) assert.ok(doors.length >= 2, `${n}: ${room.id} is big and has a single door`);
-      for (const d of doors) {
-        assert.ok(layout.hall.has(k(d.x, d.y)), "door square is corridor");
-        assert.ok(!used.has(k(d.x, d.y)), "a corridor square is the door of only one room");
-        used.add(k(d.x, d.y));
-        const dx = { n: 0, s: 0, e: 1, w: -1 }[d.dir];
-        const dy = { n: -1, s: 1, e: 0, w: 0 }[d.dir];
-        assert.equal(layout.roomAt.get(k(d.x + dx, d.y + dy))?.id, room.id, `${n}: ${room.id} door faces its room`);
-      }
-    }
-    const multi = layout.rooms.filter((r) => layout.doors[r.id].length >= 2).length;
-    assert.ok(multi >= Math.ceil(n / 2), `${n}: most rooms have several doors`);
-  }
-});
-
-test("every room can be reached on foot from every start square, whatever the room count", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    for (const start of [layout.starts[0], layout.starts[layout.starts.length - 1]]) {
-      const { rooms } = reachable({ kind: "hall", ...start }, 400, idsFor(n), [], new Set(), layout);
-      assert.equal(rooms.size, n, `${n}: all rooms reachable`);
-    }
-  }
-});
-
-test("rooms are about a roll apart: every start square is within 12 steps of a room, and a room is never a trek", () => {
-  for (const n of counts) {
-    const layout = buildLayout(idsFor(n));
-    for (const start of layout.starts.slice(0, 15)) {
-      const { nodes } = reachable({ kind: "hall", ...start }, 60, idsFor(n), [], new Set(), layout);
-      const nearest = Math.min(...[...nodes.values()].filter((nd) => nd.pos.kind === "room").map((nd) => nd.dist));
-      assert.ok(nearest <= 12, `${n}: nearest room ${nearest} steps from ${start.x},${start.y}`);
-    }
-  }
-});
-
-test("outline and runs describe the exact footprint", () => {
-  for (const n of counts) {
-    for (const room of buildLayout(idsFor(n)).rooms) {
-      const loops = roomOutline(room);
-      assert.equal(loops.length, 1, `${room.id} is one solid piece`);
-      assert.ok(loops[0].length >= 4);
-      assert.equal(cellRuns(room.cells).reduce((sum, r) => sum + r.w, 0), room.cells.length);
-      for (let y = room.body.y; y < room.body.y + room.body.h; y++) {
-        for (let x = room.body.x; x < room.body.x + room.body.w; x++) assert.ok(room.cells.some((c) => c.x === x && c.y === y), "body is inside the room");
-      }
-    }
-  }
-});
-
-test("the same rooms always give the same house, and the plan depends only on how many rooms there are", () => {
-  const a = buildLayout(idsFor(9));
-  const b = buildLayout(["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9"]);
-  assert.deepEqual(a.rooms.map((r) => r.cells), b.rooms.map((r) => r.cells));
-  assert.deepEqual(a.doors["room-1"], b.doors["x1"]);
-});
-
-test("side rooms spread over all four walls as the room count rises", () => {
-  assert.deepEqual(sideCounts(4), [0, 0, 0, 0]);
-  assert.deepEqual(sideCounts(9), [2, 1, 1, 1]);
-  assert.equal(sideCounts(15).reduce((a, b) => a + b, 0), 11);
-  assert.ok(Math.max(...sideCounts(15)) <= 3);
-});
-
-test("fewer than four rooms still builds a playable house", () => {
-  for (const n of [1, 2, 3]) {
-    const layout = buildLayout(idsFor(n));
-    assert.equal(layout.rooms.length, n);
-    const { rooms } = reachable({ kind: "hall", ...layout.starts[0] }, 400, idsFor(n), [], new Set(), layout);
-    assert.equal(rooms.size, n);
-  }
+test("fast track finds the nearest rooms on the fixed house", () => {
+  const near = nearestRooms({ kind: "hall", ...L.starts[0] }, MAP_ROOM_IDS, [], 3, L);
+  assert.ok(near.length >= 3 && near.every((id) => MAP_ROOM_IDS.includes(id)));
 });

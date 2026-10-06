@@ -244,7 +244,7 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
       for (const player of state.players) {
         if (player.id === who.id || player.eliminated) continue;
         const starts = layoutFor(state.settings).starts;
-        const spot = starts[player.seat % starts.length];
+        const spot = state.spawns?.[player.id] ?? starts[player.seat % starts.length];
         next = placePlayer(next, player.id, { kind: "hall", x: spot.x, y: spot.y });
         names.push(player.name);
       }
@@ -285,7 +285,8 @@ export function autoResolveIfPossible(state: GameState, secrets: Secrets): { sta
     case "lost-in-hall": {
       const who = currentPlayer(state);
       if (!who) return { state: finishPower(state), secrets };
-      const next = placePlayer(state, who.id, { kind: "hall", x: 8, y: 8 });
+      const middle = layoutFor(state.settings).center;
+      const next = placePlayer(state, who.id, { kind: "hall", x: middle.x, y: middle.y });
       const note = `On the physical board, move ${who.name}'s piece to the hall.`;
       return {
         state: holdForBoard(log(next, `${who.name} is lost and must return to the hall.`), note, "resume"),

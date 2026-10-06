@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { EVENT_DEFS, EVENT_MIN_PLAYERS, MIN_CATEGORY_CARDS, UNDERGROUND_PASSAGES, applyClassicNames, avatarCharacters, cardsByCategory, eventsForPlayers } from "./cards";
-import { blockedHallsFor, isQuestionRoom, layoutFor, posKey, reachable, resolvePassages, roomLabel } from "./board";
+import { blockedHallsFor, expandPassages, isQuestionRoom, layoutFor, posKey, reachable, resolvePassages, roomLabel, shuffledStarts } from "./board";
 import { NPC_ID, PLAYER_COLORS, type GameState, type PiecePos, type Secrets } from "./types";
 import { uid } from "../utils";
 
@@ -212,18 +212,21 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		state,
 		secrets
 	};
+	// The digital board seats everyone on a random blue circle square, one each.
+	const spawnOrder = state.settings?.table === "board" ? shuffledStarts(layoutFor(state.settings)) : layoutFor(state.settings).starts;
 	const players = state.players.map((p, i) => ({
 		...p,
 		seat: i,
 		eliminated: false,
 		position: {
 			kind: "hall" as const,
-			...layoutFor(state.settings).starts[i % layoutFor(state.settings).starts.length]
+			...spawnOrder[i % spawnOrder.length]
 		}
 	}));
+	const spawns = Object.fromEntries(players.map((p) => [p.id, { x: (p.position as { x: number }).x, y: (p.position as { y: number }).y }]));
 	const order = fisherYates(players.map((p) => p.id));
 	// The digital board opens with the two passages the host set (Study to Kitchen and Lounge to Conservatory by default).
-	const passages = state.settings?.table === "board" ? resolvePassages(state.settings.enabledRoomIds, state.settings.boardPassages) : makePassages(state.settings.enabledRoomIds);
+	const passages = state.settings?.table === "board" ? expandPassages(resolvePassages(state.settings.enabledRoomIds, state.settings.boardPassages)) : makePassages(state.settings.enabledRoomIds);
 	const eventDeck = fisherYates(eventsForPlayers(players.length, state.settings));
 	const started = {
 		...state,
@@ -245,6 +248,7 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		eventDeck,
 		eventDiscard: [],
 		passages,
+		...(state.settings?.table === "board" ? { spawns } : {}),
 		skipIds: [],
 		notesLock: {},
 		influences: [],
@@ -630,12 +634,12 @@ export function canAsk(state: GameState, playerId: string): boolean {
 	if (!subject) return false;
 	const p = state.players.find((x) => x.id === subject);
 	if (!p || p.eliminated) return false;
-	// Speak mode plays on the real board. The player says they are in a room and that is enough.
-	if (state.settings?.speakMode) return true;
+	// The digital board: a suggestion can only be made from inside a room. No power, passage, or speak mode changes that.
 	if (state.settings?.table === "board") {
-		if (state.freeQuestion) return true;
 		return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 	}
+	// Speak mode plays on the real board. The player says they are in a room and that is enough.
+	if (state.settings?.speakMode) return true;
 	if (state.settings.playMode === "online" || state.freeQuestion) return true;
 	return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 }

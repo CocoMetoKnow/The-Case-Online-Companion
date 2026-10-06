@@ -332,8 +332,10 @@ export const PHYSICAL_EVENTS = [
 ];
 /** Powers that need a third guest. A two-player table never draws them. */
 export const EVENT_MIN_PLAYERS = { "red-herring": 3 };
-export function eventsForPlayers(count, settings?: { timeOfDayEnabled?: boolean; speakMode?: boolean; enabledEvents?: EventKind[] }) {
+export function eventsForPlayers(count, settings?: { timeOfDayEnabled?: boolean; speakMode?: boolean; table?: string; enabledEvents?: EventKind[] }) {
 	return PHYSICAL_EVENTS.filter((kind) => {
+		// On the digital board a suggestion needs a room, so a card that lets you ask from the hall has nothing to do.
+		if (kind === "free-question" && settings?.table === "board") return false;
 		if ((EVENT_MIN_PLAYERS[kind] ?? 2) > count) return false;
 		if (kind === "name-time" && !settings?.timeOfDayEnabled) return false;
 		// A hushed card only works when the game knows which cards were asked.

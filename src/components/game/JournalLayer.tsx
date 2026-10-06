@@ -43,7 +43,8 @@ export function JournalLayer() {
   return (
     <>
       {!open ? (
-        <button
+        // The digital board has a Journal tab in its own screen bar, so the floating tab would only sit on top of it.
+        state.settings.table === "board" ? null : <button
           type="button"
           className={locked ? "journal-fab journal-fab-shut" : "journal-fab"}
           aria-label={locked ? "Journal, shut" : "Open journal"}

@@ -169,7 +169,8 @@ test("Lost in the Hall sends the current player back to the hall", () => {
   const cur = withEvent("lost-in-hall");
   const { state } = autoResolveIfPossible(cur, secrets());
   const ada = state.players.find((p) => p.id === "ada");
-  assert.deepEqual(ada?.position, { kind: "hall", x: 8, y: 8 });
+  // Without a digital board the hall is the middle of the printed one; with it, a corridor square near the middle of the house.
+  assert.equal(ada?.position.kind, "hall");
 });
 
 test("Shortcut only offers rooms linked by an existing passage", () => {

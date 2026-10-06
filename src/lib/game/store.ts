@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { applyPlay } from "@/lib/game/actions";
-import { CLASSIC_CARDS, DEFAULT_CARDS, applyClassicNames, MIN_CATEGORY_CARDS, answerCards, asHeist, capCharacters, retireBorrowedNames, sliceSet, takeDeck, upgradeTimeCards } from "@/lib/game/cards";
+import { CLASSIC_CARDS, DEFAULT_CARDS, UNDERGROUND_ROOMS, applyClassicNames, MIN_CATEGORY_CARDS, answerCards, asHeist, capCharacters, retireBorrowedNames, sliceSet, takeDeck, upgradeTimeCards } from "@/lib/game/cards";
 import {
   accusationHits,
   addPlayer,
@@ -33,7 +33,7 @@ import {
 } from "@/lib/game/storage";
 import type { CardDef, CardSet, CategoryId, DeckToggles, GameSettings, GameState, PiecePos, PlayerNotes, Secrets, SheetMark } from "@/lib/game/types";
 import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
-import { autoBoardRooms, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
+import { BOARD_MAX_PLAYERS, MAP_ROOM_IDS, hiddenRoomsOf, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
 export { canAsk, currentPlayer, turnActorId };
@@ -124,6 +124,9 @@ interface GameStore {
   /** The detective journal. Lives in the store so one persistent button (JournalLayer) can open it from any screen. */
   journalOpen: boolean;
   setJournalOpen: (open: boolean) => void;
+  /** Digital board: which of the two game screens is showing. The journal opens over either one. */
+  screen: "board" | "cards";
+  setScreen: (screen: "board" | "cards") => void;
   /** "Pick Your Character". Sets a seat's profile picture to a suspect card's art. */
   setAvatar: (playerId: string, cardId: string) => void;
   /** The "clue" easter egg: show the original Clue names to everyone at the table. */
@@ -188,16 +191,25 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
   return true;
 }
 
-/** The digital board is built from whatever room cards are on, so no room is dropped from the deck. */
-function boardDeck(cards: CardDef[]): CardDef[] {
-  return cards;
+/**
+ * The digital board is one fixed house with ten rooms, so those ten room cards are always in the deck, and no other
+ * room card is, except the hidden rooms the host put on a secret passage. A card the host already had keeps its own
+ * name and picture; a missing one comes from the standard cards.
+ */
+function boardDeck(cards: CardDef[], settings?: GameSettings): CardDef[] {
+  const pool = [...DEFAULT_CARDS, ...CLASSIC_CARDS, ...UNDERGROUND_ROOMS].filter((c) => c.category === "room");
+  const want = [...MAP_ROOM_IDS, ...hiddenRoomsOf(settings ?? null).slice(0, 2)];
+  const have = new Map(cards.filter((c) => c.category === "room").map((c) => [c.id, c]));
+  const rooms = want
+    .map((id) => have.get(id) ?? pool.find((c) => c.id === id))
+    .filter((c): c is CardDef => Boolean(c));
+  return [...cards.filter((c) => c.category !== "room"), ...rooms];
 }
 
-/** Fill in whatever the host left to the game: empty room slots and empty passages. */
+/** Fill in whatever the host left to the game: the secret passages. */
 function boardSetup(settings: GameSettings, rooms: string[]): Partial<GameSettings> {
   if (settings.table !== "board") return {};
   return {
-    boardRooms: autoBoardRooms(rooms, settings.boardRooms),
     boardPassages: resolvePassages(rooms, settings.boardPassages),
   };
 }
@@ -232,7 +244,7 @@ function deckReady(cards: CardDef[], time: boolean, seats: number) {
 }
 
 function chosenSeats(settings: GameSettings, cards: CardDef[]) {
-  const hard = settings.table === "board" ? 10 : 15;
+  const hard = settings.table === "board" ? BOARD_MAX_PLAYERS : 15;
   const cats = activeCategories(settings.timeOfDayEnabled);
   const total = cards.filter((card) => cats.includes(card.category)).length;
   const room = Math.max(2, Math.min(hard, total - answerCards(settings.timeOfDayEnabled)));
@@ -635,7 +647,7 @@ function play(get: () => GameStore, set: (partial: Partial<GameStore>) => void, 
 
 function tableCards(setup: SetupDraft) {
   const board = setup.settings.table === "board";
-  let cards = board ? boardDeck(activeCards(setup)) : activeCards(setup);
+  let cards = board ? boardDeck(activeCards(setup), setup.settings) : activeCards(setup);
   if (setup.settings.heist) cards = asHeist(cards);
   if (setup.settings.classicNames) cards = applyClassicNames(cards, true);
   return cards;
@@ -804,6 +816,8 @@ export const useGame = create<GameStore>((set, get) => ({
   setPanel: (panel) => set({ panel }),
   journalOpen: false,
   setJournalOpen: (journalOpen) => set({ journalOpen }),
+  screen: "board",
+  setScreen: (screen) => set({ screen }),
   setAvatar: (playerId, cardId) => {
     const { state, localPlayerId } = get();
     if (!state) return;
@@ -832,7 +846,7 @@ export const useGame = create<GameStore>((set, get) => ({
     const name = typed || "Host";
     if (typed) savePlayerName(typed);
     const cards = tableCards(setup);
-    const hard = setup.settings.table === "board" ? 10 : 15;
+    const hard = setup.settings.table === "board" ? BOARD_MAX_PLAYERS : 15;
     const cap = Math.max(2, Math.min(hard, setup.settings.maxPlayers || 2));
     if (!deckReady(cards, setup.settings.timeOfDayEnabled, 2)) return;
     const rooms = cards.filter((c) => c.category === "room").map((c) => c.id);
@@ -1062,7 +1076,7 @@ export const useGame = create<GameStore>((set, get) => ({
           ...current,
           deck,
           name: name || cleanStoredName(current.name),
-          settings: { ...current.settings, maxPlayers: current.settings.table === "board" ? 10 : 15, classicNames: vault.clue },
+          settings: { ...current.settings, maxPlayers: current.settings.table === "board" ? BOARD_MAX_PLAYERS : 15, classicNames: vault.clue },
           ...(deck !== current.deck
             ? {
                 counts: deck.reduce(

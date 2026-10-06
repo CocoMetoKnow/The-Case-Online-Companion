@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyMove } from "./engine.ts";
-import { DEFAULT_LAYOUT, reachable } from "./board.ts";
+import { DEFAULT_LAYOUT, MAP_ROOM_IDS, reachable } from "./board.ts";
 import type { GameState, PiecePos } from "./types.ts";
 
-const ROOMS = ["lounge", "dining-room", "kitchen", "grand-hall", "ballroom", "study", "library", "billiard-room", "conservatory"];
+const ROOMS = MAP_ROOM_IDS;
 
-// Bea stands three steps from the start square, on the carpet.
-const BEA = (() => {
-  const { nodes } = reachable({ kind: "hall", ...DEFAULT_LAYOUT.starts[0] }, 3, ROOMS, [], new Set(), DEFAULT_LAYOUT);
-  const near = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 3);
-  return near && near.pos.kind === "hall" ? { x: near.pos.x, y: near.pos.y } : { x: 0, y: 0 };
-})();
+// Bea stands on a faraway blue circle square, out of the way.
+const BEA = { x: DEFAULT_LAYOUT.starts[5].x, y: DEFAULT_LAYOUT.starts[5].y };
 
 function state(budget: number, from: PiecePos): GameState {
   return {

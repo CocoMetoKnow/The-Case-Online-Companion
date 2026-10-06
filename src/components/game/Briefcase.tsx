@@ -17,6 +17,25 @@ import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
 
+/** The three screens of the digital board: the house, your cards, and the journal (which opens over either). */
+function ScreenNav({ screen, onBoard, onCards, onJournal }: { screen: "board" | "cards"; onBoard: () => void; onCards: () => void; onJournal: () => void }) {
+  const tab = (active: boolean) =>
+    `h-10 flex-1 rounded-[12px] border text-sm font-semibold ${active ? "border-brass bg-raised text-paper" : "border-line text-muted"}`;
+  return (
+    <nav className="mt-1 flex shrink-0 gap-2" aria-label="Screens">
+      <button type="button" className={tab(screen === "board")} aria-current={screen === "board" ? "page" : undefined} onClick={onBoard}>
+        Board
+      </button>
+      <button type="button" className={tab(screen === "cards")} aria-current={screen === "cards" ? "page" : undefined} onClick={onCards}>
+        Cards
+      </button>
+      <button type="button" className={tab(false)} onClick={onJournal}>
+        Journal
+      </button>
+    </nav>
+  );
+}
+
 const BOARD_SCREEN_CSS = `
 .bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:4px;padding:2px 6px max(env(safe-area-inset-bottom),6px)}
 .bd-top{grid-area:top;min-width:0}
@@ -102,6 +121,9 @@ function BriefcaseTable() {
   const verdict = useGame((s) => s.verdict);
   const dismissVerdict = useGame((s) => s.dismissVerdict);
   const folio = useGame((s) => s.journalOpen);
+  const screen = useGame((s) => s.screen);
+  const setScreen = useGame((s) => s.setScreen);
+  const setJournalOpen = useGame((s) => s.setJournalOpen);
   const [lifted, setLifted] = useState<CardDef | null>(null);
   const [suggest, setSuggest] = useState(false);
   const [accuse, setAccuse] = useState(false);
@@ -151,6 +173,12 @@ function BriefcaseTable() {
   useEffect(() => {
     syncSheet();
   }, [syncSheet, state?.code, state?.phase, state?.question?.shownCardId, state?.event?.step, state?.leftover, state?.privateShow?.at, actor]);
+
+  // Digital board: it is the first thing you see when it is your turn to roll. You can still go to your cards or the journal.
+  const rollKey = state && state.settings.table === "board" && state.phase === "roll" && turnActorId(state) === actor ? `${state.code}:${state.turnIndex}` : "";
+  useEffect(() => {
+    if (rollKey) setScreen("board");
+  }, [rollKey, setScreen]);
 
   useEffect(() => {
     if (state?.accusation?.at) setAccuse(false);
@@ -415,40 +443,17 @@ function BriefcaseTable() {
         />
       </div>
 
-      <section className="bd-hand">
-        <CardHand
-          cards={hand}
-          facesDown={facesDown}
-          spread={spread}
-          onOpen={(card) => {
-            if (facesDown) {
-              setFacesDown(false);
-              localStorage.setItem("gmm.faces", "up");
-              return;
-            }
-            sfxPaper();
-            setLifted(card);
-          }}
-        />
-        {leftover.length ? (
-          <div className="mt-1 flex shrink-0 items-center gap-2">
-            <p className="shrink-0 text-[10px] uppercase tracking-[0.14em] text-subtle">Table</p>
-            <div className="flex gap-1 overflow-x-auto">
-              {leftover.map((card) => (
-                <CardFace key={card.id} card={card} compact onClick={() => setLifted(card)} />
-              ))}
-            </div>
-          </div>
-        ) : null}
+      <section className="bd-hand" style={{ height: "auto" }}>
         {state.wait && state.phase !== "gameover" ? <CatchUp state={state} selfId={actor} onKick={kick} /> : null}
         {onlinePending ? <p className="shrink-0 text-center text-xs uppercase tracking-[0.14em] text-brass">Sending your move…</p> : null}
+        <ScreenNav screen="board" onBoard={() => setScreen("board")} onCards={() => setScreen("cards")} onJournal={() => setJournalOpen(true)} />
       </section>
     </div>
   );
 
   return (
     <main className="leather h-dvh overflow-hidden">
-      {board ? (
+      {board && screen === "board" ? (
         boardUi
       ) : (
       <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
@@ -537,18 +542,6 @@ function BriefcaseTable() {
             <p className="shrink-0 truncate text-[11px] text-muted">Passages · {passages.join(" · ")}</p>
           ) : null}
 
-          {board ? (
-            <div className="min-h-[250px] flex-[2_1_0%]">
-              <MansionBoard
-                state={state}
-                actorId={walker}
-                interactive={walking}
-                onMove={moveTo}
-                onStop={state.phase === "move" ? stay : undefined}
-              />
-            </div>
-          ) : null}
-
           <CardHand
             cards={hand}
             facesDown={facesDown}
@@ -579,6 +572,7 @@ function BriefcaseTable() {
           {onlinePending ? (
             <p className="shrink-0 text-center text-xs uppercase tracking-[0.14em] text-brass">Sending your move…</p>
           ) : null}
+          {board ? <ScreenNav screen="cards" onBoard={() => setScreen("board")} onCards={() => setScreen("cards")} onJournal={() => setJournalOpen(true)} /> : null}
         </section>
       </div>
       )}

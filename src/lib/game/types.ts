@@ -137,6 +137,8 @@ export interface EventState {
 export interface Passage {
   a: string;
   b: string;
+  /** Digital board: a hidden room the passage runs through. It is a room card in the game that is not drawn on the house. */
+  via?: string;
 }
 
 export interface Influence {
@@ -160,11 +162,9 @@ export interface GameSettings {
   /** "board" walks the digital house. Missing or "case" is the phone case, up to 15. */
   table?: "case" | "board";
   /**
-   * Digital board: which room sits in each slot round the house, first slot first. An empty entry is left to the
-   * game. The host sets this when picking how many room cards are on.
+   * Digital board: the two secret passages the host set. Each joins two of the ten rooms and may run through a
+   * hidden room card. An empty pair is left to the game (Study to Kitchen, Lounge to Conservatory).
    */
-  boardRooms?: string[];
-  /** Digital board: the two secret passages the host set. An empty pair is left to the game (Study to Kitchen, Lounge to Conservatory). */
   boardPassages?: Passage[];
   /** Deal each category round-robin so hands stay as even as they can. */
   evenDeal?: boolean;
@@ -238,6 +238,8 @@ export interface GameState {
     at?: number;
   } | null;
   passages: Passage[];
+  /** Digital board: the blue circle square each guest started on, so "send everyone home" puts them back on their own. */
+  spawns?: Record<string, { x: number; y: number }>;
   skipIds: string[];
   notesLock: Record<string, number>;
   /** Speed Boost: this player's rolls are tripled. `turns` counts the turns left, this one included. */
