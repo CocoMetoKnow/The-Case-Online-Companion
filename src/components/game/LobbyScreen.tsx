@@ -22,6 +22,7 @@ export function LobbyScreen() {
   const setJoinCode = useGame((s) => s.setJoinCode);
   const joinOnline = useGame((s) => s.joinOnline);
   const setClassicNames = useGame((s) => s.setClassicNames);
+  const setBoardMode = useGame((s) => s.setBoardMode);
   const localPlayerId = useGame((s) => s.localPlayerId);
   const [guest, setGuest] = useState("");
   const [link, setLink] = useState("");
@@ -138,7 +139,13 @@ export function LobbyScreen() {
         <HouseRules state={state} />
 
         {seated ? (
-          <ClueCodeField className="mt-4" active={classic} onToggle={() => setClassicNames(!classic)} />
+          <ClueCodeField
+            className="mt-4"
+            active={classic}
+            onToggle={() => setClassicNames(!classic)}
+            boardActive={state.settings.table === "board"}
+            onToggleBoard={host ? () => setBoardMode(state.settings.table !== "board") : undefined}
+          />
         ) : null}
 
         <ul className="mt-6 max-h-[50vh] space-y-2 overflow-y-auto">

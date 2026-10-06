@@ -6,6 +6,7 @@ import {
   addPlayer,
   setAvatar as applyAvatar,
   setClassicNames as applyClassicNamesToTable,
+  setBoardMode as applyBoardMode,
   canAsk,
   repeatBlocked,
   accuseOpen,
@@ -128,12 +129,19 @@ interface GameStore {
   journalOpen: boolean;
   setJournalOpen: (open: boolean) => void;
   /** Digital board: which of the two game screens is showing. The journal opens over either one. */
-  screen: "board" | "cards";
-  setScreen: (screen: "board" | "cards") => void;
+  screen: "board" | "cards" | "chat";
+  setScreen: (screen: "board" | "cards" | "chat") => void;
+  /** In-game chat: send a message to the table. */
+  sendChat: (text: string) => void;
+  /** Time of the newest chat message this player has seen on the Chat tab. Anything newer shows as unread. */
+  chatSeen: number;
+  markChatSeen: (at: number) => void;
   /** "Pick Your Character". Sets a seat's profile picture to a suspect card's art. */
   setAvatar: (playerId: string, cardId: string) => void;
   /** The "clue" easter egg: show the original Clue names to everyone at the table. */
   setClassicNames: (on: boolean) => void;
+  /** Lobby only, host only: the "DB" code. Turns the digital board on or off for the table. */
+  setBoardMode: (on: boolean) => boolean;
   /** Cards just handed to this phone because a player left the table. Shown once, until the player taps "Got it". */
   cardsReceived: { fromNames: string[]; cardIds: string[]; at: number } | null;
   dismissReceived: () => void;
@@ -180,7 +188,7 @@ function sendOnline(get: () => { state: GameState | null }, intent: OnlineIntent
   const { state } = get();
   if (!state || state.settings.playMode !== "online") return false;
   if (!onlineSend) return false;
-  if (intent.kind === "name" || intent.kind === "suggesting" || intent.kind === "avatar" || intent.kind === "classic") {
+  if (intent.kind === "name" || intent.kind === "suggesting" || intent.kind === "avatar" || intent.kind === "classic" || intent.kind === "board" || intent.kind === "chat") {
     onlineSend(intent);
     return true;
   }
@@ -860,6 +868,15 @@ export const useGame = create<GameStore>((set, get) => ({
   setJournalOpen: (journalOpen) => set({ journalOpen }),
   screen: "board",
   setScreen: (screen) => set({ screen }),
+  chatSeen: Date.now(),
+  markChatSeen: (at) => {
+    if (at > get().chatSeen) set({ chatSeen: at });
+  },
+  sendChat: (text) => {
+    const clean = text.trim();
+    if (!clean) return;
+    play(get, set, "chat", { text: clean, id: `chat_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` });
+  },
   setAvatar: (playerId, cardId) => {
     const { state, localPlayerId } = get();
     if (!state) return;
@@ -880,6 +897,34 @@ export const useGame = create<GameStore>((set, get) => ({
     if (next === state) return;
     set({ state: next });
     persist(get);
+  },
+  setBoardMode: (on) => {
+    const { state, localPlayerId, setup } = get();
+    if (!state || state.phase !== "lobby" || state.startedAt || localPlayerId !== state.hostId) return false;
+    if (on && state.players.length > BOARD_MAX_PLAYERS) return false;
+    const draft: SetupDraft = {
+      ...setup,
+      settings: { ...setup.settings, table: on ? "board" : "case", classicNames: Boolean(state.settings.classicNames) },
+    };
+    const cards = tableCards(draft);
+    const rooms = cards.filter((c) => c.category === "room").map((c) => c.id);
+    const hard = on ? BOARD_MAX_PLAYERS : 15;
+    const settings: GameSettings = {
+      ...state.settings,
+      table: on ? "board" : "case",
+      enabledRoomIds: rooms,
+      maxPlayers: Math.max(state.players.length, 2, Math.min(hard, state.settings.maxPlayers || hard)),
+      ...(on ? { hiddenRooms: draft.settings.hiddenRooms, noRepeatRoom: draft.settings.noRepeatRoom, boardPassages: draft.settings.boardPassages } : {}),
+    };
+    Object.assign(settings, boardSetup(settings, rooms));
+    saveBoardPrefs({ on, hiddenRooms: settings.hiddenRooms, noRepeatRoom: settings.noRepeatRoom, boardPassages: settings.boardPassages });
+    set({ setup: { ...setup, settings: { ...setup.settings, table: on ? "board" : "case" } } });
+    if (sendOnline(get, { kind: "board", payload: { settings, cards } })) return true;
+    const next = applyBoardMode(state, localPlayerId, { settings, cards });
+    if (next === state) return false;
+    set({ state: next });
+    persist(get);
+    return true;
   },
   hostTable: () => {
     unlockAudio();

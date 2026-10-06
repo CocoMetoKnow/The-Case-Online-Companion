@@ -125,6 +125,14 @@ export type EventKind =
   | "about-face"
   | "gambler";
 
+export interface ChatMessage {
+  id: string;
+  fromId: string;
+  name: string;
+  text: string;
+  at: number;
+}
+
 export interface EventState {
   deckId: string;
   kind: EventKind;
@@ -265,6 +273,8 @@ export interface GameState {
   autoShowTurn?: boolean;
   /** Set while the table is voting to clear a stuck turn. Removed once it finishes or is cancelled. */
   sync?: { byId: string; agreed: string[] } | null;
+  /** The in-game chat, newest last. Kept short: only the last messages are held. */
+  chat?: ChatMessage[];
   /** Set while a phone has gone quiet. Play waits so they can catch up. */
   wait?: { ids: string[]; since: number } | null;
   /** Cards chosen so far while this player is making their Solve the Case attempt. */

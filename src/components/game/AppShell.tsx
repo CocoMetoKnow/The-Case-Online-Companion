@@ -6,6 +6,8 @@ import { LobbyScreen } from "./LobbyScreen";
 import { Briefcase } from "./Briefcase";
 import { OnlineTable } from "./OnlineTable";
 import { JournalLayer } from "./JournalLayer";
+import { GameDock } from "./GameDock";
+import { ChatBubbles } from "./ChatBubbles";
 import { SuggestionRecap } from "./SuggestionRecap";
 import { CardsReceivedNotice } from "./CardsReceivedNotice";
 import { installUiSounds } from "@/lib/game/sfx";
@@ -70,6 +72,8 @@ export function AppShell() {
       <SuggestionRecap />
       <CardsReceivedNotice />
       <JournalLayer />
+      <GameDock />
+      <ChatBubbles />
     </>
   );
 }

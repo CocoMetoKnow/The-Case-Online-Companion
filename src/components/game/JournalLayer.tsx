@@ -57,7 +57,13 @@ export function JournalLayer() {
           {locked ? <span className="journal-fab-tag">Shut</span> : null}
         </button>
       ) : (
-        <div className="journal-layer flex flex-col" role="dialog" aria-label="Detective journal">
+        <div
+          className="journal-layer flex flex-col"
+          role="dialog"
+          aria-label="Detective journal"
+          // The digital board's bottom bar (Board, Cards, Journal, Chat) stays on top, so the journal stops above it.
+          style={state.settings.table === "board" ? { paddingBottom: "calc(56px + env(safe-area-inset-bottom))" } : undefined}
+        >
           <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-3 py-2">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-3">

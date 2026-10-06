@@ -57,6 +57,10 @@ const BOARD_CSS = `
 .dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:64px;min-height:48px;padding:4px 8px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:10px;font-weight:700;line-height:1.05;text-align:center}
 .dgb-ctl:active:not(:disabled){transform:scale(.95)}
 .dgb-ctl:disabled{opacity:.4}
+.dgb-dock .dgb-ctl{min-width:0;min-height:0;width:38px;height:46px;padding:2px}
+.dgb-dock{max-width:100%;overflow:hidden}
+.dgb-camdone{position:absolute;z-index:14;right:10px;bottom:78px;pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:999px;background:#f6f1e6;color:#1c2430;border:2px solid #1a2b50;font-size:13px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,.6)}
+.dgb-camdone:active{transform:scale(.95)}
 .dgb-passbtn{pointer-events:auto;min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;border-radius:12px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;box-shadow:0 4px 10px rgba(0,0,0,.55);font-size:12px;font-weight:800;line-height:1.1;text-align:left}
 .dgb-passbtn span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dgb-passbtn small{font-size:9px;font-weight:600;opacity:.85;white-space:nowrap}
@@ -397,6 +401,14 @@ export function MansionBoard({
     [],
   );
   /** Put the camera back: centered on the house and zoomed all the way out. The turn is left as it is. */
+  useEffect(() => {
+    if (!camOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCamOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [camOpen]);
   const resetCamera = () => {
     const L = live.current;
     L.px = 0;
@@ -716,6 +728,13 @@ export function MansionBoard({
         <button type="button" className="dgb-recenter" onClick={resetCamera} aria-label="Reset the camera" title="Reset the camera">
           <Crosshair size={16} />
           Reset camera
+        </button>
+      ) : null}
+
+      {camOpen ? (
+        <button type="button" className="dgb-camdone" onClick={() => setCamOpen(false)} aria-label="Close camera controls">
+          <X size={16} />
+          Done
         </button>
       ) : null}
 

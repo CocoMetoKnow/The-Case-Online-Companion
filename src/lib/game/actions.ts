@@ -13,7 +13,9 @@ import {
   releaseQuestion,
   rollDice,
   setAvatar,
+  setBoardMode,
   setClassicNames,
+  sendChat,
   setNaming,
   setSuggesting,
   skipMove,
@@ -23,7 +25,7 @@ import {
 import { resolveEventChoice } from "./events";
 import type { GameState, LastSuggestion, PiecePos, Secrets } from "./types";
 
-export type PlayKind = "roll" | "move" | "stay" | "ask" | "show" | "reply" | "ack" | "accuse" | "done" | "event" | "snake" | "name" | "suggesting" | "sync" | "avatar" | "classic";
+export type PlayKind = "roll" | "move" | "stay" | "ask" | "show" | "reply" | "ack" | "accuse" | "done" | "event" | "snake" | "name" | "suggesting" | "sync" | "avatar" | "classic" | "board" | "chat";
 
 /**
  * One shared rules pass. The room runs this so every phone sees the same result.
@@ -39,7 +41,7 @@ export function applyPlay(
 ): { state: GameState; secrets: Secrets } {
   let result = applyPlayCore(state, secrets, from, kind, payload);
   // Live suggestion picks only last while the asker is choosing. Anything else that happens ends them.
-  if (result.state.suggesting && !["suggesting", "name", "sync", "avatar", "classic"].includes(kind)) {
+  if (result.state.suggesting && !["suggesting", "name", "sync", "avatar", "classic", "board", "chat"].includes(kind)) {
     result = { state: { ...result.state, suggesting: null }, secrets: result.secrets };
   }
   const tracked = trackSuggestion(state, result.state, kind, payload);
@@ -204,6 +206,10 @@ function applyPlayCore(
       return { state: setAvatar(state, from, String(data.playerId ?? ""), String(data.cardId ?? "")), secrets };
     case "classic":
       return { state: setClassicNames(state, from, Boolean(data.on)), secrets };
+    case "chat":
+      return { state: sendChat(state, from, String(data.text ?? ""), typeof data.id === "string" ? data.id : undefined), secrets };
+    case "board":
+      return { state: setBoardMode(state, from, data), secrets };
     case "sync":
       return { state: voteSync(state, from, { agree: Boolean(data.agree), cancel: Boolean(data.cancel) }), secrets };
     default:

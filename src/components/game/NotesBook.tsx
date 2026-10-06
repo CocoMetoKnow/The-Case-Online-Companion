@@ -653,6 +653,7 @@ function SimpleMark({
   const holders = players.filter((p) => row?.[p.id] === "check");
   const ruledOut = players.filter((p) => row?.[p.id] === "x");
   const holder = holders[0];
+  const envelope = asMark(row?.envelope);
   const close = () => {
     setOpen(false);
     setWho(null);
@@ -682,6 +683,10 @@ function SimpleMark({
               <span className="absolute -right-2 -top-2 rounded-full bg-[#1c2430] px-1 text-[10px] leading-4 text-[#f6f1e6]">+{holders.length - 1}</span>
             ) : null}
           </span>
+        ) : envelope === "answer" ? (
+          <span className="font-display text-xl font-bold leading-none text-[#8a5a12]">O</span>
+        ) : envelope === "maybe" ? (
+          <span className="font-display text-xl leading-none text-[#8a6230]">?</span>
         ) : ruledOut.length ? (
           <span className="text-sm font-bold text-[#b42318]">✕{ruledOut.length}</span>
         ) : null}
@@ -712,18 +717,41 @@ function SimpleMark({
             />
           ) : (
             <>
+              <div className="flex justify-center gap-1">
+                {CHOICES.filter((choice) => choice.id === "maybe" || choice.id === "answer").map((choice) => (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    aria-label={choice.name}
+                    title={choice.name}
+                    className={cn(
+                      "grid h-9 min-w-16 place-items-center rounded-full px-3 font-display text-xl leading-none",
+                      choice.id === "maybe" && "text-[#8a6230]",
+                      choice.id === "answer" && "font-bold text-[#8a5a12]",
+                      envelope === choice.id ? "bg-[#1c2430]/15" : "bg-[#1c2430]/5",
+                    )}
+                    onClick={() => {
+                      haptic("mark");
+                      onMarks(card.id, { envelope: envelope === choice.id ? "blank" : choice.id });
+                      close();
+                    }}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+              </div>
               <p className="text-center text-[10px] uppercase tracking-[0.2em] text-[#8a7560]">Who has {card.name}?</p>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {players.map((p) => (
                   <LogoChoice key={p.id} player={p} cards={cards} mark={asMark(row?.[p.id])} onPick={() => setWho(p)} />
                 ))}
               </div>
-              {holders.length || ruledOut.length ? (
+              {holders.length || ruledOut.length || envelope !== "blank" ? (
                 <button
                   type="button"
                   className="text-center text-sm text-[#8a3b3b] underline"
                   onClick={() => {
-                    onMarks(card.id, Object.fromEntries(players.map((p) => [p.id, "blank" as SheetMark])));
+                    onMarks(card.id, { envelope: "blank", ...Object.fromEntries(players.map((p) => [p.id, "blank" as SheetMark])) });
                     close();
                   }}
                 >

@@ -13,28 +13,12 @@ import { MusicToggle } from "./MusicToggle";
 import { DicePair } from "./Dice";
 import { TurnTracker } from "./TurnTracker";
 import { MansionBoard } from "./MansionBoard";
+import { ChatScreen } from "./ChatScreen";
+import { WaitingBanner } from "./WaitingBanner";
+import { DOCK_HEIGHT } from "./GameDock";
 import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
-
-/** The three screens of the digital board: the house, your cards, and the journal (which opens over either). */
-function ScreenNav({ screen, onBoard, onCards, onJournal }: { screen: "board" | "cards"; onBoard: () => void; onCards: () => void; onJournal: () => void }) {
-  const tab = (active: boolean) =>
-    `h-10 flex-1 rounded-[12px] border text-sm font-semibold ${active ? "border-brass bg-raised text-paper" : "border-line text-muted"}`;
-  return (
-    <nav className="mt-1 flex shrink-0 gap-2" aria-label="Screens">
-      <button type="button" className={tab(screen === "board")} aria-current={screen === "board" ? "page" : undefined} onClick={onBoard}>
-        Board
-      </button>
-      <button type="button" className={tab(screen === "cards")} aria-current={screen === "cards" ? "page" : undefined} onClick={onCards}>
-        Cards
-      </button>
-      <button type="button" className={tab(false)} onClick={onJournal}>
-        Journal
-      </button>
-    </nav>
-  );
-}
 
 const BOARD_SCREEN_CSS = `
 .bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:4px;padding:2px 6px max(env(safe-area-inset-bottom),6px)}
@@ -55,6 +39,13 @@ function rollWords(state: GameState): { title: string; detail: string } | null {
     title: String(move),
     detail: state.extraDie ? `You can move this many, with the stolen die (${state.extraDie}).` : "You can move this many.",
   };
+}
+
+/** True while a power up is waiting on somebody else (the banner shows who). */
+function WAIT_SHOWN(state: GameState, actor: string): boolean {
+  if (state.phase !== "event" || !state.event || state.settings.playMode !== "online") return false;
+  const ids = blockingPlayerIds(state);
+  return ids.length > 0 && !ids.includes(actor);
 }
 
 function SyncVote() {
@@ -123,7 +114,6 @@ function BriefcaseTable() {
   const folio = useGame((s) => s.journalOpen);
   const screen = useGame((s) => s.screen);
   const setScreen = useGame((s) => s.setScreen);
-  const setJournalOpen = useGame((s) => s.setJournalOpen);
   const [lifted, setLifted] = useState<CardDef | null>(null);
   const [suggest, setSuggest] = useState(false);
   const [accuse, setAccuse] = useState(false);
@@ -456,17 +446,20 @@ function BriefcaseTable() {
       </div>
 
       <section className="bd-hand" style={{ height: "auto" }}>
-        {state.wait && state.phase !== "gameover" ? <CatchUp state={state} selfId={actor} onKick={kick} /> : null}
         {onlinePending ? <p className="shrink-0 text-center text-xs uppercase tracking-[0.14em] text-brass">Sending your move…</p> : null}
-        <ScreenNav screen="board" onBoard={() => setScreen("board")} onCards={() => setScreen("cards")} onJournal={() => setJournalOpen(true)} />
       </section>
     </div>
   );
 
   return (
-    <main className="leather h-dvh overflow-hidden">
+    <main
+      className="leather h-dvh overflow-hidden"
+      style={board ? { paddingBottom: `calc(${DOCK_HEIGHT}px + env(safe-area-inset-bottom))` } : undefined}
+    >
       {board && screen === "board" ? (
         boardUi
+      ) : board && screen === "chat" ? (
+        <ChatScreen />
       ) : (
       <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
         <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
@@ -580,14 +573,26 @@ function BriefcaseTable() {
             </div>
           ) : null}
 
-          {state.wait && state.phase !== "gameover" ? <CatchUp state={state} selfId={actor} onKick={kick} /> : null}
           {onlinePending ? (
             <p className="shrink-0 text-center text-xs uppercase tracking-[0.14em] text-brass">Sending your move…</p>
           ) : null}
-          {board ? <ScreenNav screen="cards" onBoard={() => setScreen("board")} onCards={() => setScreen("cards")} onJournal={() => setJournalOpen(true)} /> : null}
         </section>
       </div>
       )}
+
+      {state.phase !== "gameover" && (WAIT_SHOWN(state, actor) || (state.wait && state.wait.ids.some((id) => id !== actor))) ? (
+        <div
+          className="pointer-events-none fixed inset-x-0 flex flex-col items-center gap-2 px-3"
+          style={{ zIndex: 99990, top: "calc(env(safe-area-inset-top) + 4px)" }}
+        >
+          <WaitingBanner />
+          {state.wait ? (
+            <div className="pointer-events-auto w-full max-w-sm shadow-[0_8px_20px_rgba(0,0,0,0.5)]">
+              <CatchUp state={state} selfId={actor} onKick={kick} />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <QuestionResolve
         facesDown={facesDown}

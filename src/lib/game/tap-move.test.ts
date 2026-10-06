@@ -34,15 +34,33 @@ function state(budget: number, from: PiecePos): GameState {
 const start: PiecePos = { kind: "hall", ...DEFAULT_LAYOUT.starts[0] };
 
 
-test("one tap walks to any hall square the roll can reach, and the move ends there", () => {
+test("one tap walks to any hall square the roll can reach and only costs the steps it took", () => {
   const s = state(10, start);
   const { nodes } = reachable(start, 10, ROOMS, [], new Set([`${BEA.x},${BEA.y}`]), DEFAULT_LAYOUT);
   const far = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 6);
   assert.ok(far, "a square six steps away exists");
   const next = applyMove(s, "ada", far!.pos);
   assert.deepEqual(next.players[0].position, far!.pos);
+  assert.equal(next.phase, "move");
+  assert.equal(next.moveBudget, 10 - far!.dist);
+});
+
+test("a hall square exactly as far as the roll ends the move", () => {
+  const { nodes } = reachable(start, 10, ROOMS, [], new Set([`${BEA.x},${BEA.y}`]), DEFAULT_LAYOUT);
+  const far = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 6);
+  assert.ok(far);
+  const next = applyMove(state(6, start), "ada", far!.pos);
   assert.equal(next.phase, "action");
   assert.equal(next.moveBudget, 0);
+});
+
+test("two steps away costs two steps, not the whole roll", () => {
+  const { nodes } = reachable(start, 10, ROOMS, [], new Set([`${BEA.x},${BEA.y}`]), DEFAULT_LAYOUT);
+  const near = [...nodes.values()].find((n) => n.pos.kind === "hall" && n.dist === 2);
+  assert.ok(near);
+  const next = applyMove(state(9, start), "ada", near!.pos);
+  assert.equal(next.moveBudget, 7);
+  assert.equal(next.phase, "move");
 });
 
 test("a square past the roll is refused", () => {

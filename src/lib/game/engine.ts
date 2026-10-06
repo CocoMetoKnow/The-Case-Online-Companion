@@ -171,6 +171,30 @@ export function setClassicNames(state, from, on) {
 		cards: applyClassicNames(state.cards, next)
 	};
 }
+/** The "DB" code in the lobby. Only the host can flip it. The host's phone builds the matching deck and settings. */
+export function setBoardMode(state, from, data) {
+	if (!state?.players || state.startedAt || state.phase !== "lobby") return state;
+	if (from !== state.hostId) return state;
+	if (!Array.isArray(data?.cards) || !data.settings) return state;
+	if (data.settings.table === "board" && state.players.length > data.settings.maxPlayers) return state;
+	return {
+		...state,
+		settings: { ...state.settings, ...data.settings },
+		cards: data.cards
+	};
+}
+export const CHAT_KEEP = 60;
+export const CHAT_MAX_LENGTH = 240;
+/** The in-game chat. Any seated guest (even one who is out of the case) can talk at any time. It never touches the turn. */
+export function sendChat(state, from, text, id = uid("chat")) {
+	if (!state?.players || !state.startedAt) return state;
+	const player = state.players.find((p) => p.id === from);
+	if (!player) return state;
+	const clean = String(text ?? "").replace(/\s+/g, " ").trim().slice(0, CHAT_MAX_LENGTH);
+	if (!clean) return state;
+	const message = { id, fromId: from, name: player.name, text: clean, at: Date.now() };
+	return { ...state, chat: [...(state.chat ?? []), message].slice(-CHAT_KEEP) };
+}
 function log(state, text) {
 	return {
 		...state,
@@ -603,10 +627,10 @@ export function applyMove(state: GameState, playerId: string, dest: PiecePos): G
 	// Choosing where to stand is the whole move, so a tap that lands in the corridor ends it too.
 	const toRoomLabel = toRoom ? roomLabel(state, toRoom, layoutFor(state.settings)) : "";
 	const text = fromRoom && toRoom && fromRoom !== toRoom ? `${player.name} takes the passage into the ${toRoomLabel}.` : entered ? `${player.name} steps into the ${toRoomLabel}.` : `${player.name} stops in the corridor.`;
-	// Walking into a room does not end the move on the digital board: any steps left over can be spent leaving by a
-	// door or going through a secret passage. A tap that lands in the corridor still ends it.
+	// On the digital board a tap only costs the steps it actually took. Whatever is left over can be walked later, out of
+	// a room by a door, through a secret passage, or on along the corridor, until the player taps Stay here.
 	const left = Math.max(0, (state.moveBudget ?? 0) - node.dist);
-	const keepGoing = entered && left > 0 && state.settings?.table === "board";
+	const keepGoing = left > 0 && state.settings?.table === "board";
 	return log({
 		...moved,
 		phase: keepGoing ? "move" : "action",
