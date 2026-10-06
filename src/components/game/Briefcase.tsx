@@ -373,7 +373,7 @@ function BriefcaseTable() {
           ? "Your turn"
           : `${cur?.name ?? "Someone"}'s turn`;
   const inARoom = state.players.find((p) => p.id === actor)?.position.kind === "room";
-  const canMoveMenu = myTurn && (state.phase === "action" || (state.phase === "move" && (canAsk(state, actor) || inARoom)));
+  const canMoveMenu = myTurn && (state.phase === "action" || (state.phase === "move" && (canAsk(state, actor) || (inARoom && !repeatBlocked(state, actor)))));
 
   // Digital board: the house fills the screen. The turn info sits above it and the hand below it (beside it when
   // the phone is on its side). Every prompt (roll, powers, questions, the journal) still opens over the top.
