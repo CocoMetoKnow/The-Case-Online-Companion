@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { canAsk, repeatBlocked, currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
+import { accuseOpen, canAsk, repeatBlocked, currentPlayer, turnActorId, useActorId, useGame, useMyHand } from "@/lib/game/store";
 import { movementTotal, blockingPlayerIds } from "@/lib/game/engine";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
@@ -196,7 +196,7 @@ function BriefcaseTable() {
     // On the digital board a guest standing in a room may suggest while steps are still left, so the move phase counts too.
     const mayAct = state.phase === "action" || (state.phase === "move" && state.settings.table === "board");
     if (state.phase === "question" || !mayAct || !mine) setSuggest(false);
-    if (state.phase !== "action" || !mine) setAccuse(false);
+    if (!accuseOpen(state) || !mine) setAccuse(false);
     if (!mayAct || !mine) setMovesOpen(false);
     if (state.phase === "question" || state.phase === "event" || state.phase === "roll") setLifted(null);
   }, [state, actor]);
@@ -372,7 +372,8 @@ function BriefcaseTable() {
         : myTurn
           ? "Your turn"
           : `${cur?.name ?? "Someone"}'s turn`;
-  const canMoveMenu = myTurn && (state.phase === "action" || (state.phase === "move" && canAsk(state, actor)));
+  const inARoom = state.players.find((p) => p.id === actor)?.position.kind === "room";
+  const canMoveMenu = myTurn && (state.phase === "action" || (state.phase === "move" && (canAsk(state, actor) || inARoom)));
 
   // Digital board: the house fills the screen. The turn info sits above it and the hand below it (beside it when
   // the phone is on its side). Every prompt (roll, powers, questions, the journal) still opens over the top.
@@ -620,7 +621,7 @@ function BriefcaseTable() {
                   You already made a suggestion in this room. Leave and go to a different room to suggest again.
                 </p>
               ) : null}
-              {state.phase === "action" && (state.actionsLeft ?? 1) > 0 && !influenced ? (
+              {accuseOpen(state) && (state.actionsLeft ?? 1) > 0 && !influenced ? (
                 <Button
                   size="lg"
                   variant="outline"

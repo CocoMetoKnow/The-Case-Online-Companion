@@ -16,6 +16,7 @@ import { Camera, Crosshair, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from "luci
 import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
+import { HOUSE_H } from "@/lib/game/house-data";
 
 /**
  * The digital board: the painted house, one fixed floor plan. The marble squares in the picture are the squares
@@ -25,7 +26,7 @@ import { charCutout } from "@/lib/game/scene-art";
  * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow, so they read as
  * 3D while standing perfectly upright. The whole house starts scaled to fit the space it is given. It never zooms or turns by
  * pinching or dragging: one camera button in the middle of the bottom bar opens a flat control strip: a thumb stick in
- * the middle that moves the view, turn left and right, and zoom. A Recenter button shows up only after the view has been moved. The house is always drawn flat, top down, at every angle, and it
+ * the middle that moves the view, turn left and right, and zoom. A Reset camera button (center and zoom all the way out) shows up whenever the camera is off its default view. The house is always drawn flat, top down, at every angle, and it
  * is fitted between the top bar and the bottom bar so the hidden rooms on the lawn are never covered. To move, tap anywhere near a lit square. Any square the roll can reach is a
  * destination, and a tap that lands close to one snaps to it. After walking into a room the steps left over can still
  * be used, by a door or by a secret passage, and the passage buttons at the bottom of the board say where each goes.
@@ -36,11 +37,14 @@ const BOARD_CSS = `
  box-shadow:inset 0 0 0 1px var(--j-ring,#9db4e640),0 8px 24px rgba(0,0,0,.45)}
 .dgb-view{position:absolute;inset:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .dgb-world{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .32s ease}
+.dgb-world.live{transition:none!important;will-change:transform}
 .dgb-upright{transition:transform .32s ease}
 .dgb-tile{position:absolute;z-index:3;pointer-events:none;border-radius:4px;background:color-mix(in srgb,var(--tint) 80%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint) 55%,#000),0 0 9px color-mix(in srgb,var(--tint) 70%,transparent)}
-.dgb-dock{pointer-events:auto;grid-column:1/-1;grid-row:1;height:64px;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 8px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 4px 14px rgba(0,0,0,.6);color:#1c2430}
-.dgb-side{display:flex;align-items:center;gap:6px}
-.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:46px;height:48px;padding:2px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:9px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-dock{pointer-events:auto;touch-action:none;grid-column:1/-1;grid-row:1;height:64px;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:0 6px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 4px 14px rgba(0,0,0,.6);color:#1c2430}
+.dgb-side{display:flex;align-items:center;gap:5px}
+.dgb-ctl{pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:40px;height:46px;padding:2px;border-radius:10px;background:#fff;color:#1c2430;border:1px solid #c4b396;font-size:9px;font-weight:700;line-height:1.05;text-align:center}
+.dgb-ctl.reset{background:#2a1e0c;color:#fbe9b4;border-color:#f0cf7a}
+.dgb-ctl.reset:disabled{background:#d8d0bd;color:#7a715f;border-color:#c4b396}
 .dgb-stick{position:relative;flex:none;width:62px;height:62px;border-radius:50%;background:radial-gradient(#e9dfc8,#c9b999);border:2px solid #9b8760;touch-action:none;-webkit-user-select:none;user-select:none}
 .dgb-knob{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;background:#2a1e0c;border:2px solid #f0cf7a;box-shadow:0 2px 5px rgba(0,0,0,.6)}
 .dgb-recenter{position:absolute;z-index:13;left:50%;bottom:76px;transform:translateX(-50%);pointer-events:auto;display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:#2a1e0c;color:#fbe9b4;border:2px solid #f0cf7a;font-size:12px;font-weight:800;box-shadow:0 4px 10px rgba(0,0,0,.55)}
@@ -113,10 +117,10 @@ const ZOOMS = [1, 1.5, 2.2, 3.2];
 const COS = [1, 0, -1, 0];
 const SIN = [0, 1, 0, -1];
 
-/** Where the hidden rooms are kept: two small plaques on the lawn below the house. Not part of the map. */
+/** Where the hidden rooms are kept: two small plaques on the lawn below the house, kept the same distance from the bottom edge of the picture. Not part of the map. */
 const POCKETS: Rect[] = [
-  { x: 70, y: 1950, w: 580, h: 180 },
-  { x: 1096, y: 1950, w: 580, h: 180 },
+  { x: 70, y: HOUSE_H - 218, w: 580, h: 180 },
+  { x: 1096, y: HOUSE_H - 218, w: 580, h: 180 },
 ];
 
 /** Seat order for guests who have not picked a character. */
@@ -291,18 +295,68 @@ export function MansionBoard({
   const offX = size.w / 2 + pan.x - scale * rotX(focus.x, focus.y);
   const offY = midY + pan.y - scale * rotY(focus.x, focus.y);
 
+  baseRef.current = { x: offX - pan.x, y: offY - pan.y };
+  tailRef.current = `rotate(${turns * 90}deg) scale(${scale})`;
+  limRef.current = (Math.max(worldW, worldH) * scale) / 2;
+
   const zoomTo = (next: number) => {
     const at = clamp(next, 0, ZOOMS.length - 1);
     setZoomAt(at);
     if (at === 0) setPan({ x: 0, y: 0 });
   };
-  // Thumb stick: while it is held away from the middle the view glides that way. Screen directions, whatever the turn.
+  // Thumb stick. While it is held the house is moved straight on the screen (no React re-render and no CSS
+  // transition per frame, which is what made the whole board shake), with the speed eased in and out. The new
+  // position is committed to state once the stick has come to rest.
   const stickVec = useRef({ x: 0, y: 0 });
   const stickBox = useRef<{ x: number; y: number } | null>(null);
-  const panLimit = useRef(0);
-  panLimit.current = (Math.max(worldW, worldH) * scale) / 2;
-  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const live = useRef({ active: false, raf: 0, last: 0, vx: 0, vy: 0, px: 0, py: 0 });
+  const baseRef = useRef({ x: 0, y: 0 });
+  const tailRef = useRef("");
+  const limRef = useRef(0);
+  const knobEl = useRef<HTMLSpanElement>(null);
+  const moveKnob = (x: number, y: number) => {
+    if (knobEl.current) knobEl.current.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  const [dragging, setDragging] = useState(false);
   const STICK_R = 20;
+  const MAX_SPEED = 520; // screen pixels per second at full push
+  const applyLive = () => {
+    const L = live.current;
+    if (world.current) world.current.style.transform = `translate(${baseRef.current.x + L.px}px, ${baseRef.current.y + L.py}px) ${tailRef.current}`;
+  };
+  const runStick = () => {
+    const L = live.current;
+    if (L.raf) return;
+    L.last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - L.last) / 1000);
+      L.last = now;
+      const v = stickVec.current;
+      const mag = Math.hypot(v.x, v.y);
+      const speed = mag > 0.12 ? MAX_SPEED * Math.pow((mag - 0.12) / 0.88, 1.6) : 0;
+      const tx = mag > 0 ? (v.x / mag) * speed : 0;
+      const ty = mag > 0 ? (v.y / mag) * speed : 0;
+      const k = 1 - Math.exp(-dt * 9);
+      L.vx += (tx - L.vx) * k;
+      L.vy += (ty - L.vy) * k;
+      const lim = limRef.current;
+      // Pushing the stick right moves the camera right, so the house slides left.
+      L.px = clamp(L.px - L.vx * dt, -lim, lim);
+      L.py = clamp(L.py - L.vy * dt, -lim, lim);
+      applyLive();
+      if (!L.active && Math.hypot(L.vx, L.vy) < 6) {
+        L.raf = 0;
+        L.vx = 0;
+        L.vy = 0;
+        world.current?.classList.remove("live");
+        setPan({ x: L.px, y: L.py });
+        setDragging(false);
+        return;
+      }
+      L.raf = window.requestAnimationFrame(tick);
+    };
+    L.raf = window.requestAnimationFrame(tick);
+  };
   const stickTo = (clientX: number, clientY: number) => {
     const c = stickBox.current;
     if (!c) return;
@@ -310,38 +364,48 @@ export function MansionBoard({
     const dy = clientY - c.y;
     const d = Math.hypot(dx, dy);
     const k = d > STICK_R ? STICK_R / d : 1;
-    setKnob({ x: dx * k, y: dy * k });
+    moveKnob(dx * k, dy * k);
     stickVec.current = { x: (dx * k) / STICK_R, y: (dy * k) / STICK_R };
   };
   const stickDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     stickBox.current = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
     e.currentTarget.setPointerCapture(e.pointerId);
+    const L = live.current;
+    L.active = true;
+    if (!L.raf) {
+      L.px = pan.x;
+      L.py = pan.y;
+    }
+    world.current?.classList.add("live");
+    setDragging(true);
     stickTo(e.clientX, e.clientY);
+    runStick();
   };
   const stickUp = () => {
     stickBox.current = null;
     stickVec.current = { x: 0, y: 0 };
-    setKnob({ x: 0, y: 0 });
+    live.current.active = false;
+    moveKnob(0, 0);
   };
-  useEffect(() => {
-    if (!camOpen) return;
-    let raf = 0;
-    const tick = () => {
-      const v = stickVec.current;
-      const mag = Math.hypot(v.x, v.y);
-      if (mag > 0.08) {
-        const speed = 10 * mag * mag;
-        const lim = panLimit.current;
-        // Pushing the stick right moves the camera right, so the house slides left.
-        setPan((p) => ({ x: clamp(p.x - (v.x / mag) * speed, -lim, lim), y: clamp(p.y - (v.y / mag) * speed, -lim, lim) }));
-      }
-      raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [camOpen]);
-  const moved = Math.abs(pan.x) > 2 || Math.abs(pan.y) > 2;
+  useEffect(
+    () => () => {
+      window.cancelAnimationFrame(live.current.raf);
+    },
+    [],
+  );
+  /** Put the camera back: centered on the house and zoomed all the way out. The turn is left as it is. */
+  const resetCamera = () => {
+    const L = live.current;
+    L.px = 0;
+    L.py = 0;
+    L.vx = 0;
+    L.vy = 0;
+    setPan({ x: 0, y: 0 });
+    setZoomAt(0);
+  };
+  const showReset = zoomed || dragging || Math.abs(pan.x) > 2 || Math.abs(pan.y) > 2;
   const labelPx = clamp(10.5, 9, 14) * inv;
   const pieceH = clamp(TILE * scale * 1.7, 30, 84) * inv;
   const pieceBaseW = pieceH * 0.4;
@@ -647,10 +711,10 @@ export function MansionBoard({
         ) : null}
       </div>
 
-      {moved ? (
-        <button type="button" className="dgb-recenter" onClick={() => setPan({ x: 0, y: 0 })} aria-label="Recenter the view" title="Recenter the view">
+      {showReset && !camOpen ? (
+        <button type="button" className="dgb-recenter" onClick={resetCamera} aria-label="Reset the camera" title="Reset the camera">
           <Crosshair size={16} />
-          Recenter
+          Reset camera
         </button>
       ) : null}
 
@@ -660,11 +724,11 @@ export function MansionBoard({
             <div className="dgb-side">
               <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
                 <RotateCcw size={18} />
-                Turn left
+                Left
               </button>
-              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
-                <ZoomOut size={18} />
-                Zoom out
+              <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
+                <RotateCw size={18} />
+                Right
               </button>
             </div>
             <div
@@ -676,16 +740,20 @@ export function MansionBoard({
               onPointerUp={stickUp}
               onPointerCancel={stickUp}
             >
-              <span className="dgb-knob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+              <span ref={knobEl} className="dgb-knob" />
             </div>
             <div className="dgb-side">
+              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
+                <ZoomOut size={18} />
+                Out
+              </button>
               <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
                 <ZoomIn size={18} />
-                Zoom in
+                In
               </button>
-              <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n + 1)} aria-label="Turn the house right" title="Turn the house right">
-                <RotateCw size={18} />
-                Turn right
+              <button type="button" className="dgb-ctl reset" onClick={resetCamera} disabled={!showReset} aria-label="Reset the camera: center and zoom all the way out" title="Reset the camera">
+                <Crosshair size={18} />
+                Reset
               </button>
               <button type="button" className="dgb-ctl" onClick={() => setCamOpen(false)} aria-label="Close camera controls" title="Close camera controls">
                 <X size={18} />

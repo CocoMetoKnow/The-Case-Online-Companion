@@ -1390,7 +1390,7 @@ export function setNaming(state: GameState, playerId: string, pick): GameState {
 			naming: null
 		};
 	}
-	if (state.phase !== "action") return state;
+	if (!accuseOpen(state)) return state;
 	if ((state.actionsLeft ?? 1) <= 0) return state;
 	const cur = currentPlayer(state);
 	if (cur && (state.influences ?? []).some((item) => item.victimId === cur.id)) return state;
@@ -1435,9 +1435,13 @@ export function setSuggesting(state: GameState, playerId: string, pick: { suspec
 	if (prev && prev.playerId === next.playerId && prev.suspectId === next.suspectId && prev.roomId === next.roomId && prev.weaponId === next.weaponId && prev.timeId === next.timeId) return state;
 	return { ...state, suggesting: next };
 }
+/** Solve the Case is open in the action phase, and on the digital board also while a guest still has steps left to walk (for example from inside a room). */
+export function accuseOpen(state: GameState): boolean {
+	return state.phase === "action" || (state.phase === "move" && state.settings?.table === "board");
+}
 export function makeAccusation(state: GameState, playerId: string, pick, secrets: Secrets): { state: GameState; secrets: Secrets } {
 	const held = { state, secrets };
-	if (state.phase !== "action") return held;
+	if (!accuseOpen(state)) return held;
 	if ((state.actionsLeft ?? 1) <= 0) return held;
 	const cur = currentPlayer(state);
 	if (cur && (state.influences ?? []).some((i) => i.victimId === cur.id)) return held;

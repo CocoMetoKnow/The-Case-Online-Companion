@@ -1,6 +1,6 @@
 import { cardsByCategory } from "@/lib/game/cards";
 import { sfxSolveStart } from "@/lib/game/sfx";
-import { canAsk, currentPlayer, turnActorId, useActorId, useGame, useMyHand, useMyNotes } from "@/lib/game/store";
+import { accuseOpen, canAsk, currentPlayer, turnActorId, useActorId, useGame, useMyHand, useMyNotes } from "@/lib/game/store";
 import type { CardDef, CategoryId, GameState, PlayerNotes, SheetMark } from "@/lib/game/types";
 import { Button } from "@/components/ui/button";
 import { CardFace } from "./CardFace";
@@ -686,7 +686,7 @@ export function AccusationPanel({ startOpen = false, fit = false }: { startOpen?
   const cur = currentPlayer(state);
   if (cur?.id !== actor && turnActorId(state) !== actor) return null;
   if ((state.influences ?? []).some((i) => i.victimId === cur?.id)) return null;
-  if (state.phase !== "action") return null;
+  if (!accuseOpen(state)) return null;
   const steps: CategoryId[] = state.settings.timeOfDayEnabled
     ? ["suspect", "weapon", "room", "time"]
     : ["suspect", "weapon", "room"];

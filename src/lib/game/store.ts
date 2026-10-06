@@ -8,6 +8,7 @@ import {
   setClassicNames as applyClassicNamesToTable,
   canAsk,
   repeatBlocked,
+  accuseOpen,
   createLobby,
   currentPlayer,
   dealAndStart,
@@ -38,7 +39,7 @@ import { NPC_ID, SAVE_VERSION } from "@/lib/game/types";
 import { BOARD_MAX_PLAYERS, HIDDEN_ROOM_SUGGESTIONS, MAP_ROOM_IDS, hiddenRoomsOf, isLegalPos, layoutFor, resolvePassages } from "@/lib/game/board";
 import { uid } from "@/lib/utils";
 
-export { canAsk, repeatBlocked, currentPlayer, turnActorId };
+export { canAsk, repeatBlocked, accuseOpen, currentPlayer, turnActorId };
 export type { GameState };
 
 export type OnlineIntent = { kind: string; payload?: Record<string, unknown> };
