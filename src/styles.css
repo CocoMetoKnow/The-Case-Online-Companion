@@ -564,33 +564,51 @@ html[data-extra-visuals] .roll-stage .case-shell{background:color-mix(in srgb,va
    Phone (iPhone) is the base design. iPad widens it. A PC (mouse + wide window) gets a different layout.
    ===================================================================================================== */
 
-/* The Board / Cards / Journal / Chat bar. Phone + iPad: along the bottom. */
-.game-dock{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);display:flex;gap:8px;height:calc(var(--dock-h) + var(--safe-bottom));padding:6px max(8px,var(--safe-right)) max(var(--safe-bottom),6px) max(8px,var(--safe-left));border-top:1px solid var(--color-line);background:#140e0bf5;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-.game-dock-tab{position:relative;flex:1;min-width:0;height:44px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;border:1px solid var(--color-line);background:#140e0b;color:var(--color-muted);font-size:14px;font-weight:600;line-height:1}
+/* The Board / Cards / Journal / Chat menu.
+   Phone + iPad: ONE round journal button in a slim strip along the bottom. Tapping it fans Board, Cards, Journal and Chat
+   out in a half circle above it; tapping it again (or anywhere else) folds them away. With the journal open, the button
+   closes it in a single tap. PC: a slim rail down the left edge (further below). */
+:root{--dock-h:52px}
+.game-dock{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);height:calc(var(--dock-h) + var(--safe-bottom));pointer-events:none}
+.dock-scrim{position:fixed;inset:0;z-index:-1;border:0;background:#0000008c;opacity:0;pointer-events:none;transition:opacity .2s ease}
+.game-dock.open .dock-scrim{opacity:1;pointer-events:auto}
+.dock-main{pointer-events:auto;position:absolute;left:50%;bottom:calc(var(--safe-bottom) + 4px);transform:translateX(-50%);width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(#f6f1e6,#e2d6bb);color:#1c2430;border:3px solid var(--color-brass);box-shadow:0 6px 16px #000a,0 0 0 4px #140e0bd9;transition:transform .18s ease}
+.dock-main:active{transform:translateX(-50%) scale(.94)}
+.dock-main.on{background:linear-gradient(#2a1e0c,#140e0b);color:#fbe9b4}
+.dock-main svg{width:28px;height:28px}
+.dock-items{position:absolute;left:50%;bottom:calc(var(--safe-bottom) + 35px);width:0;height:0}
+.game-dock-tab{pointer-events:none;position:absolute;left:0;bottom:0;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:2px solid var(--color-line);background:#140e0bf2;color:var(--color-muted);font-size:10px;font-weight:700;line-height:1;opacity:0;transform:translate(0,0) scale(.3);transition:transform .22s cubic-bezier(.2,.9,.3,1.2),opacity .16s ease}
+.game-dock.open .game-dock-tab{pointer-events:auto;opacity:1;transform:translate(var(--dx),var(--dy)) scale(1)}
+.game-dock-tab.big{width:68px;height:68px;margin:-34px 0 0 -34px;font-size:11px}
 .game-dock-tab.on{border-color:var(--color-brass);background:var(--color-raised);color:var(--color-paper)}
-.game-dock-tab:active{transform:scale(.97)}
-.game-dock-icon{display:none;width:20px;height:20px;flex:none}
-.game-dock-badge{position:absolute;right:-2px;top:-6px;display:grid;min-width:20px;place-items:center;border-radius:9999px;background:#ff3b30;padding:0 4px;font-size:11px;font-weight:700;line-height:20px;color:#fff}
-/* A phone turned on its side is short: slim the bar so the board keeps its height. */
+.game-dock-tab:active{filter:brightness(1.25)}
+.game-dock-icon{display:block;width:22px;height:22px;flex:none}
+.game-dock-badge{position:absolute;right:-3px;top:-3px;display:grid;min-width:20px;place-items:center;border-radius:9999px;background:#ff3b30;padding:0 4px;font-size:11px;font-weight:700;line-height:20px;color:#fff}
+.dock-main .game-dock-badge{right:-6px;top:-6px}
+@media (prefers-reduced-motion:reduce){.game-dock-tab{transition:opacity .1s}}
+/* A phone on its side is short: slimmer strip, smaller arc. */
 @media (orientation:landscape) and (max-height:520px){
   :root{--dock-h:44px}
-  .game-dock{padding-top:4px}
-  .game-dock-tab{height:34px;font-size:13px}
+  .dock-main{width:52px;height:52px}
+  .dock-items{bottom:calc(var(--safe-bottom) + 30px)}
 }
-/* iPad: roomier bar, bigger tap targets. */
+/* iPad: bigger button and bigger arc. */
 @media (min-width:700px) and (hover:none){
-  :root{--dock-h:64px}
-  .game-dock{justify-content:center;gap:12px}
-  .game-dock-tab{max-width:200px;height:50px;font-size:16px}
-  .game-dock-icon{display:block}
+  :root{--dock-h:60px}
+  .dock-main{width:72px;height:72px}
+  .game-dock-tab{width:68px;height:68px;margin:-34px 0 0 -34px;font-size:12px}
+  .game-dock-tab.big{width:80px;height:80px;margin:-40px 0 0 -40px}
+  .dock-items{bottom:calc(var(--safe-bottom) + 40px)}
 }
-/* PC (mouse, wide window): the bar becomes a slim rail down the left edge, so the whole height is for the table. */
+/* PC (mouse, wide window): a slim rail down the left edge, so the whole height is for the table. */
 @media (hover:hover) and (pointer:fine) and (min-width:1000px){
   :root{--dock-rail:84px}
   :root[data-dock]{--dock-space:var(--safe-bottom)}
-  .game-dock{right:auto;top:0;bottom:0;width:84px;height:auto;flex-direction:column;justify-content:center;gap:10px;padding:12px 8px;border-top:0;border-right:1px solid var(--color-line)}
-  .game-dock-tab{flex:none;width:100%;height:68px;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.04em}
-  .game-dock-icon{display:block;width:22px;height:22px}
+  .game-dock{right:auto;top:0;bottom:0;width:84px;height:auto;pointer-events:auto;border-right:1px solid var(--color-line);background:#140e0bf5}
+  .dock-main,.dock-scrim{display:none}
+  .dock-items{position:static;width:auto;height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:12px 8px}
+  .game-dock-tab,.game-dock-tab.big{position:relative;pointer-events:auto;opacity:1;transform:none;width:100%;height:68px;margin:0;border-radius:12px;font-size:12px;letter-spacing:.04em;gap:6px}
+  .game-dock.open .game-dock-tab{transform:none}
   .game-dock-tab:hover:not(.on){background:var(--color-raised);color:var(--color-paper)}
   .game-dock-badge{right:6px;top:4px}
 }
