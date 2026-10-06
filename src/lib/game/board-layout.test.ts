@@ -35,11 +35,20 @@ test("every room has doors on the corridor, and every corridor square is connect
 });
 
 test("there are eight start squares, all different, all on the corridor", () => {
-  assert.equal(L.starts.length, BOARD_MAX_PLAYERS);
+  assert.equal(L.starts.length, 8);
   assert.equal(new Set(L.starts.map((s) => k(s.x, s.y))).size, 8);
   for (const s of L.starts) assert.ok(L.hall.has(k(s.x, s.y)));
   const a = shuffledStarts(L, () => 0.3);
   assert.deepEqual(a.map((s) => k(s.x, s.y)).sort(), L.starts.map((s) => k(s.x, s.y)).sort());
+});
+
+test("fifteen guests get fifteen different start squares: the eight plus the extra blue dots", () => {
+  assert.equal(BOARD_MAX_PLAYERS, 15);
+  const all = shuffledStarts(L, () => 0.6, 15);
+  assert.ok(all.length >= 15);
+  assert.equal(new Set(all.map((s) => k(s.x, s.y))).size, all.length);
+  for (const s of all) assert.ok(L.hall.has(k(s.x, s.y)));
+  assert.equal(shuffledStarts(L, () => 0.6, 8).length, 8);
 });
 
 test("a doorway is one step, and entering a room ends the move", () => {

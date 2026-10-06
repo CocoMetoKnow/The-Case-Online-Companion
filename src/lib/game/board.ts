@@ -1,5 +1,5 @@
 import type { GameState, Passage, PiecePos, Player } from "./types";
-import { HOUSE_CENTER, HOUSE_H, HOUSE_LINKS, HOUSE_ROOMS, HOUSE_SPAWNS, HOUSE_TILES, HOUSE_W } from "./house-data";
+import { HOUSE_CENTER, HOUSE_H, HOUSE_LINKS, HOUSE_EXTRA_SPAWNS, HOUSE_ROOMS, HOUSE_SPAWNS, HOUSE_TILES, HOUSE_W } from "./house-data";
 
 /**
  * Digital board. One fixed house, copied from the painted floor plan (public/board/house.jpg): ten rooms that
@@ -55,12 +55,14 @@ export interface BoardLayout {
   doors: Record<string, Cell[]>;
   /** The blue circle squares guests may start on. */
   starts: Cell[];
+  /** More start squares, used together with the ones above when more than eight guests sit down. */
+  extraStarts: Cell[];
   /** A plain corridor square near the middle, for "lost in the hall". */
   center: Cell;
 }
 
-/** Fewest and most guests the digital board seats: one for every blue circle. */
-export const BOARD_MAX_PLAYERS = 8;
+/** Most guests the digital board seats. Eight start on the first blue circles; nine or more also use the extra ones. */
+export const BOARD_MAX_PLAYERS = 15;
 
 const KNOWN_NAMES: Record<string, string> = {
   lounge: "Lounge",
@@ -213,6 +215,7 @@ function buildLayout(hidden: string[]): BoardLayout {
     rooms,
     doors,
     starts: HOUSE_SPAWNS.map((id) => ({ x: TILES[id].x, y: TILES[id].y })),
+    extraStarts: HOUSE_EXTRA_SPAWNS.map((id) => ({ x: TILES[id].x, y: TILES[id].y })),
     center: { x: TILES[HOUSE_CENTER].x, y: TILES[HOUSE_CENTER].y },
   };
   layoutCache.set(key, layout);
@@ -400,7 +403,8 @@ export function hallCells(layout: BoardLayout = DEFAULT_LAYOUT): Cell[] {
   return layout.tiles.map((t) => ({ x: t.x, y: t.y }));
 }
 
-/** A random order of the blue circle squares. Guests take them in turn, so no two start on the same one. */
-export function shuffledStarts(layout: BoardLayout = DEFAULT_LAYOUT, rand: () => number = Math.random): Cell[] {
-  return shuffled(layout.starts, rand);
+/** A random order of the blue circle squares. Guests take them in turn, so no two start on the same one. With more than eight guests the extra blue dots join in. */
+export function shuffledStarts(layout: BoardLayout = DEFAULT_LAYOUT, rand: () => number = Math.random, seats = 0): Cell[] {
+  const pool = seats > layout.starts.length ? [...layout.starts, ...layout.extraStarts] : layout.starts;
+  return shuffled(pool, rand);
 }

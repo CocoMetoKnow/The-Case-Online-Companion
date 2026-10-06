@@ -23,7 +23,7 @@ const SELECT_CLASS = "h-11 w-full rounded-[12px] border border-line bg-raised px
 
 /**
  * Digital board. Turned on by typing the secret code DB. The house is one fixed floor plan with ten rooms that
- * never move, and every guest starts on one of the eight blue circle squares. The host picks which rooms share
+ * never move, and every guest starts on a blue circle square (eight of them, and more once there are over eight guests). The host picks which rooms share
  * the two secret passages, and can send a passage through a hidden room: a room card that is in the game but is not
  * drawn anywhere on the house. Anything left on Auto is filled in when the lobby opens.
  */
@@ -55,7 +55,7 @@ function DigitalBoard() {
         <span>
           <span className="block font-display text-xl leading-tight">Digital board</span>
           <span className="mt-0.5 block text-sm text-muted">
-            A painted house with ten fixed rooms. Up to {BOARD_MAX_PLAYERS} players, each starting on a random blue circle square.
+            A painted house with ten fixed rooms. Up to {BOARD_MAX_PLAYERS} players, each starting on a random blue circle square (extra start squares open up past eight players).
           </span>
         </span>
         <Switch aria-label="Digital board" checked={on} onCheckedChange={(value) => patchSettings({ table: value ? "board" : "case" })} />

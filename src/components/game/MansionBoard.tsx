@@ -123,9 +123,12 @@ const SIN = [0, 1, 0, -1];
 
 /** Where the hidden rooms are kept: two small plaques on the lawn below the house, kept the same distance from the bottom edge of the picture. Not part of the map. */
 const POCKETS: Rect[] = [
-  { x: 70, y: HOUSE_H - 218, w: 580, h: 180 },
-  { x: 1096, y: HOUSE_H - 218, w: 580, h: 180 },
+  { x: 70, y: HOUSE_H - 252, w: 580, h: 216 },
+  { x: 1096, y: HOUSE_H - 252, w: 580, h: 216 },
 ];
+
+/** Top-down pictures of the extra rooms, shown behind the guests standing in them. */
+const ROOM_PLANS = new Set(["observatory", "catacombs", "the-vault", "smugglers-tunnel", "boiler-room"]);
 
 /** Seat order for guests who have not picked a character. */
 const DEFAULT_FIGURES = ["miss-scarlet", "lady-violet", "dr-finch", "chef-marco", "colonel-mustard", "professor-plum", "the-butler", "mrs-peacock", "mr-green", "mrs-white"];
@@ -541,7 +544,8 @@ export function MansionBoard({
     const i = Math.max(0, mates.findIndex((o) => o.id === player.id));
     if (pos.kind === "hall") return { x: base.x + (i % 2 ? 1 : -1) * TILE * 0.18, y: base.y };
     const a = areaOf(layout, pos.roomId);
-    const cols = Math.min(mates.length, 4);
+    const hiddenRoom = Boolean(layout.rooms.find((r) => r.id === (pos as { roomId: string }).roomId)?.hidden);
+    const cols = Math.min(mates.length, hiddenRoom ? 6 : 4);
     const col = i % cols;
     const row = Math.floor(i / cols);
     const gap = Math.min(pieceW * 1.05, ((a?.w ?? 400) * 0.8) / cols);
@@ -608,7 +612,15 @@ export function MansionBoard({
             if (!a) return null;
             const name = roomLabel(state, room.id, layout);
             return (
-              <div key={room.id} className={cn("dgb-pocket", lit(room.id))} style={{ left: a.x, top: a.y, width: a.w, height: a.h }} role="img" aria-label={`Hidden room: ${name}`}>
+              <div key={room.id} className={cn("dgb-pocket", lit(room.id))} style={{
+                  left: a.x,
+                  top: a.y,
+                  width: a.w,
+                  height: a.h,
+                  ...(ROOM_PLANS.has(room.id)
+                    ? { backgroundImage: `linear-gradient(rgba(8,10,14,.5), rgba(8,10,14,.12) 45%, rgba(8,10,14,.25)), url(/rooms/plans/${room.id}.jpg)`, backgroundSize: "cover", backgroundPosition: "50% 50%" }
+                    : null),
+                }} role="img" aria-label={`Hidden room: ${name}`}>
                 <div
                   className="dgb-upright"
                   style={{
@@ -620,14 +632,14 @@ export function MansionBoard({
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    gap: ".25em",
+                    justifyContent: "flex-start",
+                    paddingTop: ".35em",
+                    gap: ".15em",
                     transform: `translate(-50%, -50%) ${upright}`,
                   }}
                 >
                   <span style={{ fontSize: labelPx * 1.1 }}>Hidden room</span>
                   <b style={{ fontSize: labelPx * 1.7 }}>{name}</b>
-                  <span style={{ fontSize: labelPx * 0.9 }}>Only through a secret passage</span>
                 </div>
               </div>
             );

@@ -237,7 +237,7 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		secrets
 	};
 	// The digital board seats everyone on a random blue circle square, one each.
-	const spawnOrder = state.settings?.table === "board" ? shuffledStarts(layoutFor(state.settings)) : layoutFor(state.settings).starts;
+	const spawnOrder = state.settings?.table === "board" ? shuffledStarts(layoutFor(state.settings), Math.random, state.players.length) : layoutFor(state.settings).starts;
 	const players = state.players.map((p, i) => ({
 		...p,
 		seat: i,
