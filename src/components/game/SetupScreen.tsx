@@ -364,7 +364,7 @@ export function SetupScreen() {
   const ready = groups.every((cat) => setup.deck.filter((card) => card.category === cat).length >= MIN_CATEGORY_CARDS) && seatsOk;
 
   return (
-    <main className="leather min-h-dvh px-4 py-6">
+    <main className="screen-pad leather min-h-dvh px-4 py-6">
       <div className="mx-auto max-w-lg">
         <button type="button" className="text-sm text-muted" onClick={() => (lobbyEdit ? cancelLobbyEdit() : setView("landing"))}>
           {lobbyEdit ? "Back to the lobby" : "Close the case"}

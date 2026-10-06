@@ -31,6 +31,17 @@ export function JournalLayer() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
+  const ready = Boolean(state && view === "play" && state.startedAt && state.phase !== "lobby" && !(passGate && state.settings.playMode !== "online"));
+  const floatingTab = ready && state?.settings.table !== "board";
+
+  // UI LAYER: while the floating journal tab is on screen (phone case mode), popups and screens leave room for it.
+  useEffect(() => {
+    if (!floatingTab) return;
+    const root = document.documentElement;
+    root.setAttribute("data-fab", "on");
+    return () => root.removeAttribute("data-fab");
+  }, [floatingTab]);
+
   // Nothing to write in until the cards are dealt.
   if (!state || view !== "play" || !state.startedAt || state.phase === "lobby") return null;
   // One shared phone, mid hand-off: the next guest has not confirmed yet, so the sheet on screen
@@ -61,8 +72,7 @@ export function JournalLayer() {
           className="journal-layer flex flex-col"
           role="dialog"
           aria-label="Detective journal"
-          // The digital board's bottom bar (Board, Cards, Journal, Chat) stays on top, so the journal stops above it.
-          style={state.settings.table === "board" ? { paddingBottom: "calc(56px + env(safe-area-inset-bottom))" } : undefined}
+          // The Board / Cards / Journal / Chat bar stays on top; the journal layer stops above it (see --dock-space).
         >
           <div className="mx-auto flex h-full w-full max-w-5xl flex-col px-3 py-2">
             <div className="mb-2 flex items-center justify-between gap-2">

@@ -44,7 +44,7 @@ export function ChatBubbles() {
   return (
     <div className="chat-bubbles" aria-live="polite">
       <style>{`
-.chat-bubbles{position:fixed;z-index:100001;left:0;right:0;top:calc(env(safe-area-inset-top) + 8px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 12px;pointer-events:none}
+.chat-bubbles{position:fixed;z-index:var(--z-toast);left:var(--dock-rail);right:0;top:calc(env(safe-area-inset-top,0px) + 8px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 12px;pointer-events:none}
 .chat-bubble{pointer-events:auto;position:relative;max-width:min(82vw,320px);padding:8px 14px 9px;border-radius:20px 20px 20px 6px;background:#e9e9eb;color:#111;box-shadow:0 6px 18px rgba(0,0,0,.45);text-align:left;font-size:15px;line-height:1.25;opacity:0;animation:chat-pop ${SHOW_MS}ms ease forwards;touch-action:manipulation}
 .chat-bubble b{display:block;font-size:11px;font-weight:700;color:#6b6b70;margin-bottom:1px}
 .chat-bubble span{display:block;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}

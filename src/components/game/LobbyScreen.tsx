@@ -83,7 +83,7 @@ export function LobbyScreen() {
   }
 
   return (
-    <main className="paper-wash min-h-dvh px-4 py-8 sm:px-8">
+    <main className="screen-pad paper-wash min-h-dvh px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-xl">
         <div className="flex items-center justify-between gap-3">
           <Button variant="outline" onClick={() => setSureLeave(true)}>

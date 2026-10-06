@@ -170,7 +170,8 @@ export function SettingsGear() {
     panel && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[100000] grid place-items-center bg-[#140e0bcc] p-4"
+            className="fixed inset-0 grid place-items-center bg-[#140e0bcc] p-4"
+            style={{ zIndex: "var(--z-settings)" }}
             role="dialog"
             aria-modal="true"
             aria-label="Settings"

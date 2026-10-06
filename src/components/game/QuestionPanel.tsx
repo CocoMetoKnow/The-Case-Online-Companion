@@ -177,7 +177,7 @@ export function QuestionResolve({ facesDown = false, onReveal }: { facesDown?: b
   }
 
   return (
-    <div className="roll-stage" style={{ zIndex: 60 }}>
+    <div className="roll-stage turn-layer">
       <div className="case-shell flex max-h-[92dvh] w-full max-w-sm flex-col overflow-y-auto rounded-[28px] px-4 py-5 text-center">
         <section
           ref={requestedRef}
@@ -538,11 +538,11 @@ function SpokenResolve({ facesDown, onReveal }: { facesDown: boolean; onReveal?:
   return (
     <>
     <div
-      className="roll-stage"
+      className="roll-stage turn-layer"
       style={
         askingMe
-          ? { zIndex: 60, background: "#140e0b73", placeItems: "end center", paddingBottom: "max(12px, env(safe-area-inset-bottom))" }
-          : { zIndex: 60 }
+          ? { background: "#140e0b73", placeItems: "end center", paddingBottom: "calc(var(--dock-space) + 12px)" }
+          : undefined
       }
     >
       <div
@@ -645,8 +645,8 @@ function CardZoomSheet({ card, onClose, onShow }: { card: CardDef; onClose: () =
   }, [onClose]);
   return (
     <div
-      className="fixed inset-0 grid place-items-center overflow-y-auto bg-black/80 p-4"
-      style={{ zIndex: 70, paddingTop: "max(16px, env(safe-area-inset-top))", paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}
+      className="ui-overlay bg-black/80"
+      style={{ zIndex: "calc(var(--z-turn) + 5)" }}
       role="dialog"
       aria-label={card.name}
       onClick={(event) => {

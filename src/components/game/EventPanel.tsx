@@ -60,12 +60,8 @@ export function EventPanel() {
       <button
         type="button"
         className="power-chip"
-        // The digital board's bottom bar stays on top, so the chip sits just above it.
-        style={
-          state.settings.table === "board"
-            ? { bottom: screen === "chat" ? "calc(56px + 68px + max(12px, env(safe-area-inset-bottom)))" : "calc(56px + max(12px, env(safe-area-inset-bottom)))" }
-            : undefined
-        }
+        // The chip sits just above the bar (the CSS uses --dock-space); on the chat screen it also clears the message box.
+        style={screen === "chat" ? { bottom: "calc(var(--dock-space) + 80px)" } : undefined}
         onClick={() => setClosedKey("")}
       >
         <span className="block text-[10px] uppercase tracking-[0.16em] text-brass">{acting ? "Your power-up" : "Power-up in play"}</span>
@@ -76,7 +72,7 @@ export function EventPanel() {
 
   if (ev.step === "board") {
     return (
-      <PowerShell onClose={close} className="wood-panel max-h-[calc(100dvh-32px)] w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
+      <PowerShell onClose={close} className="wood-panel w-full max-w-sm overflow-y-auto rounded-[20px] p-4">
         <SnakeCallout title={ev.title} description={String(ev.data.boardNote ?? description)} />
         <BoardConfirm />
       </PowerShell>
@@ -148,7 +144,7 @@ export function EventPanel() {
     <PowerShell
       onClose={close}
       className={cn(
-        "wood-panel max-h-[calc(100dvh-32px)] w-full overflow-y-auto rounded-[20px]",
+        "wood-panel w-full overflow-y-auto rounded-[20px]",
         pickingCards ? "max-w-md p-3" : "max-w-sm p-4",
       )}
     >
@@ -458,8 +454,8 @@ export function EventPanel() {
 function PowerShell({ onClose, className, children }: { onClose: () => void; className: string; children: ReactNode }) {
   return (
     <div
-      className="roll-stage"
-      style={{ zIndex: 70, overflowY: "auto", WebkitOverflowScrolling: "touch" }}
+      className="roll-stage turn-layer"
+      style={{ overflowY: "auto", WebkitOverflowScrolling: "touch" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

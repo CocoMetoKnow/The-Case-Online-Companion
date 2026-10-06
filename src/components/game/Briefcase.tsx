@@ -15,19 +15,33 @@ import { TurnTracker } from "./TurnTracker";
 import { MansionBoard } from "./MansionBoard";
 import { ChatScreen } from "./ChatScreen";
 import { WaitingBanner } from "./WaitingBanner";
-import { DOCK_HEIGHT } from "./GameDock";
 import { NPC_ID } from "@/lib/game/types";
 import type { CardDef, CategoryId, GameState, Secrets } from "@/lib/game/types";
 import type { Verdict } from "@/lib/game/store";
 
 const BOARD_SCREEN_CSS = `
-.bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:4px;padding:2px 6px max(env(safe-area-inset-bottom),6px)}
-.bd-top{grid-area:top;min-width:0}
+/* UI LAYER. iPhone (portrait) is the base: turn info on top, the board fills the rest. */
+.bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:6px;padding:2px 8px 6px}
+.bd-top{grid-area:top;min-width:0;display:flex;flex-direction:column;gap:2px}
 .bd-board{grid-area:board;min-height:0;min-width:0;position:relative}
-.bd-hand{grid-area:hand;min-width:0;display:flex;flex-direction:column;height:176px}
+.bd-hand{grid-area:hand;min-width:0;display:flex;flex-direction:column}
+.bd-hand:empty{display:none}
+/* iPad held upright: same stack, roomier. */
+@media (min-width:700px) and (orientation:portrait){
+ .bd-screen{max-width:980px;margin:0 auto;gap:10px;padding:6px 16px 10px}
+ .bd-top header p{font-size:1.35rem}
+}
+/* Any screen turned on its side (iPhone, iPad, PC window): the board on the left, turn info beside it. */
 @media (orientation:landscape) and (min-width:640px){
- .bd-screen{grid-template-columns:minmax(0,1fr) min(38vw,320px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"board top" "board hand";column-gap:8px}
- .bd-hand{height:auto;min-height:0}
+ .bd-screen{grid-template-columns:minmax(0,1fr) clamp(250px,34vw,400px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"board top" "board hand";column-gap:10px;padding:2px max(8px,var(--safe-right)) 6px 8px}
+ .bd-top{max-height:100%;overflow-y:auto;overscroll-behavior:contain}
+}
+/* PC: the board gets the room, the turn info becomes a proper side panel. */
+@media (hover:hover) and (pointer:fine) and (min-width:1000px){
+ .bd-screen{grid-template-columns:minmax(0,1fr) clamp(330px,26vw,440px);column-gap:18px;padding:12px 18px 14px 12px}
+ .bd-top{align-self:start;padding:14px 16px;border-radius:20px;border:1px solid color-mix(in srgb,var(--color-brass) 40%,transparent);background:linear-gradient(#2a1c16,#1a100c);box-shadow:0 14px 34px #0007;gap:8px}
+ .bd-top header p{font-size:1.5rem}
+ .bd-board{border-radius:16px}
 }
 `;
 
@@ -61,7 +75,7 @@ function SyncVote() {
   const mine = agreed.has(actor);
   const starter = state.players.find((player) => player.id === vote.byId)?.name ?? "A player";
   return (
-    <div className="roll-stage" style={{ zIndex: 96 }}>
+    <div className="roll-stage turn-layer">
       <div className="case-shell w-full max-w-sm rounded-[28px] px-5 py-6 text-center">
         <p className="text-xs uppercase tracking-[0.18em] text-brass">Sync the table</p>
         <h2 className="mt-2 font-display text-4xl leading-none text-paper">{starter} asked to sync</h2>
@@ -381,7 +395,7 @@ function BriefcaseTable() {
     <div className="bd-screen">
       <style>{BOARD_SCREEN_CSS}</style>
       <section className="bd-top">
-        <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
+        <header className="flex shrink-0 items-center justify-between gap-2 pt-[var(--head-top)]">
           <p className="min-w-0 truncate font-display text-lg leading-none">
             {turnTitle}
             <span className="ml-1 text-xs text-subtle">
@@ -463,8 +477,7 @@ function BriefcaseTable() {
 
   return (
     <main
-      className="leather h-dvh overflow-hidden"
-      style={board ? { paddingBottom: `calc(${DOCK_HEIGHT}px + env(safe-area-inset-bottom))` } : undefined}
+      className="leather case-main"
     >
       {board && screen === "chat" && turnPrompt && rollKey ? (
         <button
@@ -477,8 +490,8 @@ function BriefcaseTable() {
             position: "fixed",
             left: 12,
             right: 12,
-            top: "calc(env(safe-area-inset-top) + 8px)",
-            zIndex: 100002,
+            top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            zIndex: "var(--z-toast)",
             padding: "12px 16px",
             borderRadius: 16,
             border: "2px solid #b8923e",
@@ -498,7 +511,7 @@ function BriefcaseTable() {
         <ChatScreen />
       ) : (
       <div className="mx-auto flex h-full max-w-lg flex-col px-2 py-1">
-        <header className="flex shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]">
+        <header className="flex shrink-0 items-center justify-between gap-2 pt-[var(--head-top)]">
           <p className="min-w-0 truncate font-display text-lg leading-none">
             {me?.name ?? "Your case"}
             {state.hostId === actor ? " · Host" : ""}
@@ -618,8 +631,7 @@ function BriefcaseTable() {
 
       {state.phase !== "gameover" && (WAIT_SHOWN(state, actor) || (state.wait && state.wait.ids.some((id) => id !== actor))) ? (
         <div
-          className="pointer-events-none fixed inset-x-0 flex flex-col items-center gap-2 px-3"
-          style={{ zIndex: 99990, top: "calc(env(safe-area-inset-top) + 4px)" }}
+          className="top-notices"
         >
           <WaitingBanner />
           {state.wait ? (
@@ -641,7 +653,7 @@ function BriefcaseTable() {
       <SyncVote />
 
       {movesOpen && myTurn && (state.phase === "action" || state.phase === "move") ? (
-        <div className="roll-stage" style={{ zIndex: 55 }}>
+        <div className="roll-stage turn-layer">
           <div className="case-shell w-full max-w-sm rounded-[28px] px-5 py-6">
             <p className="text-center text-xs uppercase tracking-[0.18em] text-brass">Your move</p>
             <div className="mt-4 grid gap-2">
@@ -746,7 +758,7 @@ function BriefcaseTable() {
       ) : null}
 
       {nudge ? (
-        <div className="roll-stage" style={{ zIndex: 45 }}>
+        <div className="roll-stage popup-layer">
           <div className="case-shell w-full max-w-sm rounded-[28px] px-6 py-7 text-center">
             <p className="text-xs uppercase tracking-[0.22em] text-brass">Still your turn</p>
             <h2 className="mt-2 font-display text-5xl leading-none">Need more time?</h2>
@@ -856,7 +868,7 @@ function BriefcaseTable() {
       ) : null}
 
       {sureLeave ? (
-        <div className="folio-sheet grid place-items-center px-4" style={{ background: "#140e0b" }}>
+        <div className="folio-sheet grid place-items-center px-4" style={{ background: "#140e0b", zIndex: "var(--z-sure)" }}>
           <div className="case-shell w-full max-w-sm rounded-[28px] p-6 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-brass">Leave the game</p>
             <h2 className="mt-2 font-display text-4xl text-paper">Are you sure?</h2>
@@ -941,7 +953,7 @@ function VerdictScene({ state, verdict, onClose }: { state: GameState; verdict: 
     ? { suspect: "Who", weapon: "Stolen", room: "Where", time: "When" }
     : { suspect: "Who", weapon: "Weapon", room: "Room", time: "Time" };
   return (
-    <main className="folio-sheet verdict-fail overflow-auto">
+    <main className="folio-sheet verdict-fail overflow-auto" style={{ zIndex: "var(--z-popup)" }}>
       <div className="mx-auto flex min-h-full max-w-lg flex-col px-4 py-8">
         <p className="text-xs uppercase tracking-[0.28em] text-[#e7b3a8]">
           {"Solve the Case"}
@@ -1015,8 +1027,8 @@ function Victory({
   return (
     <div
       className="folio-sheet verdict-win flex flex-col"
-      // The digital board's bottom bar stays on top of everything, so the Play again and Leave buttons stop above it.
-      style={{ background: "#140e0b", ...(state.settings.table === "board" ? { paddingBottom: `calc(${DOCK_HEIGHT}px + env(safe-area-inset-bottom))` } : {}) }}
+      // The bar stays on top of everything; this screen already stops above it (see .folio-sheet in styles.css).
+      style={{ background: "#140e0b", zIndex: "var(--z-popup)" }}
     >
       <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
         <div className="verdict-seal">

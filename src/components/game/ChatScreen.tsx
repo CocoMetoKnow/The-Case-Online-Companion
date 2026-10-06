@@ -29,7 +29,7 @@ export function ChatScreen() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-lg flex-col px-2 pt-[env(safe-area-inset-top)]">
+    <div className="mx-auto flex h-full max-w-lg flex-col px-2 pt-[var(--head-top)]">
       <p className="shrink-0 py-1 font-display text-2xl leading-none">Chat</p>
       <div className="case-shell flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto rounded-[20px] px-3 py-3" aria-live="polite">
         {chat.length ? (

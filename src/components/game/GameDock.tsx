@@ -1,9 +1,15 @@
+import { useEffect } from "react";
+import { BookOpen, LayoutGrid, MessageCircle, Layers } from "lucide-react";
 import { useActorId, useGame } from "@/lib/game/store";
 
 /**
- * The bottom bar of the digital board: Board, Cards, Journal and Chat. It is mounted once in AppShell, outside every
- * screen, and sits above every prompt, card, banner and the journal itself (z-index 100000), so a player can always
- * get to the journal, their cards, the board or the chat, whatever else is open.
+ * UI LAYER (layout only). The navigation bar of the digital board: Board, Cards, Journal and Chat. It is mounted once in
+ * AppShell, outside every screen, and sits above every prompt, card, banner and the journal itself (--z-dock in
+ * styles.css), so a player can always get to the journal, their cards, the board or the chat, whatever else is open.
+ *
+ * The bar adapts to the device: along the bottom of an iPhone or iPad, and a slim rail down the left edge on a PC. While it
+ * is on screen it switches `data-dock` on <html>, which tells every popup, sheet and screen (through --dock-space and
+ * --dock-rail) how much room to leave for it, so the bar can never hide a button underneath itself.
  */
 export const DOCK_HEIGHT = 56;
 
@@ -19,10 +25,25 @@ export function GameDock() {
   const chatSeen = useGame((s) => s.chatSeen);
   const actor = useActorId();
 
-  if (!state || view !== "play" || !state.startedAt || state.phase === "lobby") return null;
-  if (state.settings.table !== "board") return null;
-  if (passGate && state.settings.playMode !== "online") return null;
-  if (verdict && state.phase !== "gameover") return null;
+  const show = Boolean(
+    state &&
+      view === "play" &&
+      state.startedAt &&
+      state.phase !== "lobby" &&
+      state.settings.table === "board" &&
+      !(passGate && state.settings.playMode !== "online") &&
+      !(verdict && state.phase !== "gameover"),
+  );
+
+  // Tell the rest of the UI the bar is there (and take it back the moment it is gone).
+  useEffect(() => {
+    if (!show) return;
+    const root = document.documentElement;
+    root.setAttribute("data-dock", "on");
+    return () => root.removeAttribute("data-dock");
+  }, [show]);
+
+  if (!state || !show) return null;
 
   const onChat = screen === "chat" && !journalOpen;
   const unread = onChat ? 0 : (state.chat ?? []).filter((m) => m.fromId !== actor && m.at > chatSeen).length;
@@ -30,29 +51,26 @@ export function GameDock() {
     setJournalOpen(false);
     setScreen(next);
   };
-  const tab = (active: boolean) =>
-    `relative h-11 flex-1 rounded-[12px] border text-sm font-semibold ${active ? "border-brass bg-raised text-paper" : "border-line bg-[#140e0b] text-muted"}`;
+  const tab = (active: boolean) => `game-dock-tab${active ? " on" : ""}`;
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 flex gap-2 border-t border-line bg-[#140e0bf2] px-2 pt-1.5"
-      style={{ zIndex: 100000, paddingBottom: "max(env(safe-area-inset-bottom), 6px)", minHeight: DOCK_HEIGHT }}
-      aria-label="Screens"
-    >
+    <nav className="game-dock" aria-label="Screens">
       <button type="button" className={tab(!journalOpen && screen === "board")} aria-current={!journalOpen && screen === "board" ? "page" : undefined} onClick={() => go("board")}>
-        Board
+        <LayoutGrid className="game-dock-icon" aria-hidden />
+        <span>Board</span>
       </button>
       <button type="button" className={tab(!journalOpen && screen === "cards")} aria-current={!journalOpen && screen === "cards" ? "page" : undefined} onClick={() => go("cards")}>
-        Cards
+        <Layers className="game-dock-icon" aria-hidden />
+        <span>Cards</span>
       </button>
       <button type="button" className={tab(journalOpen)} aria-pressed={journalOpen} onClick={() => setJournalOpen(!journalOpen)}>
-        Journal
+        <BookOpen className="game-dock-icon" aria-hidden />
+        <span>Journal</span>
       </button>
       <button type="button" className={tab(onChat)} aria-current={onChat ? "page" : undefined} onClick={() => go("chat")}>
-        Chat
-        {unread ? (
-          <span className="absolute -right-0.5 -top-1.5 grid min-w-5 place-items-center rounded-full bg-[#ff3b30] px-1 text-[11px] font-bold leading-5 text-white">{unread > 9 ? "9+" : unread}</span>
-        ) : null}
+        <MessageCircle className="game-dock-icon" aria-hidden />
+        <span>Chat</span>
+        {unread ? <span className="game-dock-badge">{unread > 9 ? "9+" : unread}</span> : null}
       </button>
     </nav>
   );

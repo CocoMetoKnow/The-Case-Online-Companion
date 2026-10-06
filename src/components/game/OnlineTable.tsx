@@ -53,8 +53,8 @@ function OnlineSession({ room, selfId, name }: { room: string; selfId: string; n
   }
 
   return (
-    <div>
-      <p className="flex items-center justify-center gap-3 border-b border-line px-4 py-1 text-[11px] uppercase tracking-[0.16em] text-subtle">
+    <div className={state.phase === "lobby" ? "online-shell" : "online-shell online-wrap"}>
+      <p className="online-status flex items-center justify-center gap-3 border-b border-line px-4 py-1 text-[11px] uppercase tracking-[0.16em] text-subtle">
         <span>
           {code} · {status === "live" ? `Live · ${online}` : state.hostId === selfId ? "Opening the table" : status === "missing" ? "Code not open" : "Connecting"}
           {detail ? ` · ${detail}` : ""}
@@ -91,7 +91,7 @@ function StuckLeave({ inGame, myTurn, cardUp }: { inGame: boolean; myTurn: boole
 
   if (!ask) return null;
   return (
-    <div className="roll-stage" style={{ zIndex: 90 }}>
+    <div className="roll-stage sure-layer">
       <div className="case-shell w-full max-w-sm rounded-[28px] px-6 py-6 text-center">
         <p className="text-xs uppercase tracking-[0.22em] text-brass">Stuck</p>
         <h2 className="mt-2 font-display text-4xl leading-none text-paper">Are you sure?</h2>

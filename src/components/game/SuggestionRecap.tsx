@@ -80,13 +80,9 @@ export function SuggestionRecap() {
 
   return (
     <div
-      className="fixed inset-0 grid place-items-center bg-[#140e0bb3] p-4"
-      // Above every screen and popup, but below the journal tab and the journal pages (both 99999).
-      style={{
-        zIndex: 99990,
-        paddingTop: "max(16px, env(safe-area-inset-top))",
-        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-      }}
+      // Above every screen and popup, but below the journal and the bar (see the layer list in styles.css).
+      className="ui-overlay turn-layer bg-[#140e0bb3]"
+      style={{ zIndex: "calc(var(--z-turn) + 2)" }}
       role="dialog"
       aria-label="The last suggestion"
     >

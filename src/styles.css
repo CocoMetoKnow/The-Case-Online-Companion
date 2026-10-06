@@ -18,6 +18,45 @@
   --color-danger: #a33b32;
 }
 
+
+/* =====================================================================================================
+   UI LAYOUT SYSTEM (layout only, no game logic). Every layer in the game uses these numbers, so what
+   sits above what is decided in ONE place. Low to high:
+     banner < dice roll < sheet < popup < your-turn popup < big moment < leave sure? < JOURNAL < dock < settings
+   The journal is always the top screen and the dock (Board / Cards / Journal / Chat) is always tappable.
+   --dock-space is the room the bottom bar takes, --dock-rail the room the PC side rail takes. Every
+   overlay pads itself by them, so nothing ever hides underneath the bar.
+   ===================================================================================================== */
+:root{
+  --z-banner:300;
+  --z-roll:400;
+  --z-sheet:500;
+  --z-popup:600;
+  --z-turn:700;
+  --z-moment:800;
+  --z-sure:850;
+  --z-journal:900;
+  --z-toast:950;
+  --z-dock:1000;
+  --z-settings:1100;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --head-top:env(safe-area-inset-top,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+  --dock-h:56px;
+  --dock-space:var(--safe-bottom);
+  --dock-rail:0px;
+}
+:root[data-dock]{--dock-space:calc(var(--dock-h) + var(--safe-bottom))}
+/* The floating journal tab (phone case mode) is reserved room too, so it never sits on a button. */
+:root[data-fab]{--fab-space:76px}
+:root{--fab-space:0px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none;background:var(--color-bg)}
+body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;padding-left:var(--safe-left);padding-right:var(--safe-right)}
+button,[role="button"],a,select,summary{touch-action:manipulation}
+input,textarea,select{font-size:max(16px,1em)} /* iOS Safari zooms the page on focus below 16px */
+
 body {
   margin: 0;
   background: var(--color-bg);
@@ -56,7 +95,7 @@ body {
 
 @supports (color:color-mix(in lab, red, red)){.folio-tab{border:1px solid color-mix(in oklab, var(--color-brass) 50%, #8a7040)}}
 
-.folio-sheet{z-index:40;background:oklab(17.0464% .00801527 .00890114/.88);position:fixed;inset:0}
+.folio-sheet{z-index:var(--z-sheet);background:oklab(17.0464% .00801527 .00890114/.88);position:fixed;inset:0;padding:var(--safe-top) var(--safe-right) var(--dock-space) calc(var(--safe-left) + var(--dock-rail));overflow-y:auto;-webkit-overflow-scrolling:touch}
 
 .dice-drop{align-items:flex-end;gap:12px;min-height:76px;padding-bottom:8px;display:flex;position:relative}
 
@@ -233,21 +272,30 @@ body {
 .roll-stage {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-roll);
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) calc(var(--dock-space) + 16px) calc(var(--dock-rail) + max(16px, var(--safe-left)));
   background: #140e0bb8;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
+/* Prompts about YOUR turn (powers, suggestions, cards shown to you) sit above the dice and the sheets. */
+.roll-stage.turn-layer{z-index:var(--z-turn)}
+.roll-stage.popup-layer{z-index:var(--z-popup)}
+.roll-stage.sure-layer{z-index:var(--z-sure)}
+/* Every dialog card fits the space left above the bar, and scrolls inside itself if it is taller. */
+.roll-stage > .case-shell,.roll-stage > .wood-panel{max-height:calc(100dvh - var(--dock-space) - var(--safe-top) - 32px);overflow-y:auto;overscroll-behavior:contain}
 
 /* ===== Journal: persistent tab + pages, above everything (99999) ===== */
-.journal-fab{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:99999;display:block;width:64px;padding:0;border:0;background:none;line-height:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;filter:drop-shadow(0 6px 8px #0000008c)}
+.journal-fab{position:fixed;right:max(12px,var(--safe-right));bottom:max(12px,var(--safe-bottom));z-index:var(--z-journal);display:block;width:64px;padding:0;border:0;background:none;line-height:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;filter:drop-shadow(0 6px 8px #0000008c)}
 .journal-fab img{display:block;width:100%;height:auto;pointer-events:none;-webkit-user-select:none;user-select:none;filter:var(--j-img-filter,none)}
 .journal-fab:active{transform:translateY(1px) scale(.98)}
 .journal-fab-shut img{filter:var(--j-img-filter,none) grayscale(.6) brightness(.65)}
 .journal-fab-tag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--font-display);font-size:14px;line-height:1;color:#f6f1e6;background:var(--j-tag,#0b1530d9);border:1px solid #f6f1e659;border-radius:999px;padding:4px 9px}
 .journal-title{color:var(--j-title,#dfe6f5);text-shadow:0 1px 0 var(--j-title-shadow,#0b1530)}
-.journal-layer{position:fixed;inset:0;z-index:99999;background:radial-gradient(120% 90% at 50% 0,var(--j-bg1,#1c2f57) 0,var(--j-bg2,#101c38) 55%,var(--j-bg3,#0a1226) 100%);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.journal-layer{position:fixed;inset:0;z-index:var(--z-journal);background:radial-gradient(120% 90% at 50% 0,var(--j-bg1,#1c2f57) 0,var(--j-bg2,#101c38) 55%,var(--j-bg3,#0a1226) 100%);padding-top:var(--safe-top);padding-bottom:var(--journal-bottom,var(--dock-space));padding-left:calc(var(--safe-left) + var(--dock-rail));padding-right:var(--safe-right)}
 
 /* ===== Profile pictures: tight circular headshots ===== */
 .avatar-crop{position:relative;display:block;overflow:hidden;border-radius:9999px;background:#1a1410;flex:none}
@@ -263,14 +311,14 @@ body {
 .profile-badge.has-art .profile-badge-letter{position:absolute;right:0;bottom:0;box-shadow:0 0 0 2px var(--ring)}
 
 /* ===== "Pick Your Character" popup ===== */
-.picker-layer{position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:16px;background:#140e0bcc}
+.picker-layer{position:fixed;inset:0;z-index:var(--z-settings);display:grid;place-items:center;padding:max(16px,var(--safe-top)) 16px max(16px,var(--safe-bottom));overflow-y:auto;background:#140e0bcc}
 .picker-choice{display:block;width:100%;padding:8px 6px 6px;border-radius:16px;border:1px solid color-mix(in srgb,var(--color-brass) 25%,transparent);background:#1a100c;touch-action:manipulation}
 .picker-photo{display:block;aspect-ratio:1;width:100%;border-radius:9999px;overflow:hidden}
 .picker-choice-on{border-color:var(--color-brass);box-shadow:0 0 0 2px color-mix(in srgb,var(--color-brass) 60%,transparent)}
 .picker-choice-taken{opacity:.45}
 
 /* ===== Card reveal: one reusable container, GPU transform only ===== */
-.reveal-layer{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:#140e0bb8;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 220ms linear,visibility 0s linear 260ms;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.reveal-layer{position:fixed;inset:0;z-index:var(--z-turn);display:grid;place-items:center;padding:max(16px,var(--safe-top)) 16px calc(var(--dock-space) + 16px) calc(var(--dock-rail) + 16px);overflow-y:auto;background:#140e0bb8;opacity:0;visibility:hidden;pointer-events:none;transition:opacity 220ms linear,visibility 0s linear 260ms;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .reveal-layer[data-open="true"]{opacity:1;visibility:visible;pointer-events:auto;transition:opacity 180ms linear,visibility 0s}
 .reveal-stack{display:flex;flex-direction:column;align-items:center;text-align:center;max-height:100%;color:var(--color-paper)}
 .reveal-kicker{margin:0;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--color-brass)}
@@ -287,7 +335,7 @@ body {
 
 /* ===== Power-up prompts: always a way out ===== */
 .power-close{position:absolute;top:8px;right:8px;z-index:2;display:grid;place-items:center;width:36px;height:36px;border-radius:9999px;border:1px solid #f3ead855;background:#140e0bcc;color:var(--color-paper);font-size:16px;line-height:1;touch-action:manipulation}
-.power-chip{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:70;max-width:min(70vw,260px);padding:8px 14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--color-brass) 60%,transparent);background:#2a1410;color:var(--color-paper);text-align:left;box-shadow:0 10px 24px #0008}
+.power-chip{position:fixed;left:calc(var(--dock-rail) + max(12px,var(--safe-left)));bottom:calc(var(--dock-space) + 12px);z-index:var(--z-banner);max-width:min(70vw,260px);padding:8px 14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--color-brass) 60%,transparent);background:#2a1410;color:var(--color-paper);text-align:left;box-shadow:0 10px 24px #0008}
 
 /* ===== Show-a-card: requested cards and your hand swap places ===== */
 .swap-group{will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
@@ -403,9 +451,9 @@ body {
 @media (prefers-reduced-motion:reduce){.turn-halo{animation:none;opacity:.5}.turn-cap{animation:none}}
 
 /* ===== Case scenes: Extra Visuals background aside, live Solve the Case, and the verdict reveal ===== */
-.cs-root{position:fixed;inset:0;z-index:80;overflow:hidden;background:#080504;color:#f6e7b8;font-family:var(--font-sans)}
-.cs-final{z-index:45;background:#080504}
-.cs-reveal{z-index:95;animation:cs-fade .25s ease both}
+.cs-root{position:fixed;inset:0;z-index:var(--z-moment);overflow:hidden;background:#080504;color:#f6e7b8;font-family:var(--font-sans)}
+.cs-final{z-index:var(--z-sheet);background:#080504}
+.cs-reveal{z-index:var(--z-moment);animation:cs-fade .25s ease both}
 .cs-board{position:absolute;inset:0;overflow:hidden;background:radial-gradient(120% 90% at 50% 30%,#2a1713,#0a0605 70%)}
 .cs-reveal .cs-board{animation:cs-shake .55s ease 4.6s both}
 .cs-bg{position:absolute;inset:-2%;background-size:cover;background-position:center;opacity:0;animation:cs-bgin 1.1s ease var(--d,0s) both,cs-ken 18s ease-in-out var(--d,0s) infinite alternate}
@@ -439,7 +487,7 @@ body {
 .cs-frame span{display:grid;place-items:center;height:100%;font:700 3rem var(--font-display);color:#2a1810}
 .cs-things .cs-frame{width:min(30vw,130px)}
 
-.cs-notes{position:absolute;left:4%;right:4%;bottom:max(16px,env(safe-area-inset-bottom));display:grid;gap:6px;max-width:34rem;margin:0 auto;z-index:3}
+.cs-notes{position:absolute;left:4%;right:4%;bottom:calc(var(--dock-space) + 16px);display:grid;gap:6px;max-width:34rem;margin:0 auto;z-index:3}
 .cs-stamp-line{margin:0;display:flex;align-items:baseline;gap:.7rem;padding:6px 12px;background:#000a;border-left:3px solid #c9a24a;font-family:"Courier New",monospace;color:#f6e7b8;animation:cs-slide .55s ease var(--d,0s) both}
 .cs-stamp-line b{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:#c9a24a;min-width:3.4rem}
 .cs-stamp-line span{font-size:17px;font-weight:700}
@@ -456,7 +504,7 @@ body {
 .cs-tap{position:absolute;z-index:6;right:16px;top:calc(env(safe-area-inset-top) + 14px);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#ffe7a3b0;animation:cs-fade .5s ease both}
 
 .cs-heartbeat{position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 52px 2px #b4141466;animation:cs-beat 3s ease-in-out infinite}
-.cs-heartbeat-self{position:fixed;z-index:41}
+.cs-heartbeat-self{position:fixed;z-index:calc(var(--z-sheet) + 1)}
 .cs-flash{position:absolute;inset:0;z-index:6;pointer-events:none;background:#fff;animation:cs-flash .4s ease-out forwards}
 .cs-curtain{position:absolute;inset:0;z-index:7;pointer-events:none}
 .cs-curtain::before,.cs-curtain::after{content:"";position:absolute;left:0;right:0;height:50%;background:#000}
@@ -497,7 +545,7 @@ body {
 
 /* ===== Extra Visuals: the suggestion as a background only ===== */
 /* Right at the back, centred behind the question screen; that screen turns see-through so it can be seen on a narrow phone. */
-.cs-ambient{position:fixed;inset:0;z-index:58;pointer-events:none;animation:cs-fade .7s ease both}
+.cs-ambient{position:fixed;inset:0;z-index:calc(var(--z-roll) - 1);pointer-events:none;animation:cs-fade .7s ease both}
 .cs-ambient .cs-board{background:#0a0605}
 .cs-ambient .cs-dim{background:linear-gradient(to bottom,#000a 0,#0001 22%,#0001 70%,#000b 100%)}
 .cs-ambient .cs-spot,.cs-ambient .cs-dust,.cs-ambient .cs-lens,.cs-ambient .cs-tag{display:none}
@@ -509,3 +557,73 @@ body {
 html[data-extra-visuals] .roll-stage{background:#140e0b33!important}
 html[data-extra-visuals] .roll-stage .case-shell{background:color-mix(in srgb,var(--ui-shell-mid,#241610) 52%,transparent);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 @media (prefers-reduced-motion:reduce){.cs-ambient{animation:none}}
+
+
+/* =====================================================================================================
+   UI LAYER: bottom bar / side rail, stacking isolation, and the three device layouts.
+   Phone (iPhone) is the base design. iPad widens it. A PC (mouse + wide window) gets a different layout.
+   ===================================================================================================== */
+
+/* The Board / Cards / Journal / Chat bar. Phone + iPad: along the bottom. */
+.game-dock{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);display:flex;gap:8px;height:calc(var(--dock-h) + var(--safe-bottom));padding:6px max(8px,var(--safe-right)) max(var(--safe-bottom),6px) max(8px,var(--safe-left));border-top:1px solid var(--color-line);background:#140e0bf5;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.game-dock-tab{position:relative;flex:1;min-width:0;height:44px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;border:1px solid var(--color-line);background:#140e0b;color:var(--color-muted);font-size:14px;font-weight:600;line-height:1}
+.game-dock-tab.on{border-color:var(--color-brass);background:var(--color-raised);color:var(--color-paper)}
+.game-dock-tab:active{transform:scale(.97)}
+.game-dock-icon{display:none;width:20px;height:20px;flex:none}
+.game-dock-badge{position:absolute;right:-2px;top:-6px;display:grid;min-width:20px;place-items:center;border-radius:9999px;background:#ff3b30;padding:0 4px;font-size:11px;font-weight:700;line-height:20px;color:#fff}
+/* A phone turned on its side is short: slim the bar so the board keeps its height. */
+@media (orientation:landscape) and (max-height:520px){
+  :root{--dock-h:44px}
+  .game-dock{padding-top:4px}
+  .game-dock-tab{height:34px;font-size:13px}
+}
+/* iPad: roomier bar, bigger tap targets. */
+@media (min-width:700px) and (hover:none){
+  :root{--dock-h:64px}
+  .game-dock{justify-content:center;gap:12px}
+  .game-dock-tab{max-width:200px;height:50px;font-size:16px}
+  .game-dock-icon{display:block}
+}
+/* PC (mouse, wide window): the bar becomes a slim rail down the left edge, so the whole height is for the table. */
+@media (hover:hover) and (pointer:fine) and (min-width:1000px){
+  :root{--dock-rail:84px}
+  :root[data-dock]{--dock-space:var(--safe-bottom)}
+  .game-dock{right:auto;top:0;bottom:0;width:84px;height:auto;flex-direction:column;justify-content:center;gap:10px;padding:12px 8px;border-top:0;border-right:1px solid var(--color-line)}
+  .game-dock-tab{flex:none;width:100%;height:68px;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.04em}
+  .game-dock-icon{display:block;width:22px;height:22px}
+  .game-dock-tab:hover:not(.on){background:var(--color-raised);color:var(--color-paper)}
+  .game-dock-badge{right:6px;top:4px}
+}
+
+/* While the floating journal tab is showing (phone case mode), popups stop above it instead of under it. */
+:root[data-fab]{--dock-space:calc(var(--safe-bottom) + 96px);--journal-bottom:var(--safe-bottom)}
+.journal-fab{width:52px}
+
+/* Nothing inside a screen may climb above a popup: each of these keeps its own z-indexes to itself. */
+.dgb-frame,.card-hand,.turn-tracker,.notebook{isolation:isolate}
+
+/* The play screen fills the visible screen and leaves room for the bar, never slipping under it. */
+.case-main{height:100dvh;min-height:0;box-sizing:border-box;overflow:hidden;padding-bottom:var(--dock-space);padding-left:var(--dock-rail)}
+.online-wrap{display:flex;flex-direction:column;height:100dvh;overflow:hidden;--head-top:0px}
+.online-wrap > .case-main{flex:1 1 0;height:auto}
+.online-status{flex:none;padding-top:max(env(safe-area-inset-top,0px),2px);padding-left:var(--dock-rail)}
+
+/* Notices at the top (waiting on a player, chat) sit just below the header, so they never cover Leave / Your move. */
+.top-notices{position:fixed;left:var(--dock-rail);right:0;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:var(--z-banner);display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 12px;pointer-events:none}
+.top-notices > *{pointer-events:auto}
+
+/* Fixed popups built without .roll-stage (suggestion recap, cards received, zoomed card) share one frame. */
+.ui-overlay{position:fixed;inset:0;display:grid;place-items:center;overflow-y:auto;overscroll-behavior:contain;padding:max(16px,var(--safe-top)) max(16px,var(--safe-right)) calc(var(--dock-space) + 16px) calc(var(--dock-rail) + max(16px,var(--safe-left)))}
+.ui-overlay.turn-layer{z-index:var(--z-turn)}
+.ui-overlay.moment-layer{z-index:var(--z-moment)}
+
+/* PC: roomier dialogs and a wider journal, since there is room. */
+@media (hover:hover) and (pointer:fine) and (min-width:1000px){
+  .roll-stage > .case-shell.max-w-sm,.roll-stage > .wood-panel.max-w-sm{max-width:26rem}
+  .journal-layer > div{max-width:min(72rem,100%)}
+}
+
+/* Menu screens (title, setup, lobby): clear the notch and the home bar, and keep a readable column on iPad / PC. */
+.online-shell{--head-top:0px}
+.screen-pad{padding-top:max(1.5rem,var(--head-top));padding-bottom:max(1.5rem,var(--safe-bottom))}
+@media (min-width:700px){.screen-pad{padding-top:max(2rem,var(--head-top))}}

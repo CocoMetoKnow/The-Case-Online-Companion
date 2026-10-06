@@ -24,7 +24,7 @@ export function Landing() {
 
   return (
     <main className="leather min-h-dvh">
-      <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6">
+      <div className="screen-pad mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6">
         <header className="flex items-center justify-between">
           <p className="text-xs uppercase tracking-[0.28em] text-brass">Table companion</p>
           <div className="flex items-center gap-3">

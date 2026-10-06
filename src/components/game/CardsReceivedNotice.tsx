@@ -31,12 +31,8 @@ export function CardsReceivedNotice() {
 
   return (
     <div
-      className="fixed inset-0 grid place-items-center bg-[#140e0bb3] p-4"
-      style={{
-        zIndex: 99992,
-        paddingTop: "max(16px, env(safe-area-inset-top))",
-        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-      }}
+      className="ui-overlay turn-layer bg-[#140e0bb3]"
+      style={{ zIndex: "calc(var(--z-turn) + 3)" }}
       role="dialog"
       aria-label="Cards you received"
     >
