@@ -115,6 +115,9 @@ const BOARD_CSS = `
 /** Room kept clear for the top bar (steps, Stay here) and the bottom bar (camera button, secret passages). */
 const PAD_TOP = 60;
 const PAD_BOTTOM = 72;
+/** Touch / mouse mode has no camera button, so the house gets nearly the whole screen. Passage buttons float over the lawn edge. */
+const PAD_TOP_TOUCH = 46;
+const PAD_BOTTOM_TOUCH = 6;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
@@ -289,9 +292,11 @@ export function MansionBoard({
   const zoomed = zoom > 1.001;
   const sideways = quarter % 2 === 1;
   // The house is fitted between the top bar and the bottom bar, so no control ever sits on top of a room.
-  const availH = Math.max(120, size.h - PAD_TOP - PAD_BOTTOM);
-  const midY = PAD_TOP + availH / 2;
-  const fit = Math.max(0.05, Math.min((size.w - 4) / (sideways ? worldH : worldW), (availH - 4) / (sideways ? worldW : worldH)));
+  const padTop = touchMode ? PAD_TOP_TOUCH : PAD_TOP;
+  const padBottom = touchMode ? PAD_BOTTOM_TOUCH : PAD_BOTTOM;
+  const availH = Math.max(120, size.h - padTop - padBottom);
+  const midY = padTop + availH / 2;
+  const fit = Math.max(0.05, Math.min((size.w - 2) / (sideways ? worldH : worldW), (availH - 4) / (sideways ? worldW : worldH)));
   const scale = fit * zoom;
   const inv = 1 / scale;
   const upright = `rotate(${-turns * 90}deg)`;
@@ -875,21 +880,21 @@ export function MansionBoard({
       </div>
 
       {showReset && !camOpen ? (
-        <button type="button" className="dgb-recenter" onClick={resetCamera} aria-label="Reset the camera" title="Reset the camera">
+        <button type="button" className="dgb-recenter" style={touchMode ? { bottom: passageOptions.length ? 70 : 14 } : undefined} onClick={resetCamera} aria-label="Reset the camera" title="Reset the camera">
           <Crosshair size={16} />
           Reset camera
         </button>
       ) : null}
 
-      {camOpen ? (
+      {camOpen && !touchMode ? (
         <button type="button" className="dgb-camdone" onClick={() => setCamOpen(false)} aria-label="Close camera controls">
           <X size={16} />
           Done
         </button>
       ) : null}
 
-      <div className="dgb-bar">
-        {camOpen ? (
+      <div className="dgb-bar" style={touchMode ? { height: "auto", bottom: 8 } : undefined}>
+        {camOpen && !touchMode ? (
           <div className="dgb-dock" role="group" aria-label="Camera controls">
             <div className="dgb-side">
               <button type="button" className="dgb-ctl" onClick={() => setTurns((n) => n - 1)} aria-label="Turn the house left" title="Turn the house left">
@@ -942,9 +947,11 @@ export function MansionBoard({
         ) : (
           <>
             {passageOptions[1] ? <PassageButton option={passageOptions[0]} onMove={onMove} style={{ gridColumn: 1, gridRow: 1, justifySelf: "end" }} /> : null}
-            <button type="button" className="dgb-cam" style={{ gridRow: 1 }} onClick={() => setCamOpen(true)} aria-label="Open camera controls" aria-expanded={false} title="Camera">
-              <Camera size={22} />
-            </button>
+            {touchMode ? null : (
+              <button type="button" className="dgb-cam" style={{ gridRow: 1 }} onClick={() => setCamOpen(true)} aria-label="Open camera controls" aria-expanded={false} title="Camera">
+                <Camera size={22} />
+              </button>
+            )}
             {passageOptions.length ? (
               <PassageButton option={passageOptions[passageOptions.length > 1 ? 1 : 0]} onMove={onMove} style={{ gridColumn: 3, gridRow: 1, justifySelf: "start" }} />
             ) : null}

@@ -75,7 +75,7 @@ export function SuggestionRecap() {
     result = mine ? `${shower.name} showed you a card.` : `${shower.name} showed ${asker?.name ?? "the asker"} a card.`;
     accent = shower.color;
   } else {
-    result = "No one showed a card.";
+    result = state.settings?.extraDifficulty ? "No one showed a card, but the NPC may have shown this player a card." : "No one showed a card.";
   }
 
   return (

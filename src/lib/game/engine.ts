@@ -297,6 +297,8 @@ export function dealAndStart(state: GameState, secrets: Secrets): { state: GameS
 		privateShow: null
 	};
 	const split = splitEven(started, { solution: {}, hands: {} });
+	// Lock the answers in. From here on nothing may re-pick, swap or deal them.
+	split.secrets = { ...split.secrets, envelope: { ...split.secrets.solution } };
 	const nameOf = (id) => roomLabel(state, id, layoutFor(state.settings));
 	const passageText = passages.map((p) => `${nameOf(p.a)} ↔ ${nameOf(p.b)}`).join("; ");
 	const speak = Boolean(state.settings?.speakMode);
@@ -699,6 +701,9 @@ export function canAsk(state: GameState, playerId: string): boolean {
 	return isQuestionRoom(p.position, state.settings.enabledRoomIds, layoutFor(state.settings));
 }
 /** Extra Difficulty is on: the NPC holds cards. */
+function noShowLine(state) {
+	return state?.settings?.extraDifficulty ? "No one showed a card, but the NPC may have shown this player a card." : "No one showed a card.";
+}
 function npcOn(state) {
 	return Boolean(state?.settings?.extraDifficulty);
 }
@@ -1156,7 +1161,7 @@ function advanceQuestion(state, secrets) {
 		};
 	}
 	if (blocked || !askedIsSolution(state, secrets, q)) {
-		const text = blocked === "table" ? "One of those cards is face up on the table, so this is not the solution." : blocked ? "No one showed a card." : !coversSolution(state, q) ? "Name one card from each group before that can win the case." : "No one showed a card, but that set is not the case.";
+		const text = blocked === "table" ? "One of those cards is face up on the table, so this is not the solution." : blocked ? noShowLine(state) : !coversSolution(state, q) ? "Name one card from each group before that can win the case." : "No one showed a card, but that set is not the case.";
 		// Nobody at the table holds any of the named cards, and the asker
 		// doesn't either — the turn ends on its own rather than waiting for a
 		// manual tap. The asker's journal doesn't confirm this as the answer
@@ -1185,7 +1190,7 @@ function advanceQuestion(state, secrets) {
 		question: null,
 		naming: null,
 		pendingAnswer: { ids: askedIds(q), askerId: q.askerId, turnIndex: state.turnIndex }
-	}, "No one showed a card.");
+	}, noShowLine(state));
 	return endTurn(solved, q.askerId);
 }
 export function releaseQuestion(state, secrets) {
@@ -1711,6 +1716,8 @@ function activeCats(state) {
 function openingDeal(state, secrets) {
 	if (!state?.startedAt || state.phase === "lobby" || state.phase === "gameover") return false;
 	if (state.phase !== "roll" || state.dice || state.question || state.event) return false;
+	// Once the answers are sealed the game is under way. It is never dealt over again, whatever the hands look like.
+	if (secrets?.envelope && Object.keys(secrets.envelope).length) return false;
 	const hands = secrets?.hands ?? {};
 	const dealt = Object.values(hands).some((pile) => Array.isArray(pile) && pile.length > 0);
 	if (dealt) return false;
@@ -1721,7 +1728,7 @@ function openingDeal(state, secrets) {
 function splitEven(state, secrets) {
 	const cats = activeCats(state);
 	const deck = (state.cards ?? []).filter((card) => cats.includes(card.category));
-	const solution = { ...(secrets?.solution ?? {}) };
+	const solution = { ...(secrets?.envelope ?? secrets?.solution ?? {}) };
 	for (const cat of cats) {
 		const pile = deck.filter((card) => card.category === cat);
 		if (!pile.length) {
@@ -1790,7 +1797,7 @@ export function ensureObjective(state, secrets) {
 		if (dealIsEven(sealed.state, sealed.secrets)) return sealed;
 		return splitEven(sealed.state, sealed.secrets);
 	}
-	return sealed;
+	return reconcileCards(sealed.state, sealed.secrets);
 }
 function answerSet(state, secrets) {
 	const cats = activeCats(state);
@@ -1807,21 +1814,35 @@ function sealAnswers(state, secrets) {
 	const deck = (state.cards ?? []).filter((card) => cats.includes(card.category));
 	const solution = { ...(secrets?.solution ?? {}) };
 	let changed = false;
+	const envelope = secrets?.envelope && Object.keys(secrets.envelope).length ? secrets.envelope : null;
 	const held = new Set<string>();
 	for (const pile of Object.values(secrets?.hands ?? {})) {
 		if (!Array.isArray(pile)) continue;
 		for (const id of pile) held.add(String(id));
 	}
-	for (const cat of cats) {
-		const pile = deck.filter((card) => card.category === cat);
-		if (!pile.length) continue;
-		const current = solution[cat] ? String(solution[cat]) : "";
-		const currentOk = Boolean(current) && pile.some((card) => card.id === current) && !held.has(current);
-		if (currentOk) continue;
-		const free = pile.filter((card) => !held.has(card.id));
-		if (!free.length) continue;
-		solution[cat] = fisherYates(free)[0].id;
-		changed = true;
+	if (envelope) {
+		// The answers were sealed at the deal. Whatever happened since (a player leaving, a sync, a rejoin),
+		// they are put straight back. A card that strayed into a hand is taken out of the hand instead.
+		for (const cat of cats) {
+			const sealed = envelope[cat] ? String(envelope[cat]) : "";
+			if (!sealed) continue;
+			if (String(solution[cat] ?? "") !== sealed) {
+				solution[cat] = sealed;
+				changed = true;
+			}
+		}
+	} else {
+		for (const cat of cats) {
+			const pile = deck.filter((card) => card.category === cat);
+			if (!pile.length) continue;
+			const current = solution[cat] ? String(solution[cat]) : "";
+			const currentOk = Boolean(current) && pile.some((card) => card.id === current) && !held.has(current);
+			if (currentOk) continue;
+			const free = pile.filter((card) => !held.has(card.id));
+			if (!free.length) continue;
+			solution[cat] = fisherYates(free)[0].id;
+			changed = true;
+		}
 	}
 	const answers = new Set(Object.values(solution).filter(Boolean).map((id) => String(id)));
 	const hands = secrets?.hands ?? {};
@@ -1833,12 +1854,93 @@ function sealAnswers(state, secrets) {
 	}
 	const leftover = (state.leftover ?? []).map((cardId) => String(cardId)).filter((cardId) => cardId && !answers.has(cardId));
 	if (leftover.length !== (state.leftover ?? []).length) changed = true;
+	// Once the cards are dealt and every group has its answer, the envelope is locked for good.
+	let nextEnvelope = secrets?.envelope;
+	const dealt = Object.values(hands).some((pile) => Array.isArray(pile) && pile.length > 0);
+	if (!envelope && dealt) {
+		const full = cats.every((cat) => !deck.some((card) => card.category === cat) || Boolean(solution[cat]));
+		if (full) {
+			nextEnvelope = { ...solution };
+			changed = true;
+		}
+	}
 	const reveals = [];
 	if ((secrets?.reveals ?? []).length) changed = true;
 	if (!changed) return { state, secrets };
 	return {
 		state: { ...state, leftover },
-		secrets: { ...secrets, solution, hands: nextHands, reveals }
+		secrets: { ...secrets, solution, hands: nextHands, reveals, ...(nextEnvelope ? { envelope: nextEnvelope } : {}) }
+	};
+}
+/**
+ * Every card that is not an answer is in exactly one place: one player's hand, the NPC's hand, or face up on
+ * the table. If a card has gone missing (for example a leaving player's cards were lost), it would look like
+ * "nobody holds this", and a journal would mark it as an answer. So any card that is nowhere is dealt back to a
+ * player, and any card in two places or in a hand that no longer exists is fixed.
+ */
+function reconcileCards(state, secrets) {
+	if (!state?.startedAt || state.phase === "lobby") return { state, secrets };
+	const hands = secrets?.hands ?? {};
+	const dealt = Object.values(hands).some((pile) => Array.isArray(pile) && pile.length > 0) || Boolean(secrets?.envelope && Object.keys(secrets.envelope).length);
+	if (!dealt) return { state, secrets };
+	const cats = activeCats(state);
+	const deck = (state.cards ?? []).filter((card) => cats.includes(card.category));
+	const deckIds = new Set(deck.map((card) => String(card.id)));
+	const answers = answerSet(state, secrets);
+	const owners = new Set((state.players ?? []).map((player) => player.id));
+	if (npcOn(state)) owners.add(NPC_ID);
+	const seen = new Set<string>();
+	const orphans: string[] = [];
+	const nextHands = {};
+	let changed = false;
+	for (const [id, pile] of Object.entries(hands)) {
+		const clean: string[] = [];
+		for (const raw of Array.isArray(pile) ? pile : []) {
+			const cardId = String(raw);
+			if (!cardId || !deckIds.has(cardId) || answers.has(cardId) || seen.has(cardId)) {
+				changed = true;
+				continue;
+			}
+			seen.add(cardId);
+			if (owners.has(id)) clean.push(cardId);
+			else {
+				orphans.push(cardId);
+				changed = true;
+			}
+		}
+		if (owners.has(id)) nextHands[id] = clean;
+		else changed = true;
+	}
+	for (const player of state.players ?? []) nextHands[player.id] ??= [];
+	const leftover: string[] = [];
+	for (const raw of state.leftover ?? []) {
+		const cardId = String(raw);
+		if (!cardId || !deckIds.has(cardId) || answers.has(cardId) || seen.has(cardId)) {
+			changed = true;
+			continue;
+		}
+		seen.add(cardId);
+		leftover.push(cardId);
+	}
+	const missing = deck.map((card) => String(card.id)).filter((cardId) => !answers.has(cardId) && !seen.has(cardId));
+	const give = [...orphans, ...missing];
+	if (give.length) {
+		changed = true;
+		const live = (state.players ?? []).filter((player) => !player.eliminated).map((player) => player.id);
+		const takers = live.length ? live : (state.players ?? []).map((player) => player.id);
+		if (takers.length) {
+			for (const cardId of fisherYates(give)) {
+				const who = [...takers].sort((a, b) => (nextHands[a]?.length ?? 0) - (nextHands[b]?.length ?? 0))[0];
+				nextHands[who] = [...(nextHands[who] ?? []), cardId];
+			}
+		} else {
+			leftover.push(...give);
+		}
+	}
+	if (!changed) return { state, secrets };
+	return {
+		state: { ...state, leftover },
+		secrets: { ...secrets, hands: nextHands }
 	};
 }
 /** If the host's seat is empty, the next guest takes it. A started game is never closed for this. */
@@ -1924,9 +2026,30 @@ export function dropPlayer(state, secrets, playerId) {
 					matchingCardIds: q.showerId === playerId ? [] : q.matchingCardIds
 				}
 			};
+			// The leaving player's cards were just dealt to the others. Anyone who now holds a named card
+			// and was already passed over is asked again, so a card that is really held is never reported
+			// as "nobody has it" (that would make a journal mark it as an answer).
+			let rewind = false;
+			if (!q.shownCardId && !q.resolved && !q.closeTurn) {
+				const want = new Set(askedIds(next.question));
+				const holders = next.question.responderIds.filter((id) => cardsHeldBy(secretsNext, id).some((cardId) => want.has(cardId)));
+				const early = holders.length ? Math.min(...holders.map((id) => next.question.responderIds.indexOf(id))) : -1;
+				if (holders.length && early >= 0 && (early < next.question.cursor || holders.some((id) => next.question.skips.includes(id)))) {
+					rewind = true;
+					next = {
+						...next,
+						question: {
+							...next.question,
+							cursor: Math.min(next.question.cursor, early),
+							skips: next.question.skips.filter((id) => !holders.includes(id)),
+							missId: null
+						}
+					};
+				}
+			}
 			if (q.spoken) {
-				if (q.askingId === playerId || q.showerId === playerId) next = advanceSpoken(next);
-			} else if (q.missId === playerId || q.showerId === playerId) {
+				if (q.askingId === playerId || q.showerId === playerId || rewind) next = advanceSpoken(next, secretsNext);
+			} else if (q.missId === playerId || q.showerId === playerId || rewind) {
 				next = advanceQuestion(next, secretsNext);
 			}
 		}
@@ -1950,6 +2073,9 @@ export function dropPlayer(state, secrets, playerId) {
 		};
 	}
 	next = log(next, `${player.name} left the table. Their turn is skipped and their cards go to the other players.${nextHost ? ` ${nextHost.name} is the new host.` : ""}`);
+	// A player leaving never changes the answers. Put them back exactly as they were sealed.
+	const sealedAnswers = secrets.envelope ?? secrets.solution;
+	secretsNext = { ...secretsNext, solution: { ...sealedAnswers }, ...(secrets.envelope ? { envelope: secrets.envelope } : {}) };
 	const fixed = ensureObjective(next, secretsNext);
 	if (fixed.state.startedAt && fixed.state.phase !== "gameover" && fixed.state.players.length === 1) {
 		return { state: awardLastPlayer(fixed.state, fixed.secrets), secrets: fixed.secrets };

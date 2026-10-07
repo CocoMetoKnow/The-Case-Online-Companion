@@ -38,7 +38,7 @@ const BOARD_SCREEN_CSS = `
 .bd-hand:empty{display:none}
 /* iPad held upright: same stack, roomier. */
 @media (min-width:700px) and (orientation:portrait){
- .bd-screen{max-width:980px;margin:0 auto;gap:10px;padding:6px 16px 10px}
+ .bd-screen{max-width:1240px;margin:0 auto;gap:10px;padding:6px 16px 10px}
  .bd-top header p{font-size:1.35rem}
 }
 /* Any screen turned on its side (iPhone, iPad, PC window): the board on the left, turn info beside it. */

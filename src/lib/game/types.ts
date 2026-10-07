@@ -324,6 +324,8 @@ export interface Secrets {
   /** Last good hands this round. Card ids only, cleared when the next round is dealt. */
   roundHands?: Record<string, string[]>;
   roundLeftover?: string[];
+  /** The three (or four) answers exactly as they were sealed when the cards were dealt. Nothing may ever change these. */
+  envelope?: Partial<Record<CategoryId, string>>;
 }
 
 export type SheetMark = "blank" | "check" | "x" | "maybe" | "answer";

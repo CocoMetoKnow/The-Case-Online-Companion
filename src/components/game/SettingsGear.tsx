@@ -308,7 +308,7 @@ export function SettingsGear() {
                       </div>
                       <p className="mt-1 text-xs text-muted">
                         {cameraControls === "touch"
-                          ? "On the digital board, drag with your finger to move and pinch to zoom. On a computer, drag with the mouse and scroll to zoom. The camera button still has turn, zoom and reset buttons."
+                          ? "On the digital board, drag with your finger to move and pinch to zoom. On a computer, drag with the mouse and scroll to zoom. There is no camera button in this mode, so the board gets the whole screen. A Reset camera button appears when you move the view."
                           : "On the digital board, the camera button opens a joystick that moves the view. Zoom and turn use the buttons."}{" "}
                         Only on this phone.
                       </p>

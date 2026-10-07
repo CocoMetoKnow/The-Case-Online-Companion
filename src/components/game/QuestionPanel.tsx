@@ -319,7 +319,9 @@ export function QuestionResolve({ facesDown = false, onReveal }: { facesDown?: b
 
       {q.closeTurn && !q.missId ? (
         <>
-          <p className="mt-3 font-display text-2xl text-paper">No one showed a card.</p>
+          <p className="mt-3 font-display text-2xl text-paper">
+            {state.settings?.extraDifficulty ? "No one showed a card, but the NPC may have shown this player a card." : "No one showed a card."}
+          </p>
           {actor === q.askerId || guided ? (
             <Button className="mt-3 w-full" onClick={done}>
               End turn
