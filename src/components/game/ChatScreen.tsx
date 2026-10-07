@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { CHAT_MAX_LENGTH } from "@/lib/game/engine";
 import { useActorId, useGame } from "@/lib/game/store";
+import { ChatPrompts } from "./ChatPrompts";
 
 /**
  * The Chat tab: the one place where every message stays on screen, and the only place to write one.
@@ -17,7 +18,8 @@ export function ChatScreen() {
   const markChatSeen = useGame((s) => s.markChatSeen);
   const actor = useActorId();
   const [text, setText] = useState("");
-  const end = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLInputElement>(null);
   const chat = state?.chat ?? [];
   const newest = chat.length ? chat[chat.length - 1].at : 0;
   const guests = state?.players.length ?? 0;
@@ -30,7 +32,7 @@ export function ChatScreen() {
     const read = () => {
       const open = window.innerHeight - v.height > 120;
       setVv(open ? { h: v.height, open } : null);
-      if (open) window.scrollTo(0, 0);
+      if (open && window.scrollY !== 0) window.scrollTo(0, 0);
     };
     read();
     v.addEventListener("resize", read);
@@ -43,7 +45,8 @@ export function ChatScreen() {
 
   useEffect(() => {
     markChatSeen(newest);
-    end.current?.scrollIntoView({ block: "end" });
+    const el = list.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [chat.length, newest, markChatSeen, vv?.h]);
 
   const submit = () => {
@@ -51,6 +54,15 @@ export function ChatScreen() {
     if (!clean) return;
     sendChat(clean);
     setText("");
+    input.current?.focus({ preventScroll: true });
+  };
+
+  // Run a prompt action (show a card, yes / no, continue) and hand focus straight back to the message box if it had it,
+  // so the keyboard stays open the whole time.
+  const act = (fn: () => void) => {
+    const had = typeof document !== "undefined" && document.activeElement === input.current;
+    fn();
+    if (had) input.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -65,7 +77,8 @@ export function ChatScreen() {
           <p className="font-display text-2xl leading-none">Chat</p>
           <p className="text-xs text-subtle">{guests ? `${guests} at the table` : ""}</p>
         </div>
-        <div className="case-shell flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain rounded-[20px] px-3 py-3" aria-live="polite">
+        <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={list} className="case-shell flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain rounded-[20px] px-3 py-3" aria-live="polite">
           {chat.length ? (
             chat.map((m, i) => {
               const mine = m.fromId === actor;
@@ -86,7 +99,8 @@ export function ChatScreen() {
           ) : (
             <p className="m-auto text-center text-sm text-muted">No messages yet. Say something to the table.</p>
           )}
-          <div ref={end} />
+        </div>
+          <ChatPrompts kb={Boolean(vv)} act={act} />
         </div>
         <form
           className="flex shrink-0 items-center gap-2 pb-1 pt-2"
@@ -96,6 +110,7 @@ export function ChatScreen() {
           }}
         >
           <input
+            ref={input}
             value={text}
             onChange={(event) => setText(event.target.value)}
             maxLength={CHAT_MAX_LENGTH}
@@ -108,6 +123,7 @@ export function ChatScreen() {
           <button
             type="submit"
             disabled={!text.trim()}
+            onMouseDown={(event) => event.preventDefault()}
             aria-label="Send message"
             className="grid size-11 shrink-0 place-items-center rounded-full bg-[#0a84ff] text-white transition-opacity active:scale-95 disabled:opacity-40"
           >

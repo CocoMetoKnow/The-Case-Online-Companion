@@ -190,27 +190,19 @@ function BriefcaseTable() {
 
   // Digital board: it is the first thing you see when it is your turn to roll. You can still go to your cards or the journal.
   const rollKey = state && state.settings.table === "board" && state.phase === "roll" && turnActorId(state) === actor ? `${state.code}:${state.turnIndex}` : "";
-  // If you are reading or typing in the chat when your turn starts, you stay there and get a tap-to-go prompt instead.
-  const [turnPrompt, setTurnPrompt] = useState(false);
-  // A power up that is waiting on you also only gets a prompt while you are in the chat (the chat sits above popups).
-  const powerKey =
-    state && state.settings.table === "board" && state.phase === "event" && state.event && blockingPlayerIds(state).includes(actor)
-      ? `${state.code}:${state.turnIndex}:${state.event.kind}:${state.event.step ?? 0}`
-      : "";
+  // Your turn starts on the board, unless you are in the chat: then you stay put (keyboard and all) and the chat's
+  // own top box (ChatPrompts) tells you it is your turn and what needs you.
   useEffect(() => {
-    if (!rollKey) {
-      setTurnPrompt(false);
-      return;
-    }
-    if (useGame.getState().screen === "chat") setTurnPrompt(true);
-    else setScreen("board");
+    if (!rollKey) return;
+    if (useGame.getState().screen !== "chat") setScreen("board");
   }, [rollKey, setScreen]);
+
+  // The chat can turn this phone's cards face up; keep this screen in step with it.
   useEffect(() => {
-    if (powerKey && useGame.getState().screen === "chat") setTurnPrompt(true);
-  }, [powerKey]);
-  useEffect(() => {
-    if (screen !== "chat") setTurnPrompt(false);
-  }, [screen]);
+    const up = () => setFacesDown(false);
+    window.addEventListener("gmm:faces-up", up);
+    return () => window.removeEventListener("gmm:faces-up", up);
+  }, []);
 
   useEffect(() => {
     if (state?.accusation?.at) setAccuse(false);
@@ -497,32 +489,6 @@ function BriefcaseTable() {
     <main
       className="leather case-main"
     >
-      {board && screen === "chat" && turnPrompt && (rollKey || powerKey) ? (
-        <button
-          type="button"
-          onClick={() => {
-            setTurnPrompt(false);
-            setScreen("board");
-          }}
-          style={{
-            position: "fixed",
-            left: "calc(var(--dock-rail) + 12px)",
-            right: 12,
-            top: "calc(env(safe-area-inset-top, 0px) + 8px)",
-            zIndex: "var(--z-toast)",
-            padding: "12px 16px",
-            borderRadius: 16,
-            border: "2px solid #b8923e",
-            background: "rgba(20,14,8,.96)",
-            color: "#f0cf7a",
-            fontWeight: 700,
-            textAlign: "center",
-            boxShadow: "0 8px 24px rgba(0,0,0,.55)",
-          }}
-        >
-          {rollKey ? "It's your turn — tap to go to the board" : "A power up needs you — tap to open it"}
-        </button>
-      ) : null}
       {board && screen === "board" ? (
         boardUi
       ) : board && screen === "chat" ? (

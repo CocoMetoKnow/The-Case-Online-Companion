@@ -39,6 +39,9 @@ export function haptic(kind: HapticKind) {
   } catch {
     /* this browser has no vibration motor */
   }
+  // The iPhone buzz is a click on a hidden switch. While a text box is focused (the chat), skip it so the keyboard stays up.
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.matches("input,textarea,[contenteditable='true']")) return;
   const label = iosSwitch();
   if (!label) return;
   const taps = kind === "dice" || kind === "snake" || kind === "win" ? 3 : kind === "card" ? 2 : 1;

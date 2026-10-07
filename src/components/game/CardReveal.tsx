@@ -59,8 +59,11 @@ export function CardReveal({
 
   useEffect(() => {
     if (!open) return;
-    button.current?.focus({ preventScroll: true });
+    // Never pull focus out of a text box: on an iPhone that closes the keyboard while you are typing in the chat.
+    const typing = document.activeElement instanceof HTMLElement && document.activeElement.matches("input,textarea,[contenteditable='true']");
+    if (!typing) button.current?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement.matches("input,textarea,[contenteditable='true']")) return;
       if (event.key === "Escape" || event.key === "Enter") onDismiss();
     };
     window.addEventListener("keydown", onKey);

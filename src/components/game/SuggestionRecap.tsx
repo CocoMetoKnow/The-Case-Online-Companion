@@ -7,7 +7,7 @@ import { CardFace } from "./CardFace";
 
 const SEEN_KEY = "gmm.suggestionClosed";
 
-function closedBefore(id: string): boolean {
+export function closedBefore(id: string): boolean {
   try {
     return typeof localStorage !== "undefined" && localStorage.getItem(SEEN_KEY) === id;
   } catch {
@@ -15,7 +15,7 @@ function closedBefore(id: string): boolean {
   }
 }
 
-function remember(id: string) {
+export function rememberClosed(id: string) {
   try {
     localStorage.setItem(SEEN_KEY, id);
   } catch {
@@ -113,7 +113,7 @@ export function SuggestionRecap() {
           className="mt-4 w-full"
           data-sfx="soft"
           onClick={() => {
-            remember(last.id);
+            rememberClosed(last.id);
             setClosedId(last.id);
           }}
         >
