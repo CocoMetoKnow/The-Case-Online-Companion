@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { setCameraControls, useCameraControls, type CameraControls } from "@/lib/game/camera-controls";
 import { setExtraVisuals, useExtraVisuals } from "@/lib/game/extra-visuals";
 import { setSimpleJournal, useSimpleJournal } from "@/lib/game/simple-journal";
 import { musicVolume, setMusicVolume, setSfxVolume, sfxTap, sfxVolume, unlockAudio } from "@/lib/game/sfx";
@@ -136,6 +137,7 @@ export function SettingsGear() {
   const [sounds, setSoundsLevel] = useState(() => Math.round(sfxVolume() * 100));
   const extraVisuals = useExtraVisuals();
   const simpleJournal = useSimpleJournal();
+  const cameraControls = useCameraControls();
   const [ui, setUi] = useState(getUiColor);
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
@@ -272,6 +274,43 @@ export function SettingsGear() {
                       </div>
                       <p className="mt-1 text-xs text-muted">
                         Your journal gets one square per card. Tap it and pick the player who showed you the card; their logo goes in the square. Only on this phone.
+                      </p>
+                    </div>
+                    <div className="py-3">
+                      <span id="camera-controls-label">Camera controls</span>
+                      <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="camera-controls-label">
+                        {(
+                          [
+                            { id: "touch", label: "Touch / mouse" },
+                            { id: "joystick", label: "Joystick" },
+                          ] as Array<{ id: CameraControls; label: string }>
+                        ).map((opt) => {
+                          const on = cameraControls === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={on}
+                              className={cn(
+                                "rounded-2xl border bg-raised px-3 py-2.5 text-sm touch-manipulation",
+                                on ? "border-brass ring-2 ring-brass/60" : "border-line text-muted",
+                              )}
+                              onClick={() => {
+                                setCameraControls(opt.id);
+                                sfxTap();
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {cameraControls === "touch"
+                          ? "On the digital board, drag with your finger to move and pinch to zoom. On a computer, drag with the mouse and scroll to zoom. The camera button still has turn, zoom and reset buttons."
+                          : "On the digital board, the camera button opens a joystick that moves the view. Zoom and turn use the buttons."}{" "}
+                        Only on this phone.
                       </p>
                     </div>
                     <button

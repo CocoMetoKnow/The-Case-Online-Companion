@@ -21,9 +21,19 @@ import type { Verdict } from "@/lib/game/store";
 
 const BOARD_SCREEN_CSS = `
 /* UI LAYER. iPhone (portrait) is the base: turn info on top, the board fills the rest. */
-.bd-screen{display:grid;height:100%;width:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:6px;padding:2px 8px 6px}
-.bd-top{grid-area:top;min-width:0;display:flex;flex-direction:column;gap:2px}
-.bd-board{grid-area:board;min-height:0;min-width:0;position:relative}
+.bd-screen{display:grid;height:100%;width:100%;box-sizing:border-box;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top" "board" "hand";gap:8px;padding:calc(var(--head-top) + 4px) max(8px,var(--safe-right)) 8px max(8px,var(--safe-left))}
+/* The turn info is one rounded panel; it glows gold while it is your turn. */
+.bd-top{grid-area:top;min-width:0;display:flex;flex-direction:column;gap:3px;padding:7px 10px 8px;border-radius:16px;border:1px solid color-mix(in srgb,var(--color-brass) 28%,transparent);background:linear-gradient(#ffffff0d,#00000030);transition:border-color .25s ease,box-shadow .25s ease}
+.bd-top.mine{border-color:color-mix(in srgb,var(--color-brass) 78%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--color-brass) 30%,transparent),0 0 18px color-mix(in srgb,var(--color-brass) 26%,transparent)}
+.bd-board{grid-area:board;min-height:0;min-width:0;position:relative;border-radius:16px;box-shadow:0 10px 26px #0006}
+@keyframes bd-glow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-brass) 0%,transparent)}50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--color-brass) 40%,transparent)}}
+.bd-yourmove{animation:bd-glow 1.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.bd-yourmove{animation:none}.bd-top{transition:none}}
+/* Short phones (iPhone SE, mini) in portrait: a little tighter so the board keeps its room. */
+@media (orientation:portrait) and (max-height:720px){
+ .bd-screen{gap:6px;padding-bottom:6px}
+ .bd-top{padding:5px 8px 6px;gap:2px}
+}
 .bd-hand{grid-area:hand;min-width:0;display:flex;flex-direction:column}
 .bd-hand:empty{display:none}
 /* iPad held upright: same stack, roomier. */
@@ -33,7 +43,7 @@ const BOARD_SCREEN_CSS = `
 }
 /* Any screen turned on its side (iPhone, iPad, PC window): the board on the left, turn info beside it. */
 @media (orientation:landscape) and (min-width:640px){
- .bd-screen{grid-template-columns:minmax(0,1fr) clamp(250px,34vw,400px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"board top" "board hand";column-gap:10px;padding:2px max(8px,var(--safe-right)) 6px 8px}
+ .bd-screen{grid-template-columns:minmax(0,1fr) clamp(250px,34vw,400px);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"board top" "board hand";column-gap:10px;padding:max(2px,var(--head-top)) max(8px,var(--safe-right)) 6px 8px}
  .bd-top{max-height:100%;overflow-y:auto;overscroll-behavior:contain}
 }
 /* PC: the board gets the room, the turn info becomes a proper side panel. */
@@ -182,6 +192,11 @@ function BriefcaseTable() {
   const rollKey = state && state.settings.table === "board" && state.phase === "roll" && turnActorId(state) === actor ? `${state.code}:${state.turnIndex}` : "";
   // If you are reading or typing in the chat when your turn starts, you stay there and get a tap-to-go prompt instead.
   const [turnPrompt, setTurnPrompt] = useState(false);
+  // A power up that is waiting on you also only gets a prompt while you are in the chat (the chat sits above popups).
+  const powerKey =
+    state && state.settings.table === "board" && state.phase === "event" && state.event && blockingPlayerIds(state).includes(actor)
+      ? `${state.code}:${state.turnIndex}:${state.event.kind}:${state.event.step ?? 0}`
+      : "";
   useEffect(() => {
     if (!rollKey) {
       setTurnPrompt(false);
@@ -190,6 +205,9 @@ function BriefcaseTable() {
     if (useGame.getState().screen === "chat") setTurnPrompt(true);
     else setScreen("board");
   }, [rollKey, setScreen]);
+  useEffect(() => {
+    if (powerKey && useGame.getState().screen === "chat") setTurnPrompt(true);
+  }, [powerKey]);
   useEffect(() => {
     if (screen !== "chat") setTurnPrompt(false);
   }, [screen]);
@@ -394,8 +412,8 @@ function BriefcaseTable() {
   const boardUi = (
     <div className="bd-screen">
       <style>{BOARD_SCREEN_CSS}</style>
-      <section className="bd-top">
-        <header className="flex shrink-0 items-center justify-between gap-2 pt-[var(--head-top)]">
+      <section className={`bd-top${myTurn && state.phase !== "gameover" ? " mine" : ""}`}>
+        <header className="flex shrink-0 items-center justify-between gap-2">
           <p className="min-w-0 truncate font-display text-lg leading-none">
             {turnTitle}
             <span className="ml-1 text-xs text-subtle">
@@ -406,7 +424,7 @@ function BriefcaseTable() {
           </p>
           <div className="flex shrink-0 items-center gap-2">
             {canMoveMenu ? (
-              <Button size="sm" onClick={() => setMovesOpen(true)}>
+              <Button size="sm" className="bd-yourmove" onClick={() => setMovesOpen(true)}>
                 Your move
               </Button>
             ) : null}
@@ -479,7 +497,7 @@ function BriefcaseTable() {
     <main
       className="leather case-main"
     >
-      {board && screen === "chat" && turnPrompt && rollKey ? (
+      {board && screen === "chat" && turnPrompt && (rollKey || powerKey) ? (
         <button
           type="button"
           onClick={() => {
@@ -488,7 +506,7 @@ function BriefcaseTable() {
           }}
           style={{
             position: "fixed",
-            left: 12,
+            left: "calc(var(--dock-rail) + 12px)",
             right: 12,
             top: "calc(env(safe-area-inset-top, 0px) + 8px)",
             zIndex: "var(--z-toast)",
@@ -502,7 +520,7 @@ function BriefcaseTable() {
             boxShadow: "0 8px 24px rgba(0,0,0,.55)",
           }}
         >
-          It's your turn — tap to go to the board
+          {rollKey ? "It's your turn — tap to go to the board" : "A power up needs you — tap to open it"}
         </button>
       ) : null}
       {board && screen === "board" ? (

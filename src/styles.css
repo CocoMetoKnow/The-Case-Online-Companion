@@ -22,7 +22,7 @@
 /* =====================================================================================================
    UI LAYOUT SYSTEM (layout only, no game logic). Every layer in the game uses these numbers, so what
    sits above what is decided in ONE place. Low to high:
-     banner < dice roll < sheet < popup < your-turn popup < big moment < leave sure? < JOURNAL < dock < settings
+     banner < dice roll < sheet < popup < your-turn popup < big moment < leave sure? < CHAT < JOURNAL < dock < settings
    The journal is always the top screen and the dock (Board / Cards / Journal / Chat) is always tappable.
    --dock-space is the room the bottom bar takes, --dock-rail the room the PC side rail takes. Every
    overlay pads itself by them, so nothing ever hides underneath the bar.
@@ -564,54 +564,51 @@ html[data-extra-visuals] .roll-stage .case-shell{background:color-mix(in srgb,va
    Phone (iPhone) is the base design. iPad widens it. A PC (mouse + wide window) gets a different layout.
    ===================================================================================================== */
 
-/* The Board / Cards / Journal / Chat menu.
-   Phone + iPad: ONE round journal button in a slim strip along the bottom. Tapping it fans Board, Cards, Journal and Chat
-   out in a half circle above it; tapping it again (or anywhere else) folds them away. With the journal open, the button
-   closes it in a single tap. PC: a slim rail down the left edge (further below). */
-:root{--dock-h:52px}
-.game-dock{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);height:calc(var(--dock-h) + var(--safe-bottom));pointer-events:none}
-.dock-scrim{position:fixed;inset:0;z-index:-1;border:0;background:#0000008c;opacity:0;pointer-events:none;transition:opacity .2s ease}
-.game-dock.open .dock-scrim{opacity:1;pointer-events:auto}
-.dock-main{pointer-events:auto;position:absolute;left:50%;bottom:calc(var(--safe-bottom) + 4px);transform:translateX(-50%);width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(#f6f1e6,#e2d6bb);color:#1c2430;border:3px solid var(--color-brass);box-shadow:0 6px 16px #000a,0 0 0 4px #140e0bd9;transition:transform .18s ease}
-.dock-main:active{transform:translateX(-50%) scale(.94)}
-.dock-main.on{background:linear-gradient(#2a1e0c,#140e0b);color:#fbe9b4}
-.dock-main svg{width:28px;height:28px}
-.dock-items{position:absolute;left:50%;bottom:calc(var(--safe-bottom) + 35px);width:0;height:0}
-.game-dock-tab{pointer-events:none;position:absolute;left:0;bottom:0;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:2px solid var(--color-line);background:#140e0bf2;color:var(--color-muted);font-size:10px;font-weight:700;line-height:1;opacity:0;transform:translate(0,0) scale(.3);transition:transform .22s cubic-bezier(.2,.9,.3,1.2),opacity .16s ease}
-.game-dock.open .game-dock-tab{pointer-events:auto;opacity:1;transform:translate(var(--dx),var(--dy)) scale(1)}
-.game-dock-tab.big{width:68px;height:68px;margin:-34px 0 0 -34px;font-size:11px}
-.game-dock-tab.on{border-color:var(--color-brass);background:var(--color-raised);color:var(--color-paper)}
-.game-dock-tab:active{filter:brightness(1.25)}
+/* The Board / Cards / Journal / Chat bar.
+   Phone + iPad: a slim bar that sits right on the bottom edge (it owns the home-indicator area, so there is no dead gap
+   between the screen above and the bar). Journal is the biggest tab and Chat the second biggest, then Board and Cards.
+   A phone on its side, and a PC: the same four tabs as a slim rail down the left edge, Journal first and Chat second,
+   so the whole height is for the table. */
+:root{--dock-h:56px;--z-chat:880}
+.game-dock{position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);box-sizing:border-box;height:calc(var(--dock-h) + var(--safe-bottom));padding:6px max(10px,var(--safe-right)) calc(var(--safe-bottom) + 4px) max(10px,var(--safe-left));display:grid;grid-template-columns:1fr 1fr 1.5fr 1.3fr;align-items:stretch;gap:6px;background:linear-gradient(#1c1410f5,#0f0a08fc);border-top:1px solid color-mix(in srgb,var(--color-brass) 45%,transparent);box-shadow:0 -8px 20px #0006;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.game-dock-tab{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;border-radius:14px;border:1px solid transparent;background:transparent;color:var(--color-muted);font-size:11px;font-weight:700;line-height:1;touch-action:manipulation;transition:background .15s ease,color .15s ease,border-color .15s ease,transform .12s ease}
+.game-dock-tab:active{transform:scale(.95)}
+.game-dock-tab.on{border-color:color-mix(in srgb,var(--color-brass) 65%,transparent);background:var(--color-raised);color:var(--color-paper)}
+/* Chat: second most important, so it is brighter and bigger than Board and Cards. */
+.game-dock-tab.second{color:var(--color-paper);border-color:color-mix(in srgb,var(--color-brass) 38%,transparent);background:#ffffff0d}
+.game-dock-tab.second.on{background:var(--color-raised);border-color:var(--color-brass)}
+/* Journal: the most important tab. Cream like the paper cover while closed, dark with gold text while open. */
+.game-dock-tab.big{font-size:12px;color:#1c2430;border-color:var(--color-brass);background:linear-gradient(#f6f1e6,#e2d6bb);box-shadow:0 2px 8px #0006}
+.game-dock-tab.big.on{background:linear-gradient(#2a1e0c,#140e0b);color:#fbe9b4}
 .game-dock-icon{display:block;width:22px;height:22px;flex:none}
-.game-dock-badge{position:absolute;right:-3px;top:-3px;display:grid;min-width:20px;place-items:center;border-radius:9999px;background:#ff3b30;padding:0 4px;font-size:11px;font-weight:700;line-height:20px;color:#fff}
-.dock-main .game-dock-badge{right:-6px;top:-6px}
-@media (prefers-reduced-motion:reduce){.game-dock-tab{transition:opacity .1s}}
-/* A phone on its side is short: slimmer strip, smaller arc. */
-@media (orientation:landscape) and (max-height:520px){
-  :root{--dock-h:44px}
-  .dock-main{width:52px;height:52px}
-  .dock-items{bottom:calc(var(--safe-bottom) + 30px)}
-}
-/* iPad: bigger button and bigger arc. */
+.game-dock-tab.big .game-dock-icon{width:24px;height:24px}
+.game-dock-badge{position:absolute;right:6px;top:3px;display:grid;min-width:20px;place-items:center;border-radius:9999px;background:#ff3b30;padding:0 4px;font-size:11px;font-weight:700;line-height:20px;color:#fff;box-shadow:0 0 0 2px #140e0b}
+@media (prefers-reduced-motion:reduce){.game-dock-tab{transition:none}}
+/* iPad held upright or any wide touch screen: roomier bar, centered, with rounded top corners. */
 @media (min-width:700px) and (hover:none){
-  :root{--dock-h:60px}
-  .dock-main{width:72px;height:72px}
-  .game-dock-tab{width:68px;height:68px;margin:-34px 0 0 -34px;font-size:12px}
-  .game-dock-tab.big{width:80px;height:80px;margin:-40px 0 0 -40px}
-  .dock-items{bottom:calc(var(--safe-bottom) + 40px)}
+  :root{--dock-h:64px}
+  .game-dock{left:50%;right:auto;width:min(100%,640px);transform:translateX(-50%);border-radius:20px 20px 0 0;border-left:1px solid color-mix(in srgb,var(--color-brass) 30%,transparent);border-right:1px solid color-mix(in srgb,var(--color-brass) 30%,transparent)}
+  .game-dock-tab{font-size:12px}
+  .game-dock-tab.big{font-size:13px}
+  .game-dock-icon{width:24px;height:24px}
 }
-/* PC (mouse, wide window): a slim rail down the left edge, so the whole height is for the table. */
-@media (hover:hover) and (pointer:fine) and (min-width:1000px){
-  :root{--dock-rail:84px}
+/* PC (mouse, wide window) and a phone turned on its side: a slim rail down the left edge. Journal first, Chat second. */
+@media (hover:hover) and (pointer:fine) and (min-width:1000px), (orientation:landscape) and (max-height:520px){
+  :root{--dock-rail:80px}
   :root[data-dock]{--dock-space:var(--safe-bottom)}
-  .game-dock{right:auto;top:0;bottom:0;width:84px;height:auto;pointer-events:auto;border-right:1px solid var(--color-line);background:#140e0bf5}
-  .dock-main,.dock-scrim{display:none}
-  .dock-items{position:static;width:auto;height:100%;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:12px 8px}
-  .game-dock-tab,.game-dock-tab.big{position:relative;pointer-events:auto;opacity:1;transform:none;width:100%;height:68px;margin:0;border-radius:12px;font-size:12px;letter-spacing:.04em;gap:6px}
-  .game-dock.open .game-dock-tab{transform:none}
-  .game-dock-tab:hover:not(.on){background:var(--color-raised);color:var(--color-paper)}
+  .game-dock{left:var(--safe-left);right:auto;top:0;bottom:0;width:80px;height:auto;transform:none;border-radius:0;border:0;border-right:1px solid var(--color-line);box-shadow:none;background:#140e0bf5;padding:max(8px,var(--safe-top)) 8px max(8px,var(--safe-bottom));grid-template-columns:1fr;grid-auto-rows:minmax(0,76px);align-content:center;gap:8px}
+  .game-dock-tab{font-size:11px;letter-spacing:.04em;gap:5px}
+  .game-dock-tab.big{order:1}
+  .game-dock-tab.second{order:2}
+  .game-dock-tab.rail-board{order:3}
+  .game-dock-tab.rail-cards{order:4}
   .game-dock-badge{right:6px;top:4px}
 }
+@media (hover:hover) and (pointer:fine) and (min-width:1000px){
+  .game-dock-tab:hover:not(.on):not(.big){background:var(--color-raised);color:var(--color-paper)}
+}
+/* The chat sits on its own layer: above every popup and prompt, just under the journal and the bar. */
+.chat-layer{position:fixed;inset:0;z-index:var(--z-chat);display:flex;flex-direction:column;box-sizing:border-box;padding:var(--safe-top) max(10px,var(--safe-right)) var(--dock-space) calc(var(--dock-rail) + max(10px,var(--safe-left)))}
 
 /* While the floating journal tab is showing (phone case mode), popups stop above it instead of under it. */
 :root[data-fab]{--dock-space:calc(var(--safe-bottom) + 96px);--journal-bottom:var(--safe-bottom)}

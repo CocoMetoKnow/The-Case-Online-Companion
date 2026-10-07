@@ -17,6 +17,7 @@ import { portraitFor } from "@/lib/game/cast";
 import { portraitArt } from "@/lib/game/cards";
 import { charCutout } from "@/lib/game/scene-art";
 import { HOUSE_H } from "@/lib/game/house-data";
+import { hasMouse, useCameraControls } from "@/lib/game/camera-controls";
 
 /**
  * The digital board: the painted house, one fixed floor plan. The marble squares in the picture are the squares
@@ -24,9 +25,10 @@ import { HOUSE_H } from "@/lib/game/house-data";
  * middle of a secret passage) are not on the house at all: a guest in one stands on a small plaque on the lawn.
  *
  * Only the guests stand up: each one is a small round base with a cut-out figure on it, a little shadow, so they read as
- * 3D while standing perfectly upright. The whole house starts scaled to fit the space it is given. It never zooms or turns by
- * pinching or dragging: one camera button in the middle of the bottom bar opens a flat control strip: a thumb stick in
- * the middle that moves the view, turn left and right, and zoom. A Reset camera button (center and zoom all the way out) shows up whenever the camera is off its default view. The house is always drawn flat, top down, at every angle, and it
+ * 3D while standing perfectly upright. The whole house starts scaled to fit the space it is given. How the camera is
+ * controlled is a setting (Settings > Camera controls). "Touch / mouse" (the default): drag a finger, or the mouse on a computer,
+ * to move the board, pinch with two fingers or scroll the wheel to zoom. "Joystick": the board is not moved by touch at all. In both, one camera button in the middle of the
+ * bottom bar opens a flat control strip with turn left and right, zoom, and (joystick only) a thumb stick in the middle that moves the view. A Reset camera button (center and zoom all the way out) shows up whenever the camera is off its default view. The house is always drawn flat, top down, at every angle, and it
  * is fitted between the top bar and the bottom bar so the hidden rooms on the lawn are never covered. To move, tap anywhere near a lit square. Any square the roll can reach is a
  * destination, and a tap that lands close to one snaps to it. After walking into a room the steps left over can still
  * be used, by a door or by a secret passage, and the passage buttons at the bottom of the board say where each goes.
@@ -38,6 +40,9 @@ const BOARD_CSS = `
 .dgb-view{position:absolute;inset:0;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 .dgb-world{position:absolute;left:0;top:0;transform-origin:0 0;transition:transform .32s ease}
 .dgb-world.live{transition:none!important;will-change:transform}
+.dgb-view.touch{cursor:grab}
+.dgb-view.touch.grabbing{cursor:grabbing}
+.dgb-hint{flex:1 1 0;min-width:0;padding:0 2px;text-align:center;font-size:10px;font-weight:700;line-height:1.2;color:#5a4a2e}
 .dgb-upright{transition:transform .32s ease}
 .dgb-tile{position:absolute;z-index:3;pointer-events:none;border-radius:4px;background:color-mix(in srgb,var(--tint) 80%,transparent);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint) 55%,#000),0 0 9px color-mix(in srgb,var(--tint) 70%,transparent)}
 .dgb-dock{pointer-events:auto;touch-action:none;grid-column:1/-1;grid-row:1;height:64px;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:0 6px;border-radius:16px;background:rgba(246,241,230,.97);border:1px solid #c4b396;box-shadow:0 4px 14px rgba(0,0,0,.6);color:#1c2430}
@@ -268,7 +273,9 @@ export function MansionBoard({
   }, []);
 
   // Zoom and turn are buttons only. `turns` counts quarter turns (it may go negative so the house spins the short way).
-  const [zoomAt, setZoomAt] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const mode = useCameraControls();
+  const touchMode = mode === "touch";
   const [turns, setTurns] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [camOpen, setCamOpen] = useState(false);
@@ -279,13 +286,13 @@ export function MansionBoard({
   const quarter = ((turns % 4) + 4) % 4;
   const cos = COS[quarter];
   const sin = SIN[quarter];
-  const zoomed = zoomAt > 0;
+  const zoomed = zoom > 1.001;
   const sideways = quarter % 2 === 1;
   // The house is fitted between the top bar and the bottom bar, so no control ever sits on top of a room.
   const availH = Math.max(120, size.h - PAD_TOP - PAD_BOTTOM);
   const midY = PAD_TOP + availH / 2;
   const fit = Math.max(0.05, Math.min((size.w - 4) / (sideways ? worldH : worldW), (availH - 4) / (sideways ? worldW : worldH)));
-  const scale = fit * ZOOMS[zoomAt];
+  const scale = fit * zoom;
   const inv = 1 / scale;
   const upright = `rotate(${-turns * 90}deg)`;
   /** A spot on the house as it is drawn on the screen: where it sits after the turn, left to right and top to bottom. */
@@ -302,7 +309,8 @@ export function MansionBoard({
 
   // Zoomed in, the view follows the guest whose turn it is. The thumb stick moves it from there.
   const focusPos = actor ? shown[actor.id]?.pos ?? actor.position : null;
-  const focus = zoomed && focusPos ? spot(focusPos) : { x: worldW / 2, y: worldH / 2 };
+  // Touch / mouse mode never follows the guest on its own: the picture stays where the player put it.
+  const focus = !touchMode && zoomed && focusPos ? spot(focusPos) : { x: worldW / 2, y: worldH / 2 };
   const offX = size.w / 2 + pan.x - scale * rotX(focus.x, focus.y);
   const offY = midY + pan.y - scale * rotY(focus.x, focus.y);
 
@@ -310,11 +318,134 @@ export function MansionBoard({
   tailRef.current = `rotate(${turns * 90}deg) scale(${scale})`;
   limRef.current = (Math.max(worldW, worldH) * scale) / 2;
 
-  const zoomTo = (next: number) => {
-    const at = clamp(next, 0, ZOOMS.length - 1);
-    setZoomAt(at);
-    if (at === 0) setPan({ x: 0, y: 0 });
+  // What the camera is right now, kept in a ref so a fast stream of finger or wheel events always builds on the latest.
+  const camRef = useRef({ zoom: 1, x: 0, y: 0 });
+  camRef.current = { zoom, x: pan.x, y: pan.y };
+  const geoRef = useRef({ halfW: 0, midY: 0, fit: 1, rcx: 0, rcy: 0, lim: 1 });
+  geoRef.current = { halfW: size.w / 2, midY, fit, rcx: rotX(worldW / 2, worldH / 2), rcy: rotY(worldW / 2, worldH / 2), lim: Math.max(worldW, worldH) };
+  const [gesturing, setGesturing] = useState(false);
+
+  /** The zoom buttons: one step at a time through ZOOMS, from wherever a pinch or the wheel left it. */
+  const stepZoom = (dir: 1 | -1) => {
+    const cur = camRef.current;
+    const next = dir > 0 ? (ZOOMS.find((z) => z > cur.zoom + 0.01) ?? ZOOMS[ZOOMS.length - 1]) : ([...ZOOMS].reverse().find((z) => z < cur.zoom - 0.01) ?? 1);
+    if (next <= 1.001) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    if (!touchMode) {
+      setZoom(next);
+      return;
+    }
+    const s0 = fit * cur.zoom;
+    const s1 = fit * next;
+    if (cur.zoom <= 1.001 && focusPos) {
+      // First step in: put the guest whose turn it is in the middle of the view.
+      const f = spot(focusPos);
+      setPan({ x: s1 * (rotX(worldW / 2, worldH / 2) - rotX(f.x, f.y)), y: s1 * (rotY(worldW / 2, worldH / 2) - rotY(f.x, f.y)) });
+    } else {
+      // Zoom about the middle of the view.
+      const k = s1 / s0;
+      setPan({ x: cur.x * k, y: cur.y * k });
+    }
+    setZoom(next);
   };
+
+  // Touch / mouse mode. One finger (or the mouse button held) drags the board, two fingers pinch, the wheel zooms. Every
+  // change keeps the spot under the fingers (or the pointer) where it is.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const wheelTimer = useRef(0);
+  const MAX_ZOOM = 4;
+  /** Move the camera: zoom to `nextZoom` about the view point (ax, ay), then slide by (dx, dy). All in screen pixels. */
+  const moveCam = (nextZoom: number, ax: number, ay: number, dx: number, dy: number) => {
+    const g = geoRef.current;
+    const c = camRef.current;
+    const nz = clamp(nextZoom, 1, MAX_ZOOM);
+    const s0 = g.fit * c.zoom;
+    const s1 = g.fit * nz;
+    const k = s1 / s0;
+    const off0x = g.halfW + c.x - s0 * g.rcx;
+    const off0y = g.midY + c.y - s0 * g.rcy;
+    const off1x = ax + k * (off0x - ax) + dx;
+    const off1y = ay + k * (off0y - ay) + dy;
+    const lim = (g.lim * s1) / 2;
+    const next = nz <= 1.001 ? { zoom: 1, x: 0, y: 0 } : { zoom: nz, x: clamp(off1x - (g.halfW - s1 * g.rcx), -lim, lim), y: clamp(off1y - (g.midY - s1 * g.rcy), -lim, lim) };
+    camRef.current = next;
+    setZoom(next.zoom);
+    setPan({ x: next.x, y: next.y });
+  };
+  const toView = (clientX: number, clientY: number) => {
+    const box = view.current?.getBoundingClientRect();
+    return { x: clientX - (box?.left ?? 0), y: clientY - (box?.top ?? 0) };
+  };
+  const touchDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!touchMode || (e.pointerType === "mouse" && e.button !== 0)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (e.pointerType === "mouse") e.currentTarget.setPointerCapture(e.pointerId);
+    // A second finger turns the touch into a pinch, never a tap on a square.
+    if (pointers.current.size > 1) downAt.current = null;
+  };
+  const touchMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const old = pointers.current.get(e.pointerId);
+    if (!touchMode || !old) return;
+    const pts = [...pointers.current.entries()];
+    const after = pts.map(([id, v]) => (id === e.pointerId ? { x: e.clientX, y: e.clientY } : v));
+    const before = pts.map(([, v]) => v);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesturing && Math.hypot(e.clientX - old.x, e.clientY - old.y) < 0.5 && pts.length === 1) return;
+    setGesturing(true);
+    if (pts.length === 1) {
+      // Only start dragging once the finger has clearly left the spot it landed on, so a tap stays a tap.
+      const d = downAt.current;
+      if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= 8) return;
+      if (camRef.current.zoom <= 1.001) return; // the whole house is already on screen
+      moveCam(camRef.current.zoom, 0, 0, e.clientX - old.x, e.clientY - old.y);
+      return;
+    }
+    const [b0, b1] = before;
+    const [a0, a1] = after;
+    const distB = Math.hypot(b1.x - b0.x, b1.y - b0.y) || 1;
+    const distA = Math.hypot(a1.x - a0.x, a1.y - a0.y) || 1;
+    const midB = toView((b0.x + b1.x) / 2, (b0.y + b1.y) / 2);
+    const midA = toView((a0.x + a1.x) / 2, (a0.y + a1.y) / 2);
+    moveCam(camRef.current.zoom * (distA / distB), midB.x, midB.y, midA.x - midB.x, midA.y - midB.y);
+  };
+  const touchEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.delete(e.pointerId)) return;
+    if (pointers.current.size === 0) setGesturing(false);
+  };
+  // The mouse wheel zooms about the pointer. It has to be a real listener: React's own wheel handler cannot stop the page scrolling.
+  useEffect(() => {
+    const el = view.current;
+    if (!el || !touchMode) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      const box = el.getBoundingClientRect();
+      moveCam(camRef.current.zoom * Math.exp(-e.deltaY * unit * 0.0016), e.clientX - box.left, e.clientY - box.top, 0, 0);
+      setGesturing(true);
+      window.clearTimeout(wheelTimer.current);
+      wheelTimer.current = window.setTimeout(() => setGesturing(false), 140);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      window.clearTimeout(wheelTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [touchMode]);
+  // Switching between the two ways of controlling the camera starts from the default view, so the picture never jumps.
+  const lastMode = useRef(mode);
+  useEffect(() => {
+    if (lastMode.current === mode) return;
+    lastMode.current = mode;
+    pointers.current.clear();
+    setGesturing(false);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setCamOpen(false);
+  }, [mode]);
   // Thumb stick. While it is held the house is moved straight on the screen (no React re-render and no CSS
   // transition per frame, which is what made the whole board shake), with the speed eased in and out. The new
   // position is committed to state once the stick has come to rest.
@@ -419,7 +550,7 @@ export function MansionBoard({
     L.vx = 0;
     L.vy = 0;
     setPan({ x: 0, y: 0 });
-    setZoomAt(0);
+    setZoom(1);
   };
   const showReset = zoomed || dragging || Math.abs(pan.x) > 2 || Math.abs(pan.y) > 2;
   const labelPx = clamp(10.5, 9, 14) * inv;
@@ -484,13 +615,15 @@ export function MansionBoard({
   const downAt = useRef<{ x: number; y: number; t: number } | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    downAt.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+    if (pointers.current.size === 0) downAt.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+    touchDown(e);
   };
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    touchEnd(e);
     const d = downAt.current;
     downAt.current = null;
     if (!d || !targets.length) return;
-    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 14 || Date.now() - d.t > 900) return;
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > (touchMode ? 8 : 14) || Date.now() - d.t > 900) return;
     const hit = pick(e.clientX, e.clientY);
     if (hit) {
       setHover(null);
@@ -498,7 +631,8 @@ export function MansionBoard({
     }
   };
   const onHover = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== "mouse" || !targets.length) {
+    touchMove(e);
+    if (pointers.current.size > 0 || e.pointerType !== "mouse" || !targets.length) {
       if (hover) setHover(null);
       return;
     }
@@ -558,18 +692,22 @@ export function MansionBoard({
       <style>{BOARD_CSS}</style>
       <div
         ref={view}
-        className="dgb-view"
+        className={cn("dgb-view", touchMode && "touch", touchMode && gesturing && "grabbing")}
+        style={{ touchAction: touchMode ? "none" : "manipulation" }}
         role="application"
-        aria-label={walking || anywhere ? "House board. Tap a lit square to go there." : "House board"}
+        aria-label={(walking || anywhere ? "House board. Tap a lit square to go there." : "House board") + (touchMode ? " Drag to move the board, pinch or scroll to zoom." : "")}
         onPointerDown={onDown}
         onPointerUp={onUp}
-        onPointerCancel={() => (downAt.current = null)}
+        onPointerCancel={(e) => {
+          downAt.current = null;
+          touchEnd(e);
+        }}
         onPointerMove={onHover}
         onPointerLeave={() => setHover(null)}
       >
         <div
           ref={world}
-          className="dgb-world"
+          className={cn("dgb-world", gesturing && "live")}
           style={{ width: worldW, height: worldH, transform: `translate(${offX}px, ${offY}px) rotate(${turns * 90}deg) scale(${scale})` } as CSSProperties}
         >
           <img className="dgb-house" src="/board/house.jpg" width={worldW} height={worldH} alt="" draggable={false} />
@@ -763,23 +901,31 @@ export function MansionBoard({
                 Right
               </button>
             </div>
-            <div
-              className="dgb-stick"
-              role="application"
-              aria-label="Thumb stick: move the view"
-              onPointerDown={stickDown}
-              onPointerMove={(e) => stickBox.current && stickTo(e.clientX, e.clientY)}
-              onPointerUp={stickUp}
-              onPointerCancel={stickUp}
-            >
-              <span ref={knobEl} className="dgb-knob" />
-            </div>
+            {touchMode ? (
+              <div className="dgb-hint" aria-hidden="true">
+                Drag to move
+                <br />
+                {hasMouse() ? "Scroll to zoom" : "Pinch to zoom"}
+              </div>
+            ) : (
+              <div
+                className="dgb-stick"
+                role="application"
+                aria-label="Thumb stick: move the view"
+                onPointerDown={stickDown}
+                onPointerMove={(e) => stickBox.current && stickTo(e.clientX, e.clientY)}
+                onPointerUp={stickUp}
+                onPointerCancel={stickUp}
+              >
+                <span ref={knobEl} className="dgb-knob" />
+              </div>
+            )}
             <div className="dgb-side">
-              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt - 1)} disabled={zoomAt <= 0} aria-label="Zoom out" title="Zoom out">
+              <button type="button" className="dgb-ctl" onClick={() => stepZoom(-1)} disabled={!zoomed} aria-label="Zoom out" title="Zoom out">
                 <ZoomOut size={18} />
                 Out
               </button>
-              <button type="button" className="dgb-ctl" onClick={() => zoomTo(zoomAt + 1)} disabled={zoomAt >= ZOOMS.length - 1} aria-label="Zoom in" title="Zoom in">
+              <button type="button" className="dgb-ctl" onClick={() => stepZoom(1)} disabled={zoom >= ZOOMS[ZOOMS.length - 1] - 0.01} aria-label="Zoom in" title="Zoom in">
                 <ZoomIn size={18} />
                 In
               </button>
