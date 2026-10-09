@@ -465,6 +465,7 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
   let marks = mine.marks;
   let shown = mine.shown;
   let lastShown = mine.lastShown ?? null;
+  let npcShown = mine.npcShown ?? [];
   let changed = false;
   const stamp = (id: string, fromId?: string) => {
     const cell = { ...(marks[id] ?? {}) };
@@ -492,6 +493,11 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
     // A lost Gambler bet means the card is never seen, so nothing is marked in the journal.
     seenId = q.shownCardId;
     seenFrom = q.showerId && q.showerId !== NPC_ID ? q.showerId : "";
+    // The NPC showed this card: remember it for good, so the journal can tag it with the NPC's own symbol.
+    if (q.showerId === NPC_ID && !npcShown.includes(seenId)) {
+      npcShown = [...npcShown, seenId];
+      changed = true;
+    }
   } else if (q?.shownCardId && state.spy?.byId === playerId && state.spy.targetId === q.askerId) {
     seenId = q.shownCardId;
     seenFrom = q.showerId || "";
@@ -538,7 +544,7 @@ function autoMark(notes: Record<string, PlayerNotes>, state: GameState, secrets:
     changed = true;
   }
   if (!changed) return notes;
-  return { ...notes, [key]: { ...mine, marks, shown, lastShown } };
+  return { ...notes, [key]: { ...mine, marks, shown, lastShown, npcShown } };
 }
 
 function forgetShownCard(notes: Record<string, PlayerNotes>, state: GameState, playerId: string) {

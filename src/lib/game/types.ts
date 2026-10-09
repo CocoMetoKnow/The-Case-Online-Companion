@@ -341,6 +341,8 @@ export interface PlayerNotes {
   shown: Array<{ fromId: string; cardId: string; turn: number }>;
   /** The one card you were just shown. Replaced when the next card is shown. */
   lastShown?: { cardId: string; fromId: string } | null;
+  /** Extra Difficulty: cards the NPC showed you. They keep their own symbol in the journal for the rest of the game. */
+  npcShown?: string[];
   freeText: string;
 }
 
