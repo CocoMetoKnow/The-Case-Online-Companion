@@ -5,6 +5,7 @@ import { unlockAudio } from "@/lib/game/sfx";
 import { useEffect } from "react";
 import { MusicToggle } from "./MusicToggle";
 import { setSkin, useSkin } from "@/lib/game/theme";
+import { openTeam } from "@/lib/team/mode";
 
 /** The title-screen picture of the Case File look: the manor at night with a single lit window. */
 function Manor() {
@@ -118,6 +119,10 @@ export function Landing() {
             </Button>
           </div>
           {joinError ? <p className="mt-2 text-sm text-danger">{joinError}</p> : null}
+
+          <Button variant="outline" className="mt-4 w-full" onClick={() => { unlockAudio(); openTeam(); }}>
+            Team Mode: escape the mansion together
+          </Button>
 
           <button
             type="button"

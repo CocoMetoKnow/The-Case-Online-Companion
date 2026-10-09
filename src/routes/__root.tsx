@@ -3,6 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 import skinCss from "../skin-casefile.css?url";
+import teamCss from "../team.css?url";
 import { THEME_BOOT_SCRIPT } from "@/lib/game/theme";
 
 const APP_NAME = "The Case";
@@ -22,6 +23,8 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       // The Case File look. Inert until <html data-skin="casefile"> is set (Settings > Look).
       { rel: "stylesheet", href: skinCss },
+      // Team Mode (scoped under .tm).
+      { rel: "stylesheet", href: teamCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

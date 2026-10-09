@@ -12,8 +12,11 @@ import { SuggestionRecap } from "./SuggestionRecap";
 import { CardsReceivedNotice } from "./CardsReceivedNotice";
 import { installUiSounds } from "@/lib/game/sfx";
 import { initTheme } from "@/lib/game/theme";
+import { TeamMode } from "@/components/team/TeamMode";
+import { useTeamOpen } from "@/lib/team/mode";
 
 export function AppShell() {
+  const teamOpen = useTeamOpen();
   const view = useGame((s) => s.view);
   const hydrate = useGame((s) => s.hydrate);
   const booted = useGame((s) => s.booted);
@@ -51,6 +54,9 @@ export function AppShell() {
   }, [heist]);
 
   if (!booted) return <main className="leather min-h-dvh" />;
+
+  // Team Mode is its own self-contained screen: the journal, dock and chat belong to the table game.
+  if (teamOpen) return <TeamMode />;
 
   const online = state
     ? state.settings.playMode === "online"
