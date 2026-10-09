@@ -19,7 +19,10 @@ import {
   setAccentColor,
   setCardColor,
   setJournalColor,
+  setSkin,
   setUiColor,
+  SKINS,
+  useSkin,
   UI_COLORS,
   uiPreview,
   type AccentColor,
@@ -142,6 +145,7 @@ export function SettingsGear() {
   const [accent, setAccent] = useState(getAccentColor);
   const [card, setCard] = useState(getCardColor);
   const [journal, setJournal] = useState(getJournalColor);
+  const skin = useSkin();
 
   function openSettings() {
     setMusicLevel(Math.round(musicVolume() * 100));
@@ -200,6 +204,36 @@ export function SettingsGear() {
                   </div>
 
                   <div className="mt-4 divide-y divide-line">
+                    <div className="py-3">
+                      <span id="look-label">Look</span>
+                      <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="look-label">
+                        {SKINS.map((opt) => {
+                          const on = skin === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={on}
+                              className={cn(
+                                "cf-look-tile rounded-2xl border bg-raised p-2 touch-manipulation",
+                                on ? "border-brass ring-2 ring-brass/60" : "border-line",
+                              )}
+                              onClick={() => {
+                                setSkin(opt.id);
+                                sfxTap();
+                              }}
+                            >
+                              <span aria-hidden="true" className={cn("cf-look-swatch", opt.id)} />
+                              <span className={cn("mt-1.5 block text-sm", on ? "text-fg" : "text-muted")}>{opt.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="mt-1 text-xs text-muted">
+                        {SKINS.find((o) => o.id === skin)?.blurb} Every color below works in both looks. Only on this phone.
+                      </p>
+                    </div>
                     <div className="py-3">
                       <div className="flex items-center justify-between">
                         <span id="music-volume-label">Music</span>
