@@ -1,0 +1,475 @@
+/* =====================================================================================================
+   LOOK: "Case File"  (html[data-skin="casefile"], chosen in Settings > Look; the default look has no attribute)
+
+   A detective's desk under one lamp: dark tinted leather, brass fittings, evidence-tag labels and a typewriter.
+   Nothing here changes layout or game logic. It only repaints what styles.css already lays out.
+
+   Every color is built from the same variables the color settings already drive, so all of them keep working:
+     UI color         --ui-h / --ui-s   (the desk, folders, bar)         fallback 28 / 30% = the classic brown
+     Text & border    --color-brass     (rules, corners, tags, glow)
+     Card color       --card-back / --card-frame (untouched)
+     Journal color    --j-*             (untouched; only a worn texture is laid over it)
+
+   Specificity note: html:root[data-skin] beats :root[data-ui] and :root[data-accent] in styles.css, and this
+   file is unlayered, so it also beats Tailwind utilities.
+   ===================================================================================================== */
+
+html:root[data-skin="casefile"] {
+  --cf-h: var(--ui-h, 28);
+  --cf-s: var(--ui-s, 30%);
+  --cf-ink: hsl(var(--cf-h) var(--cf-s) 4%);
+  --cf-desk: hsl(var(--cf-h) var(--cf-s) 7%);
+  --cf-folder-top: hsl(var(--cf-h) var(--cf-s) 15%);
+  --cf-folder-bot: hsl(var(--cf-h) var(--cf-s) 8%);
+  --cf-rule: color-mix(in srgb, var(--color-brass) 55%, transparent);
+  --cf-rule-soft: color-mix(in srgb, var(--color-brass) 28%, transparent);
+  --cf-glow: color-mix(in srgb, var(--color-brass) 22%, transparent);
+  --cf-paper: #eadcbc;
+  --cf-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 .93  0 0 0 0 .8  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.09'/></svg>");
+
+  --font-display: "IM Fell English", "Cormorant Garamond", Georgia, serif;
+  --font-label: "Special Elite", "Courier New", monospace;
+
+  --color-bg: hsl(var(--cf-h) var(--cf-s) 5%);
+  --color-surface: hsl(var(--cf-h) var(--cf-s) 8%);
+  --color-raised: hsl(var(--cf-h) var(--cf-s) 12%);
+  --color-line: hsl(var(--cf-h) calc(var(--cf-s) * 0.7) 21%);
+  --color-fg: #f1e8d6;
+  --color-muted: #cbbfa9;
+  --color-subtle: #978a74;
+  --color-paper: var(--cf-paper);
+
+  --ui-leather-top: hsl(var(--cf-h) var(--cf-s) 12%);
+  --ui-leather-bot: hsl(var(--cf-h) var(--cf-s) 4%);
+  --ui-shell-top: var(--cf-folder-top);
+  --ui-shell-mid: hsl(var(--cf-h) var(--cf-s) 10%);
+  --ui-shell-bot: var(--cf-folder-bot);
+  --ui-shell-inset: var(--cf-ink);
+}
+
+/* ---------- The desk: every screen background gets the lamp pool, a dark vignette and a little grain ---------- */
+html:root[data-skin="casefile"] body {
+  font-family: var(--font-sans);
+}
+html:root[data-skin="casefile"] .leather,
+html:root[data-skin="casefile"] .paper-wash,
+html:root[data-skin="casefile"] .table-scene {
+  color: var(--color-fg);
+  background:
+    radial-gradient(75% 42% at 50% -6%, var(--cf-glow), transparent 72%),
+    radial-gradient(130% 95% at 50% 40%, transparent 48%, #000000b8 100%),
+    var(--cf-grain),
+    linear-gradient(hsl(var(--cf-h) var(--cf-s) 9%), hsl(var(--cf-h) var(--cf-s) 4%));
+}
+
+/* ---------- Folders: panels become case files with brass corner brackets ---------- */
+html:root[data-skin="casefile"] .case-shell,
+html:root[data-skin="casefile"] .wood-panel {
+  --b: color-mix(in srgb, var(--color-brass) 85%, transparent);
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--cf-rule);
+  color: var(--color-fg);
+  background:
+    linear-gradient(var(--b), var(--b)) top 9px left 9px / 16px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) top 9px left 9px / 1.5px 16px no-repeat,
+    linear-gradient(var(--b), var(--b)) top 9px right 9px / 16px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) top 9px right 9px / 1.5px 16px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom 9px left 9px / 16px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom 9px left 9px / 1.5px 16px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom 9px right 9px / 16px 1.5px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom 9px right 9px / 1.5px 16px no-repeat,
+    radial-gradient(90% 55% at 50% 0%, var(--cf-glow), transparent 70%),
+    var(--cf-grain),
+    linear-gradient(var(--cf-folder-top), var(--cf-folder-bot));
+  box-shadow:
+    inset 0 0 0 1px var(--cf-ink),
+    inset 0 1px 0 #ffffff14,
+    0 0 0 1px #000,
+    0 22px 48px #000a;
+}
+html:root[data-skin="casefile"] .case-shell.rounded-t-\[28px\] {
+  border-radius: 14px 14px 0 0;
+}
+
+/* Rules between sections: a fading brass line instead of dashed stitching. */
+html:root[data-skin="casefile"] .stitch {
+  height: 1px;
+  opacity: 0.8;
+  background-image: linear-gradient(90deg, transparent, var(--color-brass) 22%, var(--color-brass) 78%, transparent);
+}
+
+/* ---------- Type: labels are typed, titles are old print ---------- */
+html:root[data-skin="casefile"] h1,
+html:root[data-skin="casefile"] h2,
+html:root[data-skin="casefile"] h3,
+html:root[data-skin="casefile"] .font-display {
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+html:root[data-skin="casefile"] .uppercase {
+  text-transform: none;
+  font-family: var(--font-label);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Buttons: wax-and-brass tags ---------- */
+html:root[data-skin="casefile"] button[data-sfx] {
+  border-radius: 6px;
+  font-family: var(--font-label);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+html:root[data-skin="casefile"] button[data-sfx].bg-accent {
+  color: #f6ead2;
+  border: 1px solid color-mix(in srgb, var(--color-brass) 75%, transparent);
+  background: linear-gradient(color-mix(in srgb, var(--color-accent) 88%, white), color-mix(in srgb, var(--color-accent) 62%, black));
+  box-shadow: inset 0 1px 0 #ffffff33, inset 0 -2px 0 #0004, 0 3px 10px #0008;
+  text-shadow: 0 1px 0 #0007;
+}
+html:root[data-skin="casefile"] button[data-sfx].bg-accent:hover {
+  filter: brightness(1.08);
+}
+html:root[data-skin="casefile"] button[data-sfx].bg-brass {
+  border: 1px solid #0006;
+  box-shadow: inset 0 1px 0 #ffffff55, 0 3px 10px #0008;
+}
+html:root[data-skin="casefile"] button[data-sfx].bg-paper {
+  background: linear-gradient(#f0e4c6, #d8c79f);
+  border: 1px solid #8a6f3c;
+  box-shadow: inset 0 1px 0 #fff8, 0 3px 10px #0008;
+}
+html:root[data-skin="casefile"] button[data-sfx].border-line {
+  border-color: var(--cf-rule);
+  background: #0000002e;
+}
+html:root[data-skin="casefile"] button[data-sfx].border-line:hover,
+html:root[data-skin="casefile"] button[data-sfx].text-muted:hover {
+  background: color-mix(in srgb, var(--color-brass) 14%, transparent);
+  color: var(--color-paper);
+}
+
+/* ---------- Form fields: typed lines on dark card stock ---------- */
+html:root[data-skin="casefile"] input.bg-raised,
+html:root[data-skin="casefile"] textarea.bg-raised,
+html:root[data-skin="casefile"] select.bg-raised {
+  border-radius: 6px;
+  border-color: var(--cf-rule-soft);
+  background: hsl(var(--cf-h) var(--cf-s) 4% / 0.85);
+  color: var(--cf-paper);
+  font-family: var(--font-label);
+  box-shadow: inset 0 2px 6px #000b;
+}
+html:root[data-skin="casefile"] input.bg-raised::placeholder {
+  color: var(--color-subtle);
+}
+
+/* Switches and settings tiles */
+html:root[data-skin="casefile"] [role="switch"] {
+  background: hsl(var(--cf-h) var(--cf-s) 4%);
+  border-color: var(--cf-rule-soft);
+}
+html:root[data-skin="casefile"] [role="switch"][data-state="checked"] {
+  background: var(--color-accent);
+  border-color: var(--cf-rule);
+}
+
+/* ---------- Bottom bar / side rail: the evidence tray ---------- */
+html:root[data-skin="casefile"] .game-dock {
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 10% / 0.98), hsl(var(--cf-h) var(--cf-s) 4%));
+  border-top-color: var(--cf-rule);
+  box-shadow: 0 -12px 30px #000b, inset 0 1px 0 #ffffff10;
+}
+html:root[data-skin="casefile"] .game-dock-tab {
+  border-radius: 8px;
+  font-family: var(--font-label);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+html:root[data-skin="casefile"] .game-dock-tab.on {
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 15%), hsl(var(--cf-h) var(--cf-s) 9%));
+  border-color: var(--cf-rule);
+  box-shadow: inset 0 -2px 0 var(--color-brass), 0 0 14px var(--cf-glow);
+}
+html:root[data-skin="casefile"] .game-dock-tab.second {
+  background: #ffffff08;
+  border-color: var(--cf-rule-soft);
+}
+/* The journal tab is a leather-bound book: dark with a brass edge, brighter when open. */
+html:root[data-skin="casefile"] .game-dock-tab.big {
+  color: #f3dfb0;
+  border-color: var(--color-brass);
+  background:
+    linear-gradient(90deg, #0006 0 6px, transparent 6px),
+    linear-gradient(hsl(25 32% 24%), hsl(25 36% 12%));
+  box-shadow: inset 0 1px 0 #ffffff22, 0 2px 10px #000a;
+}
+html:root[data-skin="casefile"] .game-dock-tab.big.on {
+  background:
+    linear-gradient(90deg, #0006 0 6px, transparent 6px),
+    linear-gradient(hsl(25 38% 30%), hsl(25 40% 16%));
+  box-shadow: inset 0 -2px 0 var(--color-brass), 0 0 16px var(--cf-glow);
+}
+html:root[data-skin="casefile"] .game-dock-badge {
+  background: var(--color-accent);
+  border: 1px solid var(--color-brass);
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 1000px), (orientation: landscape) and (max-height: 520px) {
+  html:root[data-skin="casefile"] .game-dock {
+    background: linear-gradient(90deg, hsl(var(--cf-h) var(--cf-s) 4%), hsl(var(--cf-h) var(--cf-s) 8% / 0.98));
+    border-right-color: var(--cf-rule);
+  }
+}
+
+/* ---------- Overlays and dialogs ---------- */
+html:root[data-skin="casefile"] .roll-stage {
+  background: radial-gradient(90% 70% at 50% 40%, #140e0b99, #000000e0);
+}
+html:root[data-skin="casefile"] .folio-sheet {
+  background: radial-gradient(90% 70% at 50% 30%, #140e0bd0, #000000ee);
+}
+html:root[data-skin="casefile"] .picker-layer {
+  background: radial-gradient(90% 70% at 50% 40%, #140e0bcc, #000000ee);
+}
+html:root[data-skin="casefile"] .picker-choice {
+  border-radius: 8px;
+  background: var(--cf-desk);
+  border-color: var(--cf-rule-soft);
+}
+html:root[data-skin="casefile"] .picker-photo {
+  filter: sepia(0.25) contrast(1.05);
+}
+html:root[data-skin="casefile"] .power-chip {
+  border-radius: 6px;
+  font-family: var(--font-label);
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 14%), hsl(var(--cf-h) var(--cf-s) 8%));
+}
+html:root[data-skin="casefile"] .reveal-kicker {
+  font-family: var(--font-label);
+  text-transform: none;
+  letter-spacing: 0.06em;
+}
+html:root[data-skin="casefile"] .reveal-card,
+html:root[data-skin="casefile"] .reveal-ok {
+  border-radius: 8px;
+}
+
+/* Notes written on a note: "parchment" strips look like aged paper slips. */
+html:root[data-skin="casefile"] .parchment {
+  border-radius: 4px;
+  border: 1px solid #8a6f3c88;
+  box-shadow: inset 0 0 28px #8a5a1a33, 0 4px 12px #0007;
+}
+
+/* ---------- Photos of people and things look like evidence prints ---------- */
+html:root[data-skin="casefile"] .avatar-crop,
+html:root[data-skin="casefile"] .turn-face {
+  filter: sepia(0.18) contrast(1.04);
+}
+html:root[data-skin="casefile"] .turn-spot-now .turn-face {
+  filter: none;
+  box-shadow: 0 0 0 2px var(--color-brass), 0 0 16px var(--cf-glow);
+}
+html:root[data-skin="casefile"] .turn-tag {
+  font-family: var(--font-label);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Cards ---------- */
+html:root[data-skin="casefile"] .card-hand article,
+html:root[data-skin="casefile"] .reveal-card {
+  box-shadow: 0 16px 30px #000b, 0 0 0 1px #000;
+}
+
+/* ---------- Detective journal: the user's cover color stays; wear and a brass edge go on top ---------- */
+html:root[data-skin="casefile"] .journal-layer {
+  background:
+    radial-gradient(130% 95% at 50% 40%, transparent 45%, #000000c0 100%),
+    var(--cf-grain),
+    radial-gradient(120% 90% at 50% 0, var(--j-bg1, #1c2f57) 0, var(--j-bg2, #101c38) 55%, var(--j-bg3, #0a1226) 100%);
+}
+html:root[data-skin="casefile"] .journal-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  text-shadow: 0 1px 0 var(--j-title-shadow, #0b1530), 0 0 18px var(--cf-glow);
+}
+html:root[data-skin="casefile"] .notebook {
+  border-radius: 6px 12px 12px 6px;
+  background:
+    var(--cf-grain),
+    linear-gradient(90deg, var(--j-cover, #24396a) 0 18px, var(--j-cover-dark, #14213f) 18px);
+  box-shadow:
+    0 18px 40px #000a,
+    inset 0 0 0 1px var(--cf-rule),
+    inset 0 0 0 4px var(--j-cover-dark, #14213f);
+}
+html:root[data-skin="casefile"] .notebook-page {
+  background-color: #efe5cc;
+  box-shadow: inset 10px 0 14px #4628141f, inset 0 0 46px #7a5a2a33;
+}
+html:root[data-skin="casefile"] .journal-pad {
+  box-shadow: inset 0 0 0 1px #5a3c1e47, inset 0 0 40px #7a5a2a2e;
+}
+html:root[data-skin="casefile"] .journal-fab img {
+  filter: var(--j-img-filter, none) sepia(0.15);
+}
+
+/* ---------- Digital board: dark brass controls instead of cream ones ---------- */
+html:root[data-skin="casefile"] .dgb-frame {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--cf-rule), inset 0 0 70px #000c, 0 10px 30px #000a;
+}
+html:root[data-skin="casefile"] .dgb-dock {
+  border-radius: 10px;
+  color: var(--cf-paper);
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 13% / 0.97), hsl(var(--cf-h) var(--cf-s) 7% / 0.97));
+  border-color: var(--cf-rule);
+}
+html:root[data-skin="casefile"] .dgb-hint {
+  color: var(--color-muted);
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+html:root[data-skin="casefile"] .dgb-ctl,
+html:root[data-skin="casefile"] .dgb-cam {
+  border-radius: 8px;
+  color: var(--cf-paper);
+  border-color: var(--cf-rule);
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 17%), hsl(var(--cf-h) var(--cf-s) 9%));
+  font-family: var(--font-label);
+  font-weight: 400;
+}
+html:root[data-skin="casefile"] .dgb-cam {
+  border-radius: 999px;
+}
+html:root[data-skin="casefile"] .dgb-camdone,
+html:root[data-skin="casefile"] .dgb-stop,
+html:root[data-skin="casefile"] .dgb-chip {
+  color: var(--cf-paper);
+  font-family: var(--font-label);
+  background: linear-gradient(hsl(var(--cf-h) var(--cf-s) 17%), hsl(var(--cf-h) var(--cf-s) 9%));
+  border-color: var(--cf-rule);
+}
+html:root[data-skin="casefile"] .dgb-chip b {
+  color: var(--color-brass);
+}
+html:root[data-skin="casefile"] .dgb-name,
+html:root[data-skin="casefile"] .dgb-note {
+  font-family: var(--font-label);
+  font-weight: 400;
+  border-radius: 2px;
+  background: #ead9b0;
+  color: #241a12;
+}
+html:root[data-skin="casefile"] .dgb-plaque {
+  font-family: var(--font-label);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 1px var(--color-brass);
+}
+
+/* ---------- Chat ---------- */
+html:root[data-skin="casefile"] .chat-layer {
+  background:
+    radial-gradient(75% 40% at 50% -6%, var(--cf-glow), transparent 72%),
+    radial-gradient(130% 95% at 50% 40%, transparent 48%, #000000b8 100%),
+    var(--cf-grain),
+    linear-gradient(hsl(var(--cf-h) var(--cf-s) 9%), hsl(var(--cf-h) var(--cf-s) 4%));
+}
+
+/* ---------- Title screen: the manor with one lit window ---------- */
+.cf-manor {
+  display: none;
+}
+html:root[data-skin="casefile"] .cf-manor {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0 -4px;
+  color: hsl(var(--cf-h) var(--cf-s) 2%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.cf-manor .cf-sky {
+  fill: color-mix(in srgb, var(--color-brass) 10%, transparent);
+}
+.cf-manor .cf-house {
+  fill: currentColor;
+}
+.cf-manor .cf-window {
+  fill: var(--color-brass);
+  filter: drop-shadow(0 0 6px var(--color-brass));
+  animation: cf-flicker 7s ease-in-out infinite;
+}
+.cf-manor .cf-dim {
+  fill: color-mix(in srgb, var(--color-brass) 16%, #000);
+}
+.cf-manor .cf-moon {
+  fill: color-mix(in srgb, var(--color-brass) 55%, #fff);
+  opacity: 0.85;
+}
+@keyframes cf-flicker {
+  0%, 100% { opacity: 1; }
+  41% { opacity: 1; }
+  43% { opacity: 0.45; }
+  46% { opacity: 1; }
+  78% { opacity: 0.85; }
+  80% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cf-manor .cf-window { animation: none; }
+}
+
+.cf-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  text-shadow: 0 2px 0 #000a, 0 0 28px var(--cf-glow);
+}
+.cf-lookbtn {
+  font-family: var(--font-label);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  color: var(--color-brass);
+  border: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
+  background: #0000002e;
+}
+
+/* ---------- Settings: the Look picker ---------- */
+.cf-look-tile {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  text-align: left;
+}
+.cf-look-swatch {
+  display: block;
+  height: 54px;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+}
+.cf-look-swatch.classic {
+  background: linear-gradient(#4f3727, #1a100c);
+  border: 2px solid var(--color-brass);
+}
+.cf-look-swatch.casefile {
+  background:
+    radial-gradient(70% 70% at 50% 0%, color-mix(in srgb, var(--color-brass) 30%, transparent), transparent 70%),
+    radial-gradient(120% 120% at 50% 50%, transparent 40%, #000b 100%),
+    linear-gradient(#1b1410, #080605);
+  border: 1px solid var(--color-brass);
+}
+.cf-look-swatch.casefile::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background:
+    linear-gradient(var(--color-brass), var(--color-brass)) top left / 9px 1.5px no-repeat,
+    linear-gradient(var(--color-brass), var(--color-brass)) top left / 1.5px 9px no-repeat,
+    linear-gradient(var(--color-brass), var(--color-brass)) bottom right / 9px 1.5px no-repeat,
+    linear-gradient(var(--color-brass), var(--color-brass)) bottom right / 1.5px 9px no-repeat;
+}
