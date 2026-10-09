@@ -11,6 +11,22 @@ import { cn } from "@/lib/utils";
 import { Fragment, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ProfileBadge } from "./PlayerBadge";
 
+/** The NPC's own badge: a round logo like the players', with NPC in the middle. */
+function NpcBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-grid size-6 shrink-0 place-items-center rounded-full border-2 border-[#5a3d8a] bg-[#efe7fb] text-[8px] font-bold leading-none tracking-tight text-[#5a3d8a]",
+        className,
+      )}
+      title="The NPC showed you this card"
+      aria-label="The NPC showed you this card"
+    >
+      NPC
+    </span>
+  );
+}
+
 function asMark(mark: string | undefined): SheetMark {
   if (mark === "check" || mark === "x" || mark === "maybe" || mark === "answer") return mark;
   return "blank";
@@ -110,6 +126,10 @@ function Sheet({
   const myHandIds = new Set(useMyHand().map((c) => c.id));
   // Cards left face up on the table after the deal. Nobody holds them, so simple journaling shows them with their own symbol.
   const tableIds = new Set((state.leftover ?? []).map(String));
+  // Cards the NPC showed you (Extra Difficulty). They get the NPC's own symbol next to the name, in both journal types.
+  const npcIds = new Set((notes.npcShown ?? []).map(String));
+  const npcMark = (id: string) =>
+    npcIds.has(id) ? <NpcBadge className="ml-1.5 align-[-7px]" /> : null;
   const cats: CategoryId[] = state.settings.timeOfDayEnabled
     ? ["suspect", "weapon", "room", "time"]
     : ["suspect", "weapon", "room"];
@@ -130,6 +150,11 @@ function Sheet({
             </p>
             <p className="mt-1 text-xs text-[#5c4a38]">This goes away when you hide the card. The mark on your sheet stays.</p>
           </div>
+        ) : null}
+        {npcIds.size ? (
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[#5a3d8a]">
+            <NpcBadge /> The NPC showed you this card.
+          </p>
         ) : null}
         <p className="mt-1 text-sm text-[#5c4a38]">
           {simple
@@ -201,11 +226,11 @@ function Sheet({
                       </tr>
                     );
                   }
-                  if (simple && !frozen && tableIds.has(card.id)) {
+                  if (!frozen && tableIds.has(card.id)) {
                     return (
                       <tr key={card.id} className="border-b border-[#1c2430]/10">
                         <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
-                        <td className="px-1 py-1 text-center">
+                        <td colSpan={simple ? 1 : players.length + 1} className="px-1 py-1 text-center">
                           <span
                             className="inline-flex items-center justify-center gap-1 text-xs italic text-[#5c4a38]"
                             aria-label={`${card.name} is on the table`}
@@ -220,7 +245,10 @@ function Sheet({
                   }
                   return (
                   <tr key={card.id} className="border-b border-[#1c2430]/10">
-                    <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">{card.name}</td>
+                    <td className="sticky left-0 max-w-48 truncate bg-[#f6f1e6] py-1 pr-2">
+                      {card.name}
+                      {npcMark(card.id)}
+                    </td>
                     {simple ? (
                       <SimpleMark
                         card={card}
