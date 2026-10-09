@@ -6,12 +6,20 @@
  * looks exactly as it always did until someone picks something else.
  *
  * A tiny inline script in routes/__root.tsx applies the saved choice before the first paint.
+ *
+ * LOOK (skin): a fifth, separate choice. "classic" (the default, no attribute) is the original look. "casefile" sets
+ * data-skin="casefile" on <html>, and skin-casefile.css restyles the whole app as a detective's case file. The skin
+ * is built from the same variables as the color choices above (--ui-h / --ui-s, --color-brass, the journal and card
+ * colors), so every color option keeps working in both looks.
  */
+
+import { useSyncExternalStore } from "react";
 
 const UI_KEY = "gmm.uiColor";
 const JOURNAL_KEY = "gmm.journalColor";
 const ACCENT_KEY = "gmm.accentColor";
 const CARD_KEY = "gmm.cardColor";
+const SKIN_KEY = "gmm.skin";
 
 export interface UiColor {
   id: string;
@@ -32,6 +40,19 @@ export const DEFAULT_UI = "classic";
 export const DEFAULT_JOURNAL = "blue";
 export const DEFAULT_ACCENT = "gold";
 export const DEFAULT_CARD = "red";
+export const DEFAULT_SKIN = "classic";
+
+/** The overall look of the app. Everyone starts on "classic"; "casefile" is the mystery look. */
+export interface Skin {
+  id: string;
+  label: string;
+  blurb: string;
+}
+
+export const SKINS: Skin[] = [
+  { id: "classic", label: "Classic", blurb: "The look the game has always had." },
+  { id: "casefile", label: "Case File", blurb: "Lamplight, leather and evidence tags." },
+];
 
 /** The main color of the card backs and of the border wrapped around card fronts. */
 export interface CardColor {
@@ -132,6 +153,10 @@ export function getCardColor(): string {
   return read(CARD_KEY, DEFAULT_CARD, CARD_COLORS.map((c) => c.id));
 }
 
+export function getSkin(): string {
+  return read(SKIN_KEY, DEFAULT_SKIN, SKINS.map((c) => c.id));
+}
+
 export function getJournalColor(): string {
   return read(JOURNAL_KEY, DEFAULT_JOURNAL, JOURNAL_COLORS.map((c) => c.id));
 }
@@ -200,19 +225,60 @@ export function setCardColor(id: string): string {
   return next;
 }
 
+const skinListeners = new Set<() => void>();
+let skinMemory: string | null = null;
+
+/** The two typefaces the Case File look uses are only fetched once somebody turns it on. */
+const SKIN_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Special+Elite&display=swap";
+
+function ensureSkinFonts() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("skin-fonts")) return;
+  const link = document.createElement("link");
+  link.id = "skin-fonts";
+  link.rel = "stylesheet";
+  link.href = SKIN_FONTS_HREF;
+  document.head.appendChild(link);
+}
+
+export function setSkin(id: string): string {
+  const next = SKINS.some((c) => c.id === id) ? id : DEFAULT_SKIN;
+  write(SKIN_KEY, next);
+  skinMemory = next;
+  applyAttr("data-skin", next, DEFAULT_SKIN);
+  if (next !== DEFAULT_SKIN) ensureSkinFonts();
+  skinListeners.forEach((fn) => fn());
+  return next;
+}
+
+/** The look in use right now; components that need different markup per look (the title screen) read this. */
+export function useSkin(): string {
+  return useSyncExternalStore(
+    (fn) => {
+      skinListeners.add(fn);
+      return () => skinListeners.delete(fn);
+    },
+    () => skinMemory ?? getSkin(),
+    () => DEFAULT_SKIN,
+  );
+}
+
 /** Re-applies all saved choices. Safe to call any number of times. */
 export function initTheme() {
   setUiColor(getUiColor());
   setJournalColor(getJournalColor());
   setAccentColor(getAccentColor());
   setCardColor(getCardColor());
+  setSkin(getSkin());
 }
 
 /** Source of the pre-paint script in routes/__root.tsx (kept here so the keys stay in sync). */
 export const THEME_BOOT_SCRIPT =
   "try{var d=document.documentElement,g=function(k){return localStorage.getItem(k)};" +
-  `var u=g(${JSON.stringify(UI_KEY)}),j=g(${JSON.stringify(JOURNAL_KEY)}),a=g(${JSON.stringify(ACCENT_KEY)}),c=g(${JSON.stringify(CARD_KEY)});` +
+  `var u=g(${JSON.stringify(UI_KEY)}),j=g(${JSON.stringify(JOURNAL_KEY)}),a=g(${JSON.stringify(ACCENT_KEY)}),c=g(${JSON.stringify(CARD_KEY)}),k=g(${JSON.stringify(SKIN_KEY)});` +
   `if(u&&u!==${JSON.stringify(DEFAULT_UI)})d.setAttribute("data-ui",u);` +
   `if(j&&j!==${JSON.stringify(DEFAULT_JOURNAL)})d.setAttribute("data-journal",j);` +
   `if(a&&a!==${JSON.stringify(DEFAULT_ACCENT)})d.setAttribute("data-accent",a);` +
-  `if(c&&c!==${JSON.stringify(DEFAULT_CARD)})d.setAttribute("data-card",c)}catch(e){}`;
+  `if(c&&c!==${JSON.stringify(DEFAULT_CARD)})d.setAttribute("data-card",c);` +
+  `if(k===${JSON.stringify("casefile")})d.setAttribute("data-skin",k)}catch(e){}`;
