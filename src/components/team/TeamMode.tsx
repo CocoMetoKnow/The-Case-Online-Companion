@@ -549,10 +549,14 @@ export function Play({ s, dispatch, onExit, canAct = true, me, status }: PlayPro
 
 export function TeamMode() {
   const [saved] = useState(() => loadSaved());
-  const [state, dispatch] = useReducer((s: TeamState | null, a: Action | { type: "set"; s: TeamState | null }) => (a.type === "set" ? a.s : s ? reduce(s, a) : s), null);
+  const [state, dispatch] = useReducer((s: TeamState | null, a: Action | { type: "set"; s: TeamState | null }) => (a.type === "set" ? a.s : s ? reduce(s, a) : s), null, () => loadSaved());
   const [menu, setMenu] = useState(false);
   const [savedOnline] = useState(() => loadOnline());
-  const [online, setOnline] = useState<null | { role: "host" | "guest"; code: string; name: string; seed?: string }>(null);
+  // A phone that was at an online table goes straight back to it after a refresh.
+  const [online, setOnline] = useState<null | { role: "host" | "guest"; code: string; name: string; seed?: string }>(() => {
+    const o = loadOnline();
+    return o ? { role: o.role, code: o.code, name: o.name, seed: o.seed } : null;
+  });
   const lastCfg = useRef<{ seed: string; names: string[] } | null>(null);
 
   useEffect(() => {
