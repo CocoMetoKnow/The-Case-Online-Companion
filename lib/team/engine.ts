@@ -25,7 +25,7 @@ import {
   type PuzzleKindId,
 } from "./content.ts";
 import { deduce, ending, generateCase, nameOf, roomDef, type CaseFile, type Clue, type Deduction, type MapNode } from "./generator.ts";
-import { ALL_KINDS, buildPuzzle, checkPuzzle, KIND_LABEL, type Puzzle } from "./puzzles.ts";
+import { ALL_KINDS, NEW_KINDS, buildPuzzle, checkPuzzle, KIND_LABEL, type Puzzle } from "./puzzles.ts";
 import { Rng, hashSeed } from "./rng.ts";
 
 export const MAX_MENACE = 10;
@@ -350,9 +350,9 @@ function lose(s: TeamState, reason: EndReason, title: string, lines: string[]) {
 function checkLoss(s: TeamState) {
   if (s.status !== "play") return;
   if (s.menace >= MAX_MENACE) {
-    lose(s, "menace", "The killer finds you", ["The menace reached its peak. Footsteps in every corridor, and then the lights go out for good.", "Game Over: You Lose."]);
+    lose(s, "menace", "The alarm sounds", ["The alarm level hit the top. Bells ring in every corridor, the thief slips away in the confusion, and the lights go out.", "Game Over: You Lose."]);
   } else if (s.players.every((p) => p.trapped > 0)) {
-    lose(s, "trapped", "No one left to save you", ["Every detective is trapped, and there is no one left to free anyone.", "Game Over: You Lose."]);
+    lose(s, "trapped", "No one left to save you", ["Every detective is stuck behind a jammed door, and there is no one left to help anyone out.", "Game Over: You Lose."]);
   }
 }
 
@@ -379,9 +379,9 @@ function level(s: TeamState, base: number) {
   return puzzleLevel(s, base);
 }
 
-function mkPuzzle(s: TeamState, rng: Rng, kind: PuzzleKindId, base: number, roomId?: string, objectId?: string, label?: string): Puzzle {
+function mkPuzzle(s: TeamState, rng: Rng, kind: PuzzleKindId, base: number, roomId?: string, objectId?: string, label?: string, critical = false): Puzzle {
   const phase = { ...phaseOf(s), dark: isDark(s) && !s.lit };
-  return buildPuzzle(rng, { kind, level: level(s, base), phase, room: roomId ? roomDef(roomId) : undefined, objectId, label });
+  return buildPuzzle(rng, { kind, level: level(s, base), phase, room: roomId ? roomDef(roomId) : undefined, objectId, label, critical });
 }
 
 function freeHintsFor(s: TeamState, who: number, kind: PuzzleKindId, critical: boolean): number {
@@ -414,13 +414,13 @@ function failure(s: TeamState, who: number, rng: Rng, o: { trap: boolean; lose: 
       s.ap = 0;
       s.freeMove = false;
     }
-    lines.push(`${p.name} is TRAPPED in the ${nodeName(s, p.at)}. A teammate can come and rescue them. If no one does, they break free in ${TRAP_ROUNDS} rounds, loudly.`);
+    lines.push(`${p.name} is TRAPPED in the ${nodeName(s, p.at)}, stuck behind a jammed door. A teammate can come and rescue them. If no one does, they work their way out in ${TRAP_ROUNDS} rounds, noisily.`);
   }
   for (let i = 0; i < o.lose; i++) lines.push(...loseEvidence(s, rng));
   if (o.menace) {
     const extra = o.zone ? (s.game.twist.mods.zonePenalty ?? 0) : 0;
     s.menace = Math.min(MAX_MENACE, s.menace + o.menace + extra);
-    lines.push(`The menace rises to ${s.menace} of ${MAX_MENACE}.`);
+    lines.push(`The alarm level rises to ${s.menace} of ${MAX_MENACE}.`);
   }
   return lines;
 }
@@ -430,7 +430,7 @@ function nodeName(s: TeamState, id: string) {
 }
 
 function loseEvidence(s: TeamState, rng: Rng): string[] {
-  if (!s.held.length) return ["The team had no evidence to lose, but your nerve takes the hit."];
+  if (!s.held.length) return ["The team had no evidence to lose, but your confidence takes a knock."];
   const id = rng.pick(s.held);
   const c = clueById(s, id)!;
   const zones = s.game.map.filter((n) => n.kind === "zone");
@@ -465,12 +465,12 @@ function endRound(s: TeamState) {
       p.trapped -= 1;
       if (p.trapped === 0) {
         s.menace = Math.min(MAX_MENACE, s.menace + 1);
-        note(s, { tone: "bad", title: `${p.name} breaks free`, lines: [`${p.name} forced their way out of the ${nodeName(s, p.at)}. The noise carried through the house. Menace +1.`] });
+        note(s, { tone: "bad", title: `${p.name} breaks free`, lines: [`${p.name} forced their way out of the ${nodeName(s, p.at)}. The noise carried through the house. Alarm +1.`] });
       }
     }
   }
   if (s.round > totalRounds(s)) {
-    lose(s, "dawn", "Dawn", ["The sun comes up and the culprit walks free through the front door. You ran out of night.", "Game Over: You Lose."]);
+    lose(s, "dawn", "Dawn", ["The sun comes up and the culprit strolls out the front door with the treasure. You ran out of night.", "Game Over: You Lose."]);
     return;
   }
   const after = phaseIndex(s);
@@ -480,11 +480,11 @@ function endRound(s: TeamState) {
     const lines = [ph.mood];
     if (extra) {
       s.menace = Math.min(MAX_MENACE, s.menace + extra);
-      lines.push(`The night is turning against you. Menace +${extra}.`);
+      lines.push(`The night is turning against you. Alarm +${extra}.`);
     }
     if (after >= 2 && s.stalkersFaced < 3) {
       s.stalkerDue = true;
-      lines.push("A CRITICAL EVENT is coming: the Stalker is in the house. The next detective to take a turn must face it. Failing means Game Over.");
+      lines.push("A CRITICAL EVENT is coming: the Night Watchman is making his rounds. The next detective to take a turn must face him. Failing means Game Over.");
     }
     note(s, { tone: after >= 2 ? "critical" : "info", title: `${ph.clock}: ${ph.title}`, lines });
   }
@@ -511,9 +511,9 @@ function advanceTurn(s: TeamState) {
     s.stalkersFaced += 1;
     const rng = rngOf(s);
     const kind = rng.pick(NON_TIMED);
-    const puzzle = mkPuzzle(s, rng, kind, 2, roomDef(p.at) ? p.at : undefined, undefined, "The Stalker");
+    const puzzle = mkPuzzle(s, rng, kind, 2, roomDef(p.at) ? p.at : undefined, undefined, "The Night Watchman", true);
     s.rng = rng.state;
-    note(s, { tone: "critical", title: "THE STALKER", lines: [`A figure steps out of the dark right in front of ${p.name}. This is a CRITICAL TASK: fail it and the case is over.`, "Teammates in the same room give free hints. Locksmiths help even more."] });
+    note(s, { tone: "critical", title: "THE NIGHT WATCHMAN", lines: [`A lantern swings round the corner right in front of ${p.name}: it is the Night Watchman! This is a CRITICAL TASK: fail it and you are sent straight to bed and the case is over.`, "Teammates in the same room give free hints. Locksmiths help even more."] });
     startPuzzle(s, p.id, puzzle, { kind: "stalker" }, true);
   }
 }
@@ -539,9 +539,9 @@ function describeOffer(s: TeamState, card: Card, rng: Rng, roomId: string): Offe
       return { deck: card.deck, cardId: card.id, title: h.t, blurb: `${h.d.replace("{room}", room?.name ?? nodeName(s, roomId))} A hazard puzzle: pass to keep your footing, fail and you are trapped.`, risk: "risky", icon: "⚠️" };
     }
     case "ambush":
-      return { deck: card.deck, cardId: card.id, title: "Ambush", blurb: "Someone grabs your sleeve in the dark. A quick puzzle: fail and you are trapped.", risk: "risky", icon: "🗡️" };
+      return { deck: card.deck, cardId: card.id, title: "Surprise!", blurb: "Something rattles in the dark and makes you jump. A quick puzzle: fail and you are stuck.", risk: "risky", icon: "🎭" };
     case "menace":
-      return { deck: card.deck, cardId: card.id, title: "Footsteps overhead", blurb: "The house knows you are here. The menace rises.", risk: "risky", icon: "👣" };
+      return { deck: card.deck, cardId: card.id, title: "Creaky floorboards", blurb: "The house knows you are here. The alarm level rises.", risk: "risky", icon: "👣" };
     case "boon-hint":
       return { deck: card.deck, cardId: card.id, title: "A friendly note", blurb: "A scrap of paper tucked in a sleeve. +1 hint token.", risk: "boon", icon: "💡" };
     case "boon-lantern":
@@ -551,11 +551,11 @@ function describeOffer(s: TeamState, card: Card, rng: Rng, roomId: string): Offe
     case "boon-ap":
       return { deck: card.deck, cardId: card.id, title: "A second wind", blurb: "A hidden stair puts you ahead. +1 action this turn.", risk: "boon", icon: "⚡" };
     case "witness":
-      return { deck: card.deck, cardId: card.id, title: "A nervous witness", blurb: "They will tell you one thing the culprit is NOT, but they talk too loudly. A free clue, menace +1.", risk: "safe", icon: "🗣️" };
+      return { deck: card.deck, cardId: card.id, title: "A nervous witness", blurb: "They will tell you one thing that is NOT true of the case, but they talk too loudly. A free clue, alarm +1.", risk: "safe", icon: "🗣️" };
     case "whisper":
       return { deck: card.deck, cardId: card.id, title: "A whispered tip", blurb: "A servant slips you what help they can. +1 hint token.", risk: "boon", icon: "🤫" };
     case "lull":
-      return { deck: card.deck, cardId: card.id, title: "A quiet moment", blurb: "The house goes still. The menace falls by 1.", risk: "boon", icon: "🕊️" };
+      return { deck: card.deck, cardId: card.id, title: "A quiet moment", blurb: "The house goes still. The alarm level falls by 1.", risk: "boon", icon: "🕊️" };
   }
 }
 
@@ -570,7 +570,9 @@ function resolveCard(s: TeamState, card: Card, who: number, rng: Rng, roomId: st
       }
       const room = roomDef(roomId);
       const obj = room?.objects.find((o) => o.id === clue.object);
-      const puzzle = mkPuzzle(s, rng, obj?.kind ?? "combo", 1, roomId, clue.object);
+      // About one evidence puzzle in three is one of the newer mini-games instead of the object's usual one.
+      const kind = rng.chance(0.35) ? rng.pick(NEW_KINDS) : obj?.kind ?? "combo";
+      const puzzle = mkPuzzle(s, rng, kind, 1, roomId, clue.object);
       startPuzzle(s, who, puzzle, { kind: "evidence", clueId: clue.id }, false);
       return;
     }
@@ -580,11 +582,11 @@ function resolveCard(s: TeamState, card: Card, who: number, rng: Rng, roomId: st
       return;
     }
     case "ambush":
-      startPuzzle(s, who, mkPuzzle(s, rng, rng.pick(NON_TIMED), 1, roomDef(roomId) ? roomId : undefined, undefined, "Ambush"), { kind: "ambush" }, false);
+      startPuzzle(s, who, mkPuzzle(s, rng, rng.pick(NON_TIMED), 1, roomDef(roomId) ? roomId : undefined, undefined, "Surprise"), { kind: "ambush" }, false);
       return;
     case "menace":
       s.menace = Math.min(MAX_MENACE, s.menace + 1);
-      note(s, { tone: "bad", title: "Footsteps overhead", lines: [`The house knows you are here. Menace rises to ${s.menace}.`] });
+      note(s, { tone: "bad", title: "Creaky floorboards", lines: [`The house knows you are here. Alarm rises to ${s.menace}.`] });
       return;
     case "boon-hint":
     case "whisper":
@@ -605,17 +607,17 @@ function resolveCard(s: TeamState, card: Card, who: number, rng: Rng, roomId: st
       return;
     case "lull":
       s.menace = Math.max(0, s.menace - 1);
-      note(s, { tone: "good", title: "A quiet moment", lines: [`The house goes still. Menace falls to ${s.menace}.`] });
+      note(s, { tone: "good", title: "A quiet moment", lines: [`The house goes still. Alarm falls to ${s.menace}.`] });
       return;
     case "witness": {
       const c = witnessClue(s, rng);
       s.menace = Math.min(MAX_MENACE, s.menace + 1);
       if (!c) {
-        note(s, { tone: "info", title: "A nervous witness", lines: ["They have nothing new to say, but they say it loudly. Menace +1."] });
+        note(s, { tone: "info", title: "A nervous witness", lines: ["They have nothing new to say, but they say it loudly. Alarm +1."] });
         return;
       }
       foundClue(s, c);
-      note(s, { tone: "good", title: "A nervous witness", lines: [c.text, `Added as Clue #${clueNumber(s, c.id)}. They spoke too loudly: menace +1.`], clueId: c.id });
+      note(s, { tone: "good", title: "A nervous witness", lines: [c.text, `Added as Clue #${clueNumber(s, c.id)}. They spoke too loudly: alarm +1.`], clueId: c.id });
       return;
     }
   }
@@ -641,7 +643,7 @@ function witnessClue(s: TeamState, rng: Rng): Clue | null {
   const id = `b${s.bonus.length + 1}`;
   const name = nameOf(o.cat, o.item);
   const text: Record<CategoryKey, string> = {
-    time: `"I saw the victim fine at ${name}," the witness insists, wringing their hands.`,
+    time: `"The treasure was still right there at ${name}," the witness insists, wringing their hands.`,
     room: `"Nothing happened in the ${name}. I was there the whole time," the witness blurts.`,
     weapon: `"The ${name.toLowerCase()}? Never left its case," the witness swears.`,
     suspect: `"${name}? They were with me all night," the witness says, too quickly.`,
@@ -684,13 +686,13 @@ function succeed(s: TeamState, rng: Rng) {
       note(s, { tone: "good", title: "You keep your footing", lines: ["You get through it. The house lets you go this time."] });
       return;
     case "ambush":
-      note(s, { tone: "good", title: "You break free", lines: ["You shove past in the dark. Your pulse is hammering, but you are fine."] });
+      note(s, { tone: "good", title: "You break free", lines: ["You squeeze past in the dark. Your heart is thumping, but you are fine."] });
       return;
     case "stalker": {
       s.menace = Math.max(0, s.menace - 2);
       s.hints += 1;
-      note(s, { tone: "good", title: "The Stalker falls back", lines: [`${p.name} faces it down and the figure melts into the dark. Menace -2 (now ${s.menace}), +1 hint token.`] });
-      say(s, `${p.name} survived the Stalker.`);
+      note(s, { tone: "good", title: "The Night Watchman moves on", lines: [`${p.name} gives a calm, confident answer and the watchman tips his hat and strolls off. Alarm -2 (now ${s.menace}), +1 hint token.`] });
+      say(s, `${p.name} got past the Night Watchman.`);
       return;
     }
     case "lock": {
@@ -731,10 +733,10 @@ function fail(s: TeamState, rng: Rng) {
   s.pending = null;
   switch (pd.source.kind) {
     case "lock":
-      lose(s, "lock", "The alarm sounds", [`${p.name} got the lock wrong. A bell rings through the whole house, and the culprit knows exactly where you are. The doors lock, and then the lights.`, "Game Over: You Lose."]);
+      lose(s, "lock", "The alarm sounds", [`${p.name} got the lock wrong. A bell rings through the whole house, and the culprit knows exactly where you are. The doors lock and the lights go out.`, "Game Over: You Lose."]);
       return;
     case "stalker":
-      lose(s, "stalker", "The Stalker catches you", [`${p.name} freezes. The figure in the dark does not.`, "Game Over: You Lose."]);
+      lose(s, "stalker", "The Night Watchman catches you", [`${p.name} freezes. The Night Watchman does not, and marches everyone off to bed.`, "Game Over: You Lose."]);
       return;
     case "evidence": {
       const lines = failure(s, pd.who, rng, { trap: true, lose: 1, menace: 1, where: p.at });
@@ -744,16 +746,16 @@ function fail(s: TeamState, rng: Rng) {
     case "hazard":
     case "ambush": {
       const lines = failure(s, pd.who, rng, { trap: true, lose: 0, menace: 1, where: p.at });
-      note(s, { tone: "bad", title: pd.source.kind === "hazard" ? "The house wins this one" : "Caught", lines });
+      note(s, { tone: "bad", title: pd.source.kind === "hazard" ? "The house wins this one" : "Stuck!", lines });
       return;
     }
     case "rescue": {
       if (p.role === "medic") {
         s.menace = Math.min(MAX_MENACE, s.menace + 1);
-        note(s, { tone: "bad", title: "The rescue slips", lines: [`${p.name}'s training keeps them out of the trap, but it did not work and the noise carries. Menace +1.`] });
+        note(s, { tone: "bad", title: "The rescue slips", lines: [`${p.name}'s training keeps them out of the trap, but it did not work and the noise carries. Alarm +1.`] });
       } else {
         const lines = failure(s, pd.who, rng, { trap: true, lose: 0, menace: 1, where: p.at });
-        note(s, { tone: "bad", title: "The rescue goes wrong", lines: [`${p.name} gets caught too.`, ...lines] });
+        note(s, { tone: "bad", title: "The rescue goes wrong", lines: [`${p.name} gets stuck too.`, ...lines] });
       }
       return;
     }
@@ -806,7 +808,7 @@ export function reduce(prev: TeamState, a: Action): TeamState {
         if (pd.source.kind === "stalker") return prev;
         s.pending = null;
         s.menace = Math.min(MAX_MENACE, s.menace + 1);
-        note(s, { tone: "info", title: "You back away", lines: [`You leave it for now. The house notices: menace ${s.menace}. The action is spent.`] });
+        note(s, { tone: "info", title: "You back away", lines: [`You leave it for now. The house notices: alarm ${s.menace}. The action is spent.`] });
         checkLoss(s);
         return settle(s, rng);
       }
@@ -827,7 +829,7 @@ export function reduce(prev: TeamState, a: Action): TeamState {
       p.at = a.to;
       say(s, `${p.name} moved to the ${nodeName(s, a.to)}.`);
       const dest = node(s, a.to)!;
-      if (dest.kind === "zone") note(s, { tone: "critical", title: dest.name, lines: ["A DANGER ZONE. Lost evidence is hidden here, but failing in here costs dearly: you are trapped, another clue is lost and the menace spikes."] });
+      if (dest.kind === "zone") note(s, { tone: "critical", title: dest.name, lines: ["A DANGER ZONE. Lost evidence is hidden here, but failing in here costs dearly: you are trapped, another clue is lost and the alarm level jumps."] });
       return settle(s, rng);
     }
     case "lantern": {
@@ -878,7 +880,7 @@ export function reduce(prev: TeamState, a: Action): TeamState {
         return settle(s, rng);
       }
       const kind = rng.pick(NON_TIMED);
-      const puzzle = mkPuzzle(s, rng, kind, 2, a.room, undefined, `Lock on the ${nodeName(s, a.room)}`);
+      const puzzle = mkPuzzle(s, rng, kind, 2, a.room, undefined, `Lock on the ${nodeName(s, a.room)}`, true);
       startPuzzle(s, p.id, puzzle, { kind: "lock", room: a.room }, true);
       return settle(s, rng);
     }
@@ -921,7 +923,7 @@ export function reduce(prev: TeamState, a: Action): TeamState {
         say(s, "The case is solved.");
       } else {
         const right = CATEGORY_KEYS.filter((k) => a.guess[k] === s.game.solution[k]).length;
-        lose(s, "accusation", "Wrong accusation", [`${p.name} names the wrong answer. The real culprit smiles, and the doors close. (${right} of 5 were right.)`, "Game Over: You Lose."]);
+        lose(s, "accusation", "Wrong accusation", [`${p.name} names the wrong answer. The real culprit smiles, tips a hat, and slips away. (${right} of 5 were right.)`, "Game Over: You Lose."]);
       }
       return s;
     }
