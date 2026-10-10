@@ -27,6 +27,7 @@ import {
   ROOM_POOL,
   SUSPECT_POOL,
   TIME_POOL,
+  TREASURE_POOL,
   TWISTS,
   VICTIM_POOL,
   WEAPON_POOL,
@@ -87,6 +88,7 @@ export interface Storyline {
   premiseId: string;
   twistId: string;
   victimIndex: number;
+  treasureIndex: number;
 }
 
 export interface CaseFile {
@@ -144,7 +146,7 @@ export function variantCount() {
     for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
     return Math.round(r);
   };
-  const storylines = PREMISES.length * TWISTS.length * VICTIM_POOL.length;
+  const storylines = PREMISES.length * TWISTS.length * VICTIM_POOL.length * TREASURE_POOL.length;
   const solutions =
     choose(SUSPECT_POOL.length, 6) * 6 * // which six guests, and who did it
     choose(ROOM_POOL.length, 7) * 7 * //   which seven rooms, and which one
@@ -235,10 +237,10 @@ function excludeText(rng: Rng, cat: CategoryKey, items: string[]): { text: strin
       return {
         short,
         text: rng.pick([
-          `A torn page of the staff diary shows the household was busy and in plain view at ${L}. Nothing happened then.`,
-          `Every clock in the house chimed together at ${L}, and the victim answered the door both times. It was not then.`,
-          `The night porter's log is clear: the victim was seen alive and well at ${L}.`,
-          `A guest's dinner receipt, stamped ${L}, puts the victim at the table. Death came at another hour.`,
+          `A torn page of the staff diary shows the treasure was safely in its case at ${L}. Nothing was taken then.`,
+          `Every clock in the house chimed together at ${L}, and the treasure was still on its stand both times. It was not then.`,
+          `The night porter's log is clear: the display case was checked and full at ${L}.`,
+          `A guest's photograph, stamped ${L}, shows the treasure in its place. The theft came at another hour.`,
         ]),
       };
     case "room":
@@ -246,19 +248,19 @@ function excludeText(rng: Rng, cat: CategoryKey, items: string[]): { text: strin
         short,
         text: rng.pick([
           `The dust is untouched in ${L}. Whatever happened, it did not happen there.`,
-          `A maid swears nothing was out of place in ${L} all evening. No struggle, no scuffs.`,
-          `You find ${many ? "clean, locked rooms" : "a clean, locked room"}: ${L} ${many ? "were" : "was"} shut up all night. No crime there.`,
-          `The carpets in ${L} are spotless and unmarked. The crime scene is elsewhere.`,
+          `A maid swears nothing was out of place in ${L} all evening. No scuffs, no fingerprints.`,
+          `You find ${many ? "clean, locked rooms" : "a clean, locked room"}: ${L} ${many ? "were" : "was"} shut up all night. Nothing was taken from there.`,
+          `The carpets in ${L} are spotless and unmarked. The theft was somewhere else.`,
         ]),
       };
     case "weapon":
       return {
         short,
         text: rng.pick([
-          `The ${L} ${many ? "are" : "is"} accounted for: clean, cold, and still in ${many ? "their" : "its"} place. Not the weapon.`,
-          `A cataloguer's note, signed that afternoon: ${L} ${many ? "were" : "was"} locked away all evening. Not the weapon.`,
-          `You examine ${L} under the lamp. Nothing on ${many ? "them" : "it"}. Not the weapon.`,
-          `The coroner would not have missed it: whatever the murder weapon was, it was not ${L}.`,
+          `The ${L} ${many ? "are" : "is"} accounted for: tidy, dusty, and still in ${many ? "their" : "its"} place. Not the tool.`,
+          `A cataloguer's note, signed that afternoon: ${L} ${many ? "were" : "was"} locked away all evening. Not the tool.`,
+          `You examine ${L} under the lamp. Not a mark on ${many ? "them" : "it"}. Not the tool.`,
+          `The inspector would have spotted it: whatever the thief used, it was not ${L}.`,
         ]),
       };
     case "suspect":
@@ -275,9 +277,9 @@ function excludeText(rng: Rng, cat: CategoryKey, items: string[]): { text: strin
       return {
         short,
         text: rng.pick([
-          `The letters in the victim's desk make it plain: ${L} was never the reason.`,
-          `Whatever drove this crime, a lawyer's file settles it was not ${L}.`,
-          `You read the victim's diary closely. ${L} gets not one mention. It was not the motive.`,
+          `The letters in the owner's desk make it plain: ${L} was never the reason.`,
+          `Whatever drove this theft, a lawyer's file settles it was not ${L}.`,
+          `You read the owner's diary closely. ${L} gets not one mention. It was not the motive.`,
           `A confession on the back of a menu rules out ${L} as the motive.`,
         ]),
       };
@@ -288,16 +290,16 @@ function oneofText(rng: Rng, cat: CategoryKey, items: string[]): { text: string;
   const L = list(items.map((i) => nameOf(cat, i)));
   const short = `Only ${items.map((i) => nameOf(cat, i)).join(" / ")}`;
   const nouns: Record<CategoryKey, string> = {
-    time: "the hour of death",
-    room: "the crime scene",
-    weapon: "the weapon",
+    time: "the time of the theft",
+    room: "the scene of the theft",
+    weapon: "the tool used",
     suspect: "the culprit",
     motive: "the motive",
   };
   return {
     short,
     text: rng.pick([
-      `A confession, half burned in the grate, narrows ${nouns[cat]} to one of ${L}.`,
+      `A confession, half hidden under the fireplace ashes, narrows ${nouns[cat]} to one of ${L}.`,
       `The family's own notes leave no doubt: ${nouns[cat]} must be among ${L}.`,
       `The inspector's pencilled marginalia points to ${L} and nowhere else for ${nouns[cat]}.`,
     ]),
@@ -363,7 +365,8 @@ export function generateCase(seed: string, opts: GenerateOptions = {}): CaseFile
   const premise = opts.premiseId ? (PREMISES.find((p) => p.id === opts.premiseId) ?? rng.pick(PREMISES)) : rng.pick(PREMISES);
   const twist = opts.twistId ? (TWISTS.find((t) => t.id === opts.twistId) ?? rng.pick(TWISTS)) : rng.pick(TWISTS);
   const victimIndex = rng.int(0, VICTIM_POOL.length - 1);
-  const story: Storyline = { premiseId: premise.id, twistId: twist.id, victimIndex };
+  const treasureIndex = rng.int(0, TREASURE_POOL.length - 1);
+  const story: Storyline = { premiseId: premise.id, twistId: twist.id, victimIndex, treasureIndex };
 
   // The cast of the night.
   const universe: Universe = {
@@ -591,24 +594,27 @@ export function neighbours(c: CaseFile, nodeId: string): MapNode[] {
 }
 
 /** The opening briefing shown on the case file. */
-export function briefing(c: CaseFile): { title: string; intro: string; teaser: string; victim: string } {
+export function briefing(c: CaseFile): { title: string; intro: string; teaser: string; owner: string; treasure: string } {
   const premise = PREMISES.find((p) => p.id === c.story.premiseId)!;
-  const victim = VICTIM_POOL[c.story.victimIndex];
+  const owner = VICTIM_POOL[c.story.victimIndex];
+  const treasure = TREASURE_POOL[c.story.treasureIndex];
   return {
     title: premise.title,
-    intro: premise.intro.replace("{victim}", victim.name).replace("{role}", victim.role),
+    intro: premise.intro.replace("{owner}", owner.name).replace("{role}", owner.role).replace("{treasure}", treasure),
     teaser: c.twist.teaser,
-    victim: victim.name,
+    owner: owner.name,
+    treasure,
   };
 }
 
 /** The full reveal, told after the case ends. */
 export function ending(c: CaseFile): string {
   const premise = PREMISES.find((p) => p.id === c.story.premiseId)!;
-  const victim = VICTIM_POOL[c.story.victimIndex];
+  const owner = VICTIM_POOL[c.story.victimIndex];
+  const treasure = TREASURE_POOL[c.story.treasureIndex];
   const m = motiveDef(c.solution.motive)!;
   return (
-    `${nameOf("suspect", c.solution.suspect)} killed ${victim.name} at ${nameOf("time", c.solution.time)} in the ${nameOf("room", c.solution.room)}, ` +
+    `${nameOf("suspect", c.solution.suspect)} took ${treasure} from ${owner.name} at ${nameOf("time", c.solution.time)} in the ${nameOf("room", c.solution.room)}, ` +
     `using the ${nameOf("weapon", c.solution.weapon).toLowerCase()}, because ${m.line}. ` +
     `${c.twist.reveal} ${premise.epilogue}`
   );

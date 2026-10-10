@@ -229,6 +229,76 @@ function Memory({ puzzle, onChange }: WidgetProps) {
   );
 }
 
+/** A tiny sudoku: tap an empty square to cycle through 1 to 4. */
+function Grid({ puzzle, onChange }: WidgetProps) {
+  const start = String(puzzle.data.start).split("").map(Number);
+  const [cells, setCells] = useState<number[]>(start);
+  const upd = (n: number[]) => {
+    setCells(n);
+    onChange(n.every(Boolean) ? n.join("") : "");
+  };
+  return (
+    <div className="tm-w">
+      <div className="tm-sud" role="grid" aria-label="Number grid">
+        {cells.map((v, i) => (
+          <button
+            key={i}
+            type="button"
+            className={`tm-sc${start[i] ? " fixed" : ""}${(Math.floor(i / 8) + Math.floor((i % 4) / 2)) % 2 ? " alt" : ""}`}
+            disabled={!!start[i]}
+            aria-label={`Row ${Math.floor(i / 4) + 1}, column ${(i % 4) + 1}: ${v || "empty"}`}
+            onClick={() => upd(cells.map((x, j) => (j === i ? (x + 1) % 5 : x)))}
+          >
+            {v || ""}
+          </button>
+        ))}
+      </div>
+      <div className="tm-hintline">
+        {cells.filter((c) => !c).length} empty · <button type="button" className="tm-link" onClick={() => upd(start)}>Reset</button>
+      </div>
+    </div>
+  );
+}
+
+/** Tap the numbers in order. A wrong tap goes back to the start. */
+function Dash({ puzzle, onChange }: WidgetProps) {
+  const d = puzzle.data as { count: number; down: boolean; order: number[] };
+  const first = d.down ? d.count : 1;
+  const [next, setNext] = useState(first);
+  const [oops, setOops] = useState(false);
+  const done = d.down ? next < 1 : next > d.count;
+  useEffect(() => onChange(done ? "DONE" : ""), [done]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="tm-w">
+      <div className="tm-dash">
+        {d.order.map((n) => {
+          const hit = d.down ? n > next : n < next;
+          return (
+            <button
+              key={n}
+              type="button"
+              className={`tm-dn${hit ? " hit" : ""}${oops ? " oops" : ""}`}
+              disabled={done}
+              onClick={() => {
+                if (n === next) {
+                  setNext(next + (d.down ? -1 : 1));
+                  setOops(false);
+                } else {
+                  setNext(first);
+                  setOops(true);
+                }
+              }}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+      <div className="tm-hintline">{done ? "All tapped!" : oops ? "Oops, back to the start!" : `Next: ${next}`}</div>
+    </div>
+  );
+}
+
 export function PuzzleWidget(props: WidgetProps) {
   switch (props.puzzle.kind) {
     case "cipher": return <Cipher {...props} />;
@@ -239,5 +309,9 @@ export function PuzzleWidget(props: WidgetProps) {
     case "anagram": return <Anagram {...props} />;
     case "fuse": return <Fuse {...props} />;
     case "memory": return <Memory {...props} />;
+    case "codebreaker": return <Combo {...props} />;
+    case "whichbox": return <Choice {...props} />;
+    case "grid": return <Grid {...props} />;
+    case "dash": return <Dash {...props} />;
   }
 }

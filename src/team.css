@@ -112,3 +112,26 @@ html:has(.tm){background:#14110e}
 .tm-end{text-align:center}.tm-end.lose .tm-title{color:#ff9d90}.tm-end.win .tm-title{color:#e8c98a}
 .tm-end .tm-card{text-align:left}
 .tm-stats{display:flex;justify-content:space-around;text-align:center!important}.tm-stats b{display:block;font-size:1.5rem}.tm-stats span{font-size:.7rem;color:var(--tm-muted)}
+.tm-how{justify-content:center;margin:14px 0}
+.tm-joinrow{display:flex;gap:8px;align-items:center}.tm-joinrow .tm-input{margin:0}
+.tm-me{margin:4px 0;padding:6px 10px;border-radius:10px;background:var(--tm-raised);font-size:.85rem;color:var(--tm-muted)}
+.tm-me.mine{background:var(--tm-brass);color:#1a1410;font-weight:700}
+.tm-wait{text-align:center;font-style:italic}
+.tm-code{font-family:var(--font-display,Georgia,serif);font-size:3.2rem;letter-spacing:.18em;text-align:center;margin:.1em 0}
+.tm-roster{list-style:none;padding:0;margin:8px 0}.tm-roster li{display:flex;justify-content:space-between;padding:10px 12px;border:1px solid var(--tm-line);border-radius:12px;margin:6px 0;background:var(--tm-raised)}
+.tm-roster li.off{opacity:.5}
+.tm-hostbar{position:fixed;left:10px;right:10px;bottom:calc(var(--safe-bottom,0px) + 10px);z-index:1500;background:var(--color-surface,#1c1814);border:1px solid var(--color-brass,#b08d57);border-radius:12px;padding:10px 12px;font-size:.85rem;text-align:center}
+
+.tm .tm-sud{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;max-width:260px;margin:0 auto}
+.tm .tm-sc{aspect-ratio:1;border-radius:10px;border:1px solid var(--tm-line);background:#241d17;color:#f2c14e;font-size:1.5rem;font-weight:700;cursor:pointer}
+.tm .tm-sc.alt{background:#2c231b}
+.tm .tm-sc.fixed{color:#e8dcc8;background:#15110e;cursor:default}
+.tm .tm-dash{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tm .tm-dn{min-height:52px;border-radius:12px;border:1px solid var(--tm-line);background:#241d17;color:#fff;font-size:1.25rem;font-weight:700;cursor:pointer}
+.tm .tm-dn.hit{opacity:.25}
+.tm .tm-dn.oops{border-color:#e5645c}
+.tm .tm-clock{display:flex;align-items:center;gap:10px;margin:8px 0}
+.tm .tm-clock b{font-variant-numeric:tabular-nums;min-width:3.2em}
+.tm .tm-clock i{flex:1;height:8px;border-radius:99px;background:#fff2;overflow:hidden}
+.tm .tm-clock i span{display:block;height:100%;background:#f2c14e;transition:width .25s linear}
+.tm .tm-clock.low b{color:#e5645c}.tm .tm-clock.low i span{background:#e5645c}
