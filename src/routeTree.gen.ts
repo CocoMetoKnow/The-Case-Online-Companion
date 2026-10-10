@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiTeamRouteImport } from './routes/api/team'
 import { Route as ApiRtcRouteImport } from './routes/api/rtc'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTeamRoute = ApiTeamRouteImport.update({
+  id: '/api/team',
+  path: '/api/team',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiRtcRoute = ApiRtcRouteImport.update({
@@ -26,27 +32,31 @@ const ApiRtcRoute = ApiRtcRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/team': typeof ApiTeamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/team': typeof ApiTeamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/rtc': typeof ApiRtcRoute
+  '/api/team': typeof ApiTeamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/rtc'
+  fullPaths: '/' | '/api/rtc' | '/api/team'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/rtc'
-  id: '__root__' | '/' | '/api/rtc'
+  to: '/' | '/api/rtc' | '/api/team'
+  id: '__root__' | '/' | '/api/rtc' | '/api/team'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiRtcRoute: typeof ApiRtcRoute
+  ApiTeamRoute: typeof ApiTeamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRtcRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/team': {
+      id: '/api/team'
+      path: '/api/team'
+      fullPath: '/api/team'
+      preLoaderRoute: typeof ApiTeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiRtcRoute: ApiRtcRoute,
+  ApiTeamRoute: ApiTeamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
